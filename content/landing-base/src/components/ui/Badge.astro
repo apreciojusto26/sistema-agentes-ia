@@ -1,0 +1,18 @@
+---
+interface Props {
+  tone?: 'rust' | 'gold' | 'graphite';
+  class?: string;
+}
+
+const { tone = 'rust', class: className } = Astro.props;
+
+const tones = {
+  rust: 'bg-rust-tint text-rust',
+  gold: 'bg-gold-tint text-gold',
+  graphite: 'bg-graphite/5 text-graphite',
+};
+---
+
+<span class:list={['inline-flex items-center gap-1 rounded-pill px-2.5 py-1 text-xs font-bold', tones[tone], className]}>
+  <slot />
+</span>

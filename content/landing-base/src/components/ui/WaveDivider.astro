@@ -1,0 +1,28 @@
+---
+interface Props {
+  fill: 'bone' | 'graphite' | 'bone-dim';
+  flip?: boolean;
+  class?: string;
+}
+
+const { fill, flip = false, class: className } = Astro.props;
+
+const fillText = {
+  bone: 'text-bone',
+  graphite: 'text-graphite',
+  'bone-dim': 'text-bone-dim',
+};
+---
+
+<svg
+  viewBox="0 0 1440 120"
+  preserveAspectRatio="none"
+  aria-hidden="true"
+  focusable="false"
+  class:list={['block w-full h-[56px] md:h-[88px]', fillText[fill], flip && '-scale-y-100', className]}
+>
+  <path
+    d="M0,64 C240,120 480,8 720,40 C960,72 1200,120 1440,72 L1440,120 L0,120 Z"
+    fill="currentColor"
+  ></path>
+</svg>

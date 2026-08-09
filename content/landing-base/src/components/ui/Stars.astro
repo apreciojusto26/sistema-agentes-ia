@@ -1,0 +1,27 @@
+---
+import { STAR_PATH, STAR_VIEWBOX } from '@/lib/icons';
+import type { Stars as StarsValue } from '@/types/content';
+
+interface Props {
+  rating: number; // supports fractional (e.g. 4.8) — rendered as filled/half/empty via opacity
+  max?: StarsValue | 5;
+  class?: string;
+  starClass?: string;
+}
+
+const { rating, max = 5, class: className, starClass } = Astro.props;
+const stars = Array.from({ length: max }, (_, i) => {
+  const fill = Math.max(0, Math.min(1, rating - i));
+  return fill;
+});
+---
+
+<div class:list={['inline-flex items-center gap-0.5', className]} role="img" aria-label={`${rating} de ${max} estrellas`}>
+  {
+    stars.map((fill) => (
+      <svg viewBox={STAR_VIEWBOX} class:list={['size-4 shrink-0', starClass]} aria-hidden="true">
+        <path d={STAR_PATH} fill="currentColor" opacity={fill === 0 ? 0.25 : fill} class="text-gold" />
+      </svg>
+    ))
+  }
+</div>

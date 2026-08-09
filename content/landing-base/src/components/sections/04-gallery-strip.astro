@@ -1,0 +1,19 @@
+---
+import { ProductGallery } from '@/components/islands/ProductGallery';
+import { product } from '@/data/product';
+import { getProductCommerce } from '@/lib/shopify/catalog';
+import { resolveMediaList, resolveShopifyImages } from '@/lib/resolve-media';
+
+// Memoized in lib/shopify/catalog.ts — no extra network call, already awaited
+// by 05-buy-box.astro / 15-sticky-bar.astro during this same build.
+const commerce = await getProductCommerce();
+
+const resolvedImages =
+  commerce.images.length > 0
+    ? resolveShopifyImages(commerce.images, 'gallery')
+    : await resolveMediaList(product.gallery, 'gallery');
+---
+
+<section class="mx-auto w-full max-w-[28rem] px-5 md:max-w-[42rem] lg:max-w-[40rem] py-8">
+  <ProductGallery client:visible images={resolvedImages} />
+</section>

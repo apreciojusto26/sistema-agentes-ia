@@ -1,0 +1,22 @@
+---
+import Container from '@/components/ui/Container.astro';
+import WaveDivider from '@/components/ui/WaveDivider.astro';
+import { ReviewCarousel } from '@/components/islands/ReviewCarousel';
+import { testimonials } from '@/data/testimonials';
+
+const reelReviews = testimonials.filter((t) => t.variant === 'reel');
+---
+
+<div class="bg-bone">
+  <WaveDivider fill="graphite" />
+</div>
+
+<section class="bg-graphite py-14 text-bone">
+  <Container>
+    <ReviewCarousel client:visible reviews={reelReviews} tone="dark" />
+  </Container>
+</section>
+
+<div class="bg-bone-dim">
+  <WaveDivider fill="graphite" flip />
+</div>

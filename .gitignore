@@ -1,0 +1,10 @@
+node_modules/
+.DS_Store
+dist/
+.astro/
+.vercel/
+.env
+.env.*
+!.env.example
+scraper/output/
+scraper/images/

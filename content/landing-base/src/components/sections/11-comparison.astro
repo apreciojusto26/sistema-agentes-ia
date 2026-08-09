@@ -1,0 +1,57 @@
+---
+import Container from '@/components/ui/Container.astro';
+import { ICONS } from '@/lib/icons';
+import { product } from '@/data/product';
+
+const check = ICONS.check;
+const cross = ICONS.cross;
+const rows = product.comparison;
+const rowCount = rows.length;
+---
+
+<section class="bg-bone-dim py-12 md:py-16">
+  <Container>
+    <p class="text-eyebrow font-bold uppercase text-rust">Comparativa</p>
+    <h2 class="mt-1 text-display md:text-4xl lg:text-5xl">{product.brand} vs. lámparas decorativas comunes</h2>
+
+    <div class="mx-auto mt-6 grid max-w-4xl grid-cols-[1.3fr_1fr_1fr] overflow-hidden rounded-card text-sm">
+      <div class="bg-surface p-3 font-semibold text-graphite">Característica</div>
+      <div class="bg-graphite p-3 text-center font-semibold text-bone">{product.brand}</div>
+      <div class="bg-bone-dim p-3 text-center font-semibold text-steel">Otros</div>
+
+      {
+        rows.map((row, i) => {
+          const isLast = i === rowCount - 1;
+          return (
+            <>
+              <div class="border-t border-graphite/10 bg-surface p-3 text-graphite">{row.feature}</div>
+              <div
+                class:list={[
+                  'border-t border-white/10 bg-graphite p-3 text-center text-bone',
+                  isLast && 'rounded-b-card',
+                ]}
+              >
+                {typeof row.ours === 'boolean' ? (
+                  <svg viewBox={row.ours ? check.viewBox : cross.viewBox} class="mx-auto size-5 text-rust" aria-hidden="true">
+                    <path fill="currentColor" d={row.ours ? check.path : cross.path} />
+                  </svg>
+                ) : (
+                  <span class="text-xs">{row.ours}</span>
+                )}
+              </div>
+              <div class="border-t border-graphite/10 bg-bone-dim p-3 text-center text-steel">
+                {typeof row.rival === 'boolean' ? (
+                  <svg viewBox={row.rival ? check.viewBox : cross.viewBox} class="mx-auto size-5 text-steel-light" aria-hidden="true">
+                    <path fill="currentColor" d={row.rival ? check.path : cross.path} />
+                  </svg>
+                ) : (
+                  <span class="text-xs">{row.rival}</span>
+                )}
+              </div>
+            </>
+          );
+        })
+      }
+    </div>
+  </Container>
+</section>

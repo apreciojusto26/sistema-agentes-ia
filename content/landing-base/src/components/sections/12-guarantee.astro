@@ -1,0 +1,34 @@
+---
+import Container from '@/components/ui/Container.astro';
+import { ICONS } from '@/lib/icons';
+import { product } from '@/data/product';
+
+const shield = ICONS.shield;
+const { guarantee } = product;
+---
+
+<section class="bg-gold-tint py-12 md:py-16">
+  <Container class="text-center">
+    <div class="mx-auto grid size-24 place-items-center rounded-full border-2 border-dashed border-gold font-display text-center text-gold">
+      <span class="text-xs font-black leading-tight">
+        {guarantee.days}<br />DÍAS
+      </span>
+    </div>
+
+    <h2 class="mt-4 text-display md:text-4xl">{guarantee.title}</h2>
+    <p class="mx-auto mt-2 max-w-md text-sm text-steel">{guarantee.text}</p>
+
+    <div class="mx-auto mt-8 grid max-w-lg grid-cols-1 gap-3 sm:grid-cols-3">
+      {
+        guarantee.points.map((point) => (
+          <div class="flex flex-col items-center gap-2 text-xs text-graphite">
+            <svg viewBox={shield.viewBox} class="size-6 text-gold" aria-hidden="true">
+              <path fill="currentColor" d={shield.path} />
+            </svg>
+            <span>{point}</span>
+          </div>
+        ))
+      }
+    </div>
+  </Container>
+</section>

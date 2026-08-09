@@ -1,0 +1,66 @@
+@import "tailwindcss";
+@import "@fontsource-variable/archivo";
+@import "@fontsource-variable/inter";
+
+@theme {
+  --color-bone:        #F7F3EC;
+  --color-bone-dim:    #EDE6D9;
+  --color-graphite:    #1E2124;
+  --color-graphite-soft:#2A2E33;
+  --color-steel:       #8A9096;
+  --color-steel-light: #C5CACE;
+  --color-rust:        #C8552F;
+  --color-rust-dark:   #A6421F;
+  --color-rust-tint:   #FBEDE7;
+  --color-gold:        #C9A227;
+  --color-gold-tint:   #F7EFD6;
+  --color-surface:     #FFFFFF;
+
+  --font-display: "Archivo Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans:    "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+
+  --text-eyebrow: 0.6875rem;
+  --text-eyebrow--line-height: 1;
+  --text-eyebrow--letter-spacing: 0.18em;
+  --text-display: 2rem;
+  --text-display--line-height: 1.08;
+  --text-display--letter-spacing: -0.02em;
+  --text-hero: 2.5rem;
+  --text-hero--line-height: 1.03;
+  --text-hero--letter-spacing: -0.03em;
+
+  --radius-card: 1.5rem;
+  --radius-tile: 1rem;
+  --radius-pill: 999px;
+
+  --shadow-card:   0 2px 10px -3px rgb(30 33 36 / 0.10);
+  --shadow-lift:   0 14px 32px -12px rgb(30 33 36 / 0.28);
+  --shadow-sticky: 0 -8px 28px -12px rgb(30 33 36 / 0.22);
+  --shadow-ring-white: 0 0 0 4px #FFFFFF;
+
+  --breakpoint-xs: 22.5rem;
+  --animate-marquee: marquee 26s linear infinite;
+}
+
+@keyframes marquee { from { transform: translate3d(0,0,0);} to { transform: translate3d(-50%,0,0);} }
+
+@layer base {
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body { @apply bg-bone text-graphite font-sans antialiased overflow-x-hidden; }
+  h1,h2,h3 { @apply font-display font-extrabold; }
+  :focus-visible { @apply outline-2 outline-offset-2 outline-graphite; }
+
+  /* Cursor pointer en todo lo clickeable. :disabled excluido — esos ya usan
+     cursor-not-allowed en sus clases. */
+  button:not(:disabled),
+  [role="button"]:not(:disabled),
+  a[href],
+  summary,
+  select,
+  label[for],
+  input[type="checkbox"],
+  input[type="radio"] {
+    cursor: pointer;
+  }
+}

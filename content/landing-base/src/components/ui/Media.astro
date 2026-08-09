@@ -1,0 +1,49 @@
+---
+import { Image } from 'astro:assets';
+import { images } from '@/data/images';
+import { videos } from '@/data/videos';
+import PlaceholderShot from '@/components/ui/PlaceholderShot.astro';
+import type { MediaRef } from '@/types/content';
+
+interface Props {
+  media: MediaRef;
+  class?: string;
+  rounded?: string;
+  tone?: 'bone' | 'graphite';
+  sizes?: string;
+  loading?: 'lazy' | 'eager';
+}
+
+const { media, class: className, rounded = 'rounded-tile', tone = 'bone', sizes, loading = 'lazy' } = Astro.props;
+const resolved = media.asset ? images[media.asset] : null;
+const resolvedVideo = media.kind === 'video' && media.asset ? videos[media.asset] : null;
+const resolvedPoster = media.poster ? (images[media.poster]?.src ?? videos[media.poster] ?? null) : null;
+---
+
+{
+  resolvedVideo ? (
+    <video
+      src={resolvedVideo}
+      poster={resolvedPoster}
+      muted
+      loop
+      playsinline
+      autoplay
+      preload="metadata"
+      class:list={['h-full w-full object-cover', rounded, className]}
+      style={`aspect-ratio:${media.ratio.replace('/', ' / ')}`}
+    />
+  ) : resolved ? (
+    <Image
+      src={resolved}
+      alt={media.alt}
+      widths={[320, 480, 640, 960]}
+      sizes={sizes ?? '(min-width: 1024px) 33vw, 90vw'}
+      loading={loading}
+      class:list={['h-full w-full object-cover', rounded, className]}
+      style={`aspect-ratio:${media.ratio.replace('/', ' / ')}`}
+    />
+  ) : (
+    <PlaceholderShot ratio={media.ratio} alt={media.alt} label={media.label} tone={tone} rounded={rounded} class={className} />
+  )
+}

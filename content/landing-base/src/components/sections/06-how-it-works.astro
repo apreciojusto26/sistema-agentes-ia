@@ -1,0 +1,31 @@
+---
+import Container from '@/components/ui/Container.astro';
+import Media from '@/components/ui/Media.astro';
+import { product } from '@/data/product';
+---
+
+<section class="bg-bone-dim py-12 md:py-16">
+  <Container>
+    <p class="text-eyebrow font-bold uppercase text-rust">Cómo funciona</p>
+    <h2 class="mt-1 text-display md:text-4xl lg:text-5xl">Tan simple como se ve</h2>
+
+    <div class="mt-8 space-y-8 lg:grid lg:grid-cols-3 lg:gap-6 lg:space-y-0">
+      {
+        product.steps.map((step) => (
+          <div class="overflow-hidden rounded-card bg-surface shadow-card">
+            <div class="relative">
+              <Media media={step.media} rounded="rounded-none" class="aspect-[4/3] w-full" />
+              <span class="absolute left-4 top-4 grid size-9 place-items-center rounded-full bg-graphite font-display font-black text-bone">
+                {step.step}
+              </span>
+            </div>
+            <div class="p-5">
+              <h3 class="text-lg font-bold text-graphite">{step.title}</h3>
+              <p class="mt-1 text-sm text-steel">{step.text}</p>
+            </div>
+          </div>
+        ))
+      }
+    </div>
+  </Container>
+</section>

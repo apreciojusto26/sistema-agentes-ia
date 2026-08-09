@@ -1,0 +1,19 @@
+---
+import Base from '@/layouts/Base.astro';
+import { CheckoutForm } from '@/components/islands/CheckoutForm';
+import { getProductCommerce } from '@/lib/shopify/catalog';
+import { product } from '@/data/product';
+
+// This route runs server-side on every request (output:'server', no
+// prerender opt-out — spec checkout-api: "Checkout/API routes run
+// server-side"). getProductCommerce() is module-memoized so a warm lambda
+// only re-fetches once per cold start (design A7).
+const commerce = await getProductCommerce();
+---
+
+<Base title={`Finalizar compra — ${product.brand}`} description="Completa tus datos de envío y pago.">
+  <main class="mx-auto max-w-lg px-5 py-8">
+    <h1 class="text-display mb-6">Finalizar compra</h1>
+    <CheckoutForm client:load commerce={commerce} />
+  </main>
+</Base>
