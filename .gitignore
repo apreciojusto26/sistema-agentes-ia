@@ -8,3 +8,5 @@ dist/
 !.env.example
 scraper/output/
 scraper/images/
+outputs/*
+!outputs/.gitkeep
