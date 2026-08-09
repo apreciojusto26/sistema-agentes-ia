@@ -160,6 +160,28 @@ describe('spec-contract: A1 file-mapping block matches disk', () => {
     }
     expect(missing, `Missing paths:\n${missing.join('\n')}`).toEqual([]);
   });
+
+  it('content-types entry is explicitly marked read-only (writable:false)', () => {
+    // content-types (src/types/content.ts) is a real, load-bearing citation
+    // for A4's transitive-type-safety argument, but it is NOT a generation
+    // write target — agents.MD STRICT Rules forbid touching it. Without an
+    // explicit flag, "File Mapping" silently reads as "things generation
+    // writes" and this entry contradicts that. This assertion is additive
+    // (never an escape hatch): the existence check above still runs
+    // unconditionally against every entry, including this one.
+    const text = readFileSync(resolve(REPO_ROOT, 'CLAUDE.md'), 'utf-8');
+    const mapping = extractAnchoredJson(text, 'file-mapping') as Array<{
+      role: string;
+      path: string;
+      writable?: boolean;
+    }>;
+    const entry = mapping.find((e) => e.role === 'content-types');
+    expect(entry, 'expected a "content-types" role in spec:file-mapping').toBeDefined();
+    expect(
+      entry?.writable,
+      'content-types must be explicitly marked writable:false — generation must never modify this file',
+    ).toBe(false);
+  });
 });
 
 type SectionsOrderBlock = {
@@ -331,6 +353,13 @@ describe('spec-contract: A6 no hardcoded palette/hex color classes (regression g
 
   it('no .astro/.tsx file uses a hardcoded Tailwind palette class or arbitrary hex color utility', () => {
     const files = walkFiles(SRC_DIR, ['.astro', '.tsx']);
+    // Non-vacuity guard: an empty scan (0 files) must not silently pass as
+    // "no hits found" — that would make this assertion pass over a tree that
+    // was never actually checked. A1/A2/A3 each carry an equivalent guard.
+    expect(
+      files.length,
+      'expected to scan at least one .astro/.tsx file under src/ — a vacuous 0-file scan must not silently pass',
+    ).toBeGreaterThan(0);
     const hits: string[] = [];
     for (const file of files) {
       const text = readFileSync(file, 'utf-8');
@@ -347,6 +376,11 @@ describe('spec-contract: A6 no hardcoded palette/hex color classes (regression g
 
   it('no .css file has raw hex color outside the @theme block', () => {
     const files = walkFiles(SRC_DIR, ['.css']);
+    // Non-vacuity guard: see the .astro/.tsx test above for rationale.
+    expect(
+      files.length,
+      'expected to scan at least one .css file under src/ — a vacuous 0-file scan must not silently pass',
+    ).toBeGreaterThan(0);
     const hits: string[] = [];
     for (const file of files) {
       const text = readFileSync(file, 'utf-8');

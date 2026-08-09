@@ -22,38 +22,9 @@ Generate all agent-writable marketing content for `product.ts`, plus the `faq.ts
 }
 
 ## Output
-Real `ProductContent` fields (`content/landing-base/src/types/content.ts:124-149`), plus `FaqItem[]` (`:113-117`) and `Testimonial[]` (`:100-111`) arrays:
+Real `ProductContent` fields (`content/landing-base/src/types/content.ts:124-149`), plus `FaqItem[]` (`:113-117`) and `Testimonial[]` (`:100-111`) arrays. The normative, machine-checked field list is the `spec:content-fields` block below the Rules — this doc does not restate it in prose, so there is only ever one place a field name can be added, removed, or fabricated. For allowed values within a field (icon names, gallery/media ratios, testimonial `variant` kinds, etc.), read the cited type ranges in `content.ts` directly rather than trusting a prose copy.
 
-{
-  "brand": "",
-  "name": "",
-  "tagline": "",
-  "subtagline": "",
-  "ratingAverage": 0,
-  "ratingCount": 0,
-  "ratingBreakdown": { "5": 0, "4": 0, "3": 0, "2": 0, "1": 0 },
-  "badges": [""],
-  "trustTicker": [""],
-  "offer": { "durationMinutes": 0, "label": "", "expiredLabel": "" },
-  "benefits": [
-    { "id": "", "icon": "shield | truck | star | check | cross | chevron | camera | knife | board | lock | hook | sparkle | gift | clock", "title": "", "text": "" }
-  ],
-  "heroPills": ["", "", ""],
-  "specs": [{ "label": "", "value": "" }],
-  "packs": [
-    { "id": "", "units": 0, "freeUnits": 0, "label": "", "sublabel": "", "badge": "", "popular": false, "freeGift": false, "default": false }
-  ],
-  "gallery": [{ "id": "", "asset": null, "alt": "", "ratio": "1/1 | 4/5 | 3/4 | 4/3 | 16/9 | 9/16", "caption": "" }],
-  "steps": [{ "step": 1, "title": "", "text": "", "media": { "asset": null, "alt": "", "ratio": "4/3" } }],
-  "comparison": [{ "feature": "", "ours": true, "rival": false }],
-  "guarantee": { "days": 30, "title": "", "text": "", "points": [""] },
-  "shipping": { "etaLabel": "", "freeOverCents": null },
-  "ugc": [{ "asset": null, "alt": "", "ratio": "9/16" }],
-  "cta": { "primary": "", "sticky": "", "checkout": "", "pending": "", "soldOut": "" },
-  "variantGroupLabel": "",
-  "faq": [{ "id": "", "question": "", "answer": "" }],
-  "testimonials": [{ "id": "", "author": "", "location": "", "rating": 5, "date": "YYYY-MM-DD", "title": "", "body": "", "verified": true, "variant": "quote | card | reel" }]
-}
+`faq[]` and `testimonials[]` are NOT keys of `ProductContent` — they are separate top-level exports from their own files (`faq.ts`, `testimonials.ts`), each an array of the shapes named above. Do not nest them inside the `product` object.
 
 ## Rules
 - Use persuasive, conversion-focused copy
@@ -65,11 +36,9 @@ Real `ProductContent` fields (`content/landing-base/src/types/content.ts:124-149
 - `Testimonial` entries MUST include `id`, `verified`, and `variant` (`'quote' | 'card' | 'reel'`) alongside `author`, `rating`, `date`, `body`.
 - **NEVER generate `commerce.shopifyHandle` or `commerce.bundleOfferActive`** (`Product` type, `content/landing-base/src/types/content.ts:163-169` — outside `ProductContent`) — these are provisioned outside the Content Agent. A fabricated handle or a wrong bundle flag points checkout at a Shopify listing that is mismatched or does not exist.
 - **NEVER generate any price or variant-price data** anywhere in the output — no field in this schema carries one; prices are exclusively a live Shopify fetch, never authored content.
-- `errors` (`ProductErrorCopy`, checkout failure copy) is also outside this agent's scope — it is fixed system copy, not marketing content.
+- `errors` (`ProductErrorCopy`, checkout failure copy) IS agent-writable, but translation-only: translate the existing strings into the target `language` input (`es | en`), never invent new error keys or change their semantics. It is fixed, user-facing checkout copy — treat it as localization, not authoring, not fully off-limits (classifying it as never-generate would ship Spanish error strings at the payment step on every English-language landing).
 
-Field-ownership split for `content/landing-base/src/data/product.ts` (the real `product` object):
-- **agentWritable**: `brand`, `name`, `tagline`, `subtagline`, `ratingAverage`, `ratingCount`, `ratingBreakdown`, `badges`, `trustTicker`, `offer`, `benefits`, `heroPills`, `specs`, `packs` (structure only), `gallery`, `steps`, `comparison`, `guarantee`, `shipping`, `ugc`, `cta`, `variantGroupLabel` — plus the `faq[]` and `testimonials[]` arrays in their own files
-- **neverGenerate**: `commerce` (`shopifyHandle`, `bundleOfferActive`), `errors` (`network`, `soldOut`, `expired`, `noDiscount`, `generic`)
+Field ownership for `content/landing-base/src/data/product.ts` (the real `product` object) — including which keys are agent-writable vs. permanently off-limits, and the real `faq[]`/`testimonials[]` field lists — is defined ONCE, by the machine-checked contract immediately below. It is not restated here to avoid a second, unchecked copy.
 
 Machine-checked contract (parsed and asserted by `content/landing-base/src/lib/spec-contract.test.ts`, assertion A4 — `agentWritable ∪ neverGenerate` MUST equal `Object.keys(product)` bidirectionally; `faqFields`/`testimonialFields` MUST equal the real keys on `faq[0]`/`testimonials[0]`):
 
@@ -81,9 +50,9 @@ Machine-checked contract (parsed and asserted by `content/landing-base/src/lib/s
     "ratingAverage", "ratingCount", "ratingBreakdown",
     "badges", "trustTicker", "offer", "benefits", "heroPills",
     "specs", "packs", "gallery", "steps", "comparison",
-    "guarantee", "shipping", "ugc", "cta", "variantGroupLabel"
+    "guarantee", "shipping", "ugc", "cta", "variantGroupLabel", "errors"
   ],
-  "neverGenerate": ["commerce", "errors"],
+  "neverGenerate": ["commerce"],
   "faqFields": ["id", "question", "answer"],
   "testimonialFields": ["id", "author", "location", "rating", "date", "title", "body", "verified", "variant"]
 }
@@ -147,30 +116,7 @@ Confirm section order. Order is NOT a generation-time input — it is hardcoded 
 - product type
 
 ## Output
-The real 15 sections, in their real order, plus the one React island:
-
-{
-  "sections_order": [
-    { "component": "UtilityBar", "file": "01-utility-bar.astro" },
-    { "component": "SiteHeader", "file": "02-site-header.astro" },
-    { "component": "Hero", "file": "03-hero.astro" },
-    { "component": "GalleryStrip", "file": "04-gallery-strip.astro" },
-    { "component": "BuyBox", "file": "05-buy-box.astro" },
-    { "component": "HowItWorks", "file": "06-how-it-works.astro" },
-    { "component": "FeaturedTestimonial", "file": "07-featured-testimonial.astro" },
-    { "component": "Faq", "file": "08-faq.astro" },
-    { "component": "UgcStrip", "file": "09-ugc-strip.astro" },
-    { "component": "ReviewsReel", "file": "10-reviews-reel.astro" },
-    { "component": "Comparison", "file": "11-comparison.astro" },
-    { "component": "Guarantee", "file": "12-guarantee.astro" },
-    { "component": "RealResults", "file": "13-real-results.astro" },
-    { "component": "SiteFooter", "file": "14-site-footer.astro" },
-    { "component": "StickyBar", "file": "15-sticky-bar.astro" }
-  ],
-  "islands": [
-    { "component": "CartDrawer", "note": "React island, not a static section — rendered after StickyBar with client:load" }
-  ]
-}
+The real 15 sections, in their real order, plus the one React island (`CartDrawer`). The normative, machine-checked list is the `spec:sections-order` block immediately below — this doc does not restate it in prose, so there is only ever one place a section can be added, renamed, or reordered.
 
 Machine-checked contract (parsed and asserted by `content/landing-base/src/lib/spec-contract.test.ts`, assertions A2 — every entry maps to a real component file — and A3 — that order matches the real import order in `pages/index.astro`):
 
@@ -203,7 +149,7 @@ Machine-checked contract (parsed and asserted by `content/landing-base/src/lib/s
 ## Rules
 - ALWAYS start with `UtilityBar` → `SiteHeader` → `Hero`
 - ALWAYS end with `SiteFooter` → `StickyBar` (+ the `CartDrawer` island)
-- Pain-point framing lives inside `benefits[].text` and testimonial copy — it is not a separate page section. The list above is the complete, real set of sections; do not add entries beyond it.
+- Pain-point framing lives inside `benefits[].text` and testimonial copy — it is not a separate page section. The `spec:sections-order` block above is the complete, real set of sections; do not add entries beyond it.
 - Reordering is NOT a config change: it means editing both the import order AND the render order in `pages/index.astro` directly, then re-verifying the build still compiles and the start/end boundaries above still hold. There is no `layout.json` field that reorders sections at generation time.
 - Optimize for conversion within those constraints
 - Do NOT remove required sections

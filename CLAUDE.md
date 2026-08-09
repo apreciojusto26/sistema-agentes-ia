@@ -111,6 +111,7 @@ preserving ALL functionality while modifying design, content, and assets based o
 |---|---|
 | Template source | `content/landing-base/` |
 | Content | `content/landing-base/src/data/product.ts`, `faq.ts`, `testimonials.ts` |
+| Content types (read-only) | `content/landing-base/src/types/content.ts` — cited for field verification only, never written by generation |
 | Design | `content/landing-base/src/styles/global.css` (`@theme` block) |
 | Layout | `content/landing-base/src/pages/index.astro` (hardcoded import + render order) |
 | Images | `content/landing-base/src/assets/product/*`, keyed via `src/data/images.ts` / `src/data/videos.ts` |
@@ -125,7 +126,7 @@ Machine-checked contract (parsed and asserted against disk by `content/landing-b
   { "role": "content-product", "path": "content/landing-base/src/data/product.ts" },
   { "role": "content-faq", "path": "content/landing-base/src/data/faq.ts" },
   { "role": "content-testimonials", "path": "content/landing-base/src/data/testimonials.ts" },
-  { "role": "content-types", "path": "content/landing-base/src/types/content.ts" },
+  { "role": "content-types", "path": "content/landing-base/src/types/content.ts", "writable": false },
   { "role": "design-tokens", "path": "content/landing-base/src/styles/global.css" },
   { "role": "layout-page", "path": "content/landing-base/src/pages/index.astro" },
   { "role": "images-dir", "path": "content/landing-base/src/assets/product" },
