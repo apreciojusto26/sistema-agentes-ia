@@ -1,4 +1,15 @@
 {
+  "name": "landing-scraper",
+  "private": true,
+  "version": "0.0.1",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "packageManager": "pnpm@11.1.2",
+  "scripts": {
+    "scrape": "node scrape.js",
+    "prepare:browsers": "playwright install chromium"
+  },
   "dependencies": {
     "axios": "^1.19.0",
     "playwright": "^1.62.1"

@@ -1,0 +1,166 @@
+// Spawn wrapper: real child_process.spawn, never in-process import (spec R2
+// "Child Process Execution"; design §1/§4/§7). The single highest-risk
+// module in Batch D — it is the one place `.setEncoding('utf8')` MUST be
+// applied before feeding Batch C's `LineBuffer` (design §4 rule 1, and
+// Batch C's own handoff note): both scrape.js and generate-landing.mjs are
+// emoji-heavy, and a naive `chunk.toString()` on a raw Buffer can corrupt a
+// multi-byte character split across a chunk boundary. `setEncoding('utf8')`
+// uses Node's StringDecoder internally, which buffers incomplete byte
+// sequences until a full codepoint is available — by the time strings reach
+// LineBuffer.push() here, only LINES can be split across calls, never a
+// codepoint mid-character.
+import { spawn } from 'node:child_process';
+import path from 'node:path';
+import { LineBuffer, parseLine, type ParsedLine } from './ndjson';
+import { KILL_GRACE_MS } from '../config';
+import type { GenerateParams, ScrapeParams } from '../../shared/jobs';
+
+export type RunSpec = {
+  command: string;
+  args: string[];
+  cwd: string;
+  env?: NodeJS.ProcessEnv;
+  timeoutMs: number;
+  /** Grace period between SIGTERM and SIGKILL, both for the timeout ladder and manual cancel(). Defaults to KILL_GRACE_MS. */
+  killGraceMs?: number;
+};
+
+export type RunExitInfo = {
+  code: number | null;
+  signal: NodeJS.Signals | null;
+  /** true iff the exit was triggered by this module's timeout ladder rather than the child exiting on its own or a manual cancel(). */
+  timedOut: boolean;
+};
+
+export type RunnerCallbacks = {
+  onStdoutLine?: (line: string) => void;
+  /** stderr is the ONLY stream fed through the NDJSON parser (design §4 rule 7 — stdout is never parsed for events). */
+  onStderrLine?: (line: string, parsed: ParsedLine) => void;
+  onExit?: (info: RunExitInfo) => void;
+};
+
+export type RunHandle = {
+  pid: number;
+  /** Begins the same SIGTERM -> (killGraceMs) -> SIGKILL ladder the timeout uses. Safe to call multiple times. */
+  cancel(): void;
+};
+
+/**
+ * Spawns `spec.command spec.args` with `spec.cwd`/`spec.env`, applies
+ * `.setEncoding('utf8')` to both stdout and stderr BEFORE any line buffering
+ * (mandatory — see module doc), buffers each stream through its own
+ * `LineBuffer`, and enforces `spec.timeoutMs` via a SIGTERM -> SIGKILL
+ * ladder (`spec.killGraceMs`, default `KILL_GRACE_MS`).
+ */
+export function run(spec: RunSpec, callbacks: RunnerCallbacks): RunHandle {
+  const child = spawn(spec.command, spec.args, {
+    cwd: spec.cwd,
+    env: spec.env ?? process.env,
+  });
+
+  if (child.pid === undefined) {
+    throw new Error(`spawn() did not allocate a pid for: ${spec.command} ${spec.args.join(' ')}`);
+  }
+  if (!child.stdout || !child.stderr) {
+    throw new Error('spawned child has no stdout/stderr streams to attach');
+  }
+
+  // Mandatory (design §4 rule 1) — see module doc.
+  child.stdout.setEncoding('utf8');
+  child.stderr.setEncoding('utf8');
+
+  const stdoutBuf = new LineBuffer();
+  const stderrBuf = new LineBuffer();
+
+  child.stdout.on('data', (chunk: string) => {
+    for (const line of stdoutBuf.push(chunk)) callbacks.onStdoutLine?.(line);
+  });
+  child.stderr.on('data', (chunk: string) => {
+    for (const line of stderrBuf.push(chunk)) callbacks.onStderrLine?.(line, parseLine(line));
+  });
+
+  const killGraceMs = spec.killGraceMs ?? KILL_GRACE_MS;
+  let timedOut = false;
+  let killLadderStarted = false;
+  let killGraceTimer: NodeJS.Timeout | undefined;
+
+  function beginKillLadder(): void {
+    if (killLadderStarted) return;
+    killLadderStarted = true;
+    child.kill('SIGTERM');
+    killGraceTimer = setTimeout(() => {
+      if (child.exitCode === null && child.signalCode === null) {
+        child.kill('SIGKILL');
+      }
+    }, killGraceMs);
+  }
+
+  const timeoutTimer = setTimeout(() => {
+    timedOut = true;
+    beginKillLadder();
+  }, spec.timeoutMs);
+
+  // Deliberately 'close', not 'exit': Node's 'exit' event can fire BEFORE
+  // the stdio pipes finish flushing, meaning a trailing 'data' event can
+  // still arrive on stdout/stderr AFTER an 'exit' handler has already run
+  // (https://nodejs.org/api/child_process.html#event-exit) — the exact
+  // caller-visible symptom would be a line callback firing after the caller
+  // already treated the job as finished and torn down its own state for it.
+  // 'close' is guaranteed to fire only once both the process has exited AND
+  // both stdio streams have ended, so by the time onExit() runs here, no
+  // further onStdoutLine/onStderrLine call can ever happen for this run.
+  child.on('close', (code, signal) => {
+    clearTimeout(timeoutTimer);
+    if (killGraceTimer) clearTimeout(killGraceTimer);
+
+    for (const line of stdoutBuf.flush()) callbacks.onStdoutLine?.(line);
+    for (const line of stderrBuf.flush()) callbacks.onStderrLine?.(line, parseLine(line));
+
+    callbacks.onExit?.({ code, signal, timedOut });
+  });
+
+  return {
+    pid: child.pid,
+    cancel: beginKillLadder,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// argv builders (design §7) — exact spawn shape for each agent script.
+// ---------------------------------------------------------------------------
+
+export type SpecOpts = { repoRoot: string; timeoutMs: number };
+
+/**
+ * `cwd` is load-bearing: scrape.js writes to `./output` relative to cwd
+ * (CONFIG.outputDir, design §7 step 3), so cwd MUST be `{repoRoot}/scraper`.
+ */
+export function buildScrapeSpec(params: ScrapeParams, opts: SpecOpts): RunSpec {
+  return {
+    command: process.execPath,
+    args: ['scrape.js', params.url],
+    cwd: path.join(opts.repoRoot, 'scraper'),
+    env: { ...process.env, LG_EVENTS: '1' },
+    timeoutMs: opts.timeoutMs,
+  };
+}
+
+/**
+ * `generate-landing.mjs` resolves its own ROOT from `import.meta.url`
+ * (design §7 step 6 note), so cwd does not affect the script itself — but
+ * `--content`/`--images` resolve against cwd, so both cwd=REPO_ROOT AND
+ * absolute paths are required together as double safety.
+ */
+export function buildGenerateSpec(params: GenerateParams, opts: SpecOpts): RunSpec {
+  const args = ['scripts/generate-landing.mjs', '--slug', params.slug, '--content', params.contentPath];
+  if (params.imagesDir) args.push('--images', params.imagesDir);
+  if (params.force) args.push('--force');
+
+  return {
+    command: process.execPath,
+    args,
+    cwd: opts.repoRoot,
+    env: { ...process.env, LG_EVENTS: '1' },
+    timeoutMs: opts.timeoutMs,
+  };
+}

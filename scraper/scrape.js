@@ -4,6 +4,37 @@ const fs = require('fs');
 const path = require('path');
 
 // ---------------------------------------------------------------------------
+// STRUCTURED PROGRESS PROTOCOL (spec R5, design §4) — additive, opt-in.
+// With LG_EVENTS unset, `../scripts/lib/events.cjs` is never even required —
+// zero new failure surface on the default path — and `emit` is a no-op, so
+// nothing about this script's observable stdout/stderr/exit-code behavior
+// changes (see admin/test/contract.scrape-log-lines.test.ts, the baseline
+// lock for the console.log literals below).
+// ---------------------------------------------------------------------------
+
+const emit =
+  process.env.LG_EVENTS === '1'
+    ? require('../scripts/lib/events.cjs').createEmitter('scrape')
+    : () => {};
+
+let currentStage = null;
+
+async function withStage(stage, fn) {
+  currentStage = stage;
+  emit('stage.start', stage);
+  const t = Date.now();
+  try {
+    const r = await fn();
+    emit('stage.end', stage, { ms: Date.now() - t });
+    currentStage = null;
+    return r;
+  } catch (e) {
+    emit('error', stage, { message: e.message, code: e.code });
+    throw e;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // CONFIG
 // ---------------------------------------------------------------------------
 
@@ -314,7 +345,7 @@ async function extractVariants(page) {
 // ---------------------------------------------------------------------------
 
 async function scrapeAliExpress(url) {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await withStage('launch', () => chromium.launch({ headless: true }));
   const context = await browser.newContext({
     userAgent: CONFIG.userAgent,
     locale: CONFIG.locale,
@@ -323,65 +354,86 @@ async function scrapeAliExpress(url) {
   const page = await context.newPage();
 
   try {
-    console.log('🚀 Abriendo producto...');
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await page.waitForSelector('h1', { timeout: 30000 });
-    await page.waitForTimeout(3000);
+    await withStage('open', async () => {
+      console.log('🚀 Abriendo producto...');
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+      await page.waitForSelector('h1', { timeout: 30000 });
+      await page.waitForTimeout(3000);
+    });
 
-    console.log('📜 Cargando contenido diferido...');
-    await autoScroll(page);
+    await withStage('defer-load', async () => {
+      console.log('📜 Cargando contenido diferido...');
+      await autoScroll(page);
+    });
 
-    console.log('📦 Leyendo datos estructurados...');
-    const structured = await extractStructuredData(page);
-    if (!structured) {
-      throw new Error(
-        'No se encontró JSON-LD de tipo Product. La página cambió de formato ' +
-        'o se sirvió un captcha. Revisá con headless:false.'
-      );
-    }
+    const structured = await withStage('structured-data', async () => {
+      console.log('📦 Leyendo datos estructurados...');
+      const result = await extractStructuredData(page);
+      if (!result) {
+        throw new Error(
+          'No se encontró JSON-LD de tipo Product. La página cambió de formato ' +
+          'o se sirvió un captcha. Revisá con headless:false.'
+        );
+      }
+      return result;
+    });
 
-    console.log('🖼  Extrayendo galería...');
-    const gallery = await extractGallery(page);
-    const images = unique([
-      ...structured.structuredImages.map(toFullSize),
-      ...gallery
-    ]).slice(0, CONFIG.maxImages);
+    const images = await withStage('gallery', async () => {
+      console.log('🖼  Extrayendo galería...');
+      const gallery = await extractGallery(page);
+      return unique([
+        ...structured.structuredImages.map(toFullSize),
+        ...gallery
+      ]).slice(0, CONFIG.maxImages);
+    });
 
     // Las variantes se leen ANTES de abrir el modal: una vez abierto, tapa el
     // selector de SKU y los nodos dejan de ser accesibles de forma confiable.
-    console.log('🎨 Extrayendo variantes...');
-    const variants = await extractVariants(page);
+    const variants = await withStage('variants', async () => {
+      console.log('🎨 Extrayendo variantes...');
+      return extractVariants(page);
+    });
 
-    console.log('💬 Expandiendo reseñas...');
-    const modalOpen = await openReviewsModal(page);
-    if (modalOpen) {
-      const loaded = await loadMoreReviews(
-        page,
-        CONFIG.maxReviews,
-        CONFIG.maxScrollRounds
-      );
-      console.log(`   ${loaded} reseñas cargadas en el DOM`);
-    } else {
-      console.log('   ⚠️  no se pudo abrir el modal, uso las visibles en la página');
-    }
+    const reviews = await withStage('reviews', async () => {
+      console.log('💬 Expandiendo reseñas...');
+      const modalOpen = await openReviewsModal(page);
+      if (modalOpen) {
+        const loaded = await loadMoreReviews(
+          page,
+          CONFIG.maxReviews,
+          CONFIG.maxScrollRounds
+        );
+        console.log(`   ${loaded} reseñas cargadas en el DOM`);
+        emit('progress', 'reviews', { done: loaded, total: CONFIG.maxReviews });
+      } else {
+        console.log('   ⚠️  no se pudo abrir el modal, uso las visibles en la página');
+        emit('warn', 'reviews', { message: 'no se pudo abrir el modal, uso las visibles en la página' });
+      }
 
-    const reviews = await extractReviews(page, CONFIG.maxReviews);
+      return extractReviews(page, CONFIG.maxReviews);
+    });
 
     // --- descarga de imágenes
-    fs.mkdirSync(CONFIG.imagesDir, { recursive: true });
-    console.log(`⬇️  Descargando ${images.length} imágenes...`);
+    const localImages = await withStage('images', async () => {
+      fs.mkdirSync(CONFIG.imagesDir, { recursive: true });
+      console.log(`⬇️  Descargando ${images.length} imágenes...`);
 
-    const localImages = [];
-    for (const [index, imageUrl] of images.entries()) {
-      const base = path.join(CONFIG.imagesDir, `img_${index}`);
-      try {
-        const saved = await downloadImage(imageUrl, base);
-        localImages.push(saved);
-        console.log('  ✔', path.basename(saved));
-      } catch {
-        console.log('  ❌ falló', imageUrl.slice(0, 80));
+      const saved = [];
+      for (const [index, imageUrl] of images.entries()) {
+        const base = path.join(CONFIG.imagesDir, `img_${index}`);
+        try {
+          const savedPath = await downloadImage(imageUrl, base);
+          saved.push(savedPath);
+          console.log('  ✔', path.basename(savedPath));
+          emit('progress', 'images', { done: index + 1, total: images.length, label: path.basename(savedPath) });
+        } catch {
+          console.log('  ❌ falló', imageUrl.slice(0, 80));
+          emit('progress', 'images', { done: index + 1, total: images.length });
+          emit('warn', 'images', { message: `falló la descarga de ${imageUrl.slice(0, 80)}` });
+        }
       }
-    }
+      return saved;
+    });
 
     const product = {
       sourceUrl: url,
@@ -397,9 +449,11 @@ async function scrapeAliExpress(url) {
       reviews
     };
 
-    fs.mkdirSync(CONFIG.outputDir, { recursive: true });
     const outputPath = path.join(CONFIG.outputDir, 'product.json');
-    fs.writeFileSync(outputPath, JSON.stringify(product, null, 2));
+    await withStage('write', () => {
+      fs.mkdirSync(CONFIG.outputDir, { recursive: true });
+      fs.writeFileSync(outputPath, JSON.stringify(product, null, 2));
+    });
 
     console.log('\n🔥 RESULTADO\n');
     console.log(
@@ -416,9 +470,22 @@ async function scrapeAliExpress(url) {
     );
     console.log(`\n💾 Guardado en ${outputPath}`);
 
+    // Terminal event (design §4): emitted exactly once, immediately before
+    // normal termination. No-op when LG_EVENTS is unset.
+    emit('result', null, {
+      outputPath,
+      title: product.title,
+      imageCount: images.length,
+      localImageCount: localImages.length,
+      reviewCount: reviews.length,
+      variantCount: variants.length,
+      sourceUrl: url,
+      scrapedAt: product.scrapedAt
+    });
+
     return product;
   } finally {
-    await browser.close();
+    await withStage('close', () => browser.close());
   }
 }
 
@@ -427,6 +494,7 @@ async function scrapeAliExpress(url) {
 const targetUrl = process.argv[2] || 'https://es.aliexpress.com/item/1005007502111078.html';
 
 scrapeAliExpress(targetUrl).catch(err => {
-  console.error('\n💥', err.message);
-  process.exit(1);
+  emit('error', currentStage, { message: err.message }); // NEW — no-op when LG_EVENTS unset
+  console.error('\n💥', err.message);                     // UNCHANGED
+  process.exit(1);                                        // UNCHANGED
 });

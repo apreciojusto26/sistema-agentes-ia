@@ -10,3 +10,5 @@ scraper/output/
 scraper/images/
 outputs/*
 !outputs/.gitkeep
+admin/.jobs/
+admin/.staged/
