@@ -6,14 +6,14 @@
 // (slug regex, content-artifact presence, collectContentErrors, the
 // existing-outputs-dir 409-with-confirmToken flow) then delegate to
 // registry.create*Job() — never re-implement locking/spawning here.
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync, mkdirSync, writeFileSync, unlinkSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import type { JobRegistry } from '../jobs/registry';
 import { validateAliExpressUrl } from '../validation/aliexpress-url';
 import { collectContentErrors } from '../validation/content';
-import { OUTPUTS_DIR, STAGED_CONTENT_PATH } from '../config';
+import { OUTPUTS_DIR, STAGED_CONTENT_PATH, STAGED_DIR, GEMINI_MODEL } from '../config';
 import type {
   CreateJobRequest,
   JobListResponse,
@@ -21,13 +21,36 @@ import type {
   CancelJobResponse,
   OverwriteConfirmationRequired,
   NoContentArtifact,
+  NoScrapeArtifact,
   ContentInvalid,
   SlugInvalid,
   UrlInvalid,
 } from '../../shared/api';
 
 /** Structural subset actually used by this route module — lets tests pass a fake double instead of a real (spawning) JobRegistry. */
-export type RegistryLike = Pick<JobRegistry, 'createScrapeJob' | 'createGenerateJob' | 'list' | 'get' | 'cancel'>;
+export type RegistryLike = Pick<
+  JobRegistry,
+  'createScrapeJob' | 'createGenerateJob' | 'createContentJob' | 'list' | 'get' | 'cancel'
+>;
+
+const CONTENT_INSTRUCTIONS_DIR = path.join(STAGED_DIR, 'content-instructions');
+const INSTRUCTIONS_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Opportunistic prune on each create (design judgment call J4) — keeps the
+ * uuid-named instructions dir bounded without new infrastructure. */
+function pruneOldInstructions(): void {
+  if (!existsSync(CONTENT_INSTRUCTIONS_DIR)) return;
+  const now = Date.now();
+  for (const file of readdirSync(CONTENT_INSTRUCTIONS_DIR)) {
+    const filePath = path.join(CONTENT_INSTRUCTIONS_DIR, file);
+    try {
+      const stat = statSync(filePath);
+      if (now - stat.mtimeMs > INSTRUCTIONS_MAX_AGE_MS) unlinkSync(filePath);
+    } catch {
+      // best-effort cleanup only
+    }
+  }
+}
 
 const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const CONFIRM_TOKEN_TTL_MS = 5 * 60 * 1000;
@@ -151,8 +174,38 @@ export function registerJobsRoutes(app: FastifyInstance, registry: RegistryLike)
       return { job } satisfies JobDetailResponse;
     }
 
+    if (body.kind === 'content') {
+      const { scrapeJobId } = body;
+      const scrapeJob = registry.get(scrapeJobId);
+      const productPath = scrapeJob?.archivePath ? path.join(scrapeJob.archivePath, 'product.json') : null;
+
+      if (!scrapeJob || scrapeJob.kind !== 'scrape' || !productPath || !existsSync(productPath)) {
+        reply.code(409);
+        return { code: 'no-scrape-artifact' } satisfies NoScrapeArtifact;
+      }
+
+      let instructionsPath: string | null = null;
+      if (body.instructions && body.instructions.trim().length > 0) {
+        pruneOldInstructions();
+        mkdirSync(CONTENT_INSTRUCTIONS_DIR, { recursive: true });
+        instructionsPath = path.join(CONTENT_INSTRUCTIONS_DIR, `${randomUUID()}.txt`);
+        writeFileSync(instructionsPath, body.instructions);
+      }
+
+      const job = registry.createContentJob({
+        scrapeJobId,
+        scrapeProductPath: productPath,
+        instructionsPath,
+        // Always the server-pinned model — any client-supplied model field is
+        // ignored (D1's pinning must not become client-settable).
+        model: GEMINI_MODEL,
+      });
+      reply.code(201);
+      return { job } satisfies JobDetailResponse;
+    }
+
     reply.code(400);
-    return { code: 'unknown-kind', message: 'CreateJobRequest.kind must be "scrape" or "generate".' };
+    return { code: 'unknown-kind', message: 'CreateJobRequest.kind must be "scrape", "generate", or "content".' };
   });
 
   app.get('/api/jobs', async () => {

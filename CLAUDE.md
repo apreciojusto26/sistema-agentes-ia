@@ -103,6 +103,11 @@ preserving ALL functionality while modifying design, content, and assets based o
 4. Trigger Layout Agent → confirm section order (rarely changes; changing it means editing `index.astro`, not producing a new value)
 5. Trigger Code Agent → assemble the final project in `outputs/{slug}/`
 
+The admin dashboard (`admin/`) can run the Content Agent automatically via the Gemini API free tier
+(`gemini-2.5-flash`, pinned model, plain `fetch`, no SDK) instead of pasting `content.json` by hand — see
+`agents.MD` §1 "Automated run" for the 250 requests/day ceiling and the free-tier data-for-training disclosure.
+The manual paste path remains available as a fallback either way.
+
 ---
 
 ## File Mapping

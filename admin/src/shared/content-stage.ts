@@ -2,12 +2,18 @@
 // Stage", R8 "Honest UI"; design §6). Type-only — no runtime logic.
 //
 // There is deliberately NO 'running' | 'pending' | 'thinking' | 'generating'
-// variant. This stage is a manual artifact upload + validation flow, never a
-// running child process — a variant implying liveness here would let a UI
-// component render fake activity for it. `ManualArtifactPanel` (Batch F)
-// accepts ONLY this type (no JobRecord in scope), so it is structurally
-// incapable of rendering a spinner for a stage that has no such state to
-// render one for.
+// variant — but this claim is now SCOPED (content-agent change, spec "Content
+// Stage Doc Comment... Narrowed", Q5), not a system-wide claim: it describes
+// only `ContentStageState`/the manual staged-artifact path, never a running
+// child process for THAT flow. `ManualArtifactPanel` accepts ONLY this type
+// (no JobRecord in scope), so it is structurally incapable of rendering a
+// spinner for a stage that has no such state to render one for.
+//
+// Agent liveness for content generation now lives elsewhere: `JobKind
+// 'content'` (shared/jobs.ts), modelled by `JobRecord` + `runningEvidence`
+// exactly like the scrape/generate agents — rendered by the sibling
+// `ContentAgentPanel`, which legitimately imports `LiveActivity`/`JobRecord`
+// and is NOT bound by this file's no-liveness guarantee.
 import type { ContentIssue } from '../server/validation/content';
 
 export type ContentStageState =

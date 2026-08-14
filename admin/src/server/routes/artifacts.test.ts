@@ -8,6 +8,7 @@ import path from 'node:path';
 import os from 'node:os';
 import Fastify from 'fastify';
 import type { JobRecord } from '../../shared/jobs';
+import { ADMIN_ROOT } from '../config';
 
 function fakeJob(overrides: Partial<JobRecord> = {}): JobRecord {
   return {
@@ -117,5 +118,49 @@ describe('GET /api/jobs/:id/scrape/images/:file', () => {
     const app = await buildApp(registry);
     const res = await app.inject({ method: 'GET', url: '/api/jobs/zz-fake-scrape-job/scrape/images/img_99.png' });
     expect(res.statusCode).toBe(404);
+  });
+});
+
+describe('GET /api/jobs/:id/content/last-attempt (content-agent change)', () => {
+  const contentJobId = 'zz-fake-content-job';
+  const attemptsDirs: string[] = [];
+  afterEach(() => {
+    for (const d of attemptsDirs.splice(0)) rmSync(d, { recursive: true, force: true });
+  });
+
+  function attemptsDirFor(jobId: string): string {
+    const dir = path.join(ADMIN_ROOT, '.jobs', jobId, 'content');
+    attemptsDirs.push(path.join(ADMIN_ROOT, '.jobs', jobId));
+    return dir;
+  }
+
+  test('{ present: false } when the attempts dir does not exist at all', async () => {
+    const registry = { get: () => null };
+    const app = await buildApp(registry);
+    const res = await app.inject({ method: 'GET', url: `/api/jobs/${contentJobId}/content/last-attempt` });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ present: false });
+  });
+
+  test('{ present: false } when the attempts dir exists but is empty', async () => {
+    const dir = attemptsDirFor(contentJobId);
+    mkdirSync(dir, { recursive: true });
+    const registry = { get: () => null };
+    const app = await buildApp(registry);
+    const res = await app.inject({ method: 'GET', url: `/api/jobs/${contentJobId}/content/last-attempt` });
+    expect(res.json()).toEqual({ present: false });
+  });
+
+  test('{ present: true, attempt: n, text } returns the MAX attempt-N.json — no client-supplied filename, so no path-traversal surface', async () => {
+    const dir = attemptsDirFor(contentJobId);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, 'attempt-1.json'), JSON.stringify({ attempt: 1, text: 'first try' }));
+    writeFileSync(path.join(dir, 'attempt-2.json'), JSON.stringify({ attempt: 2, text: 'second try' }));
+    writeFileSync(path.join(dir, 'attempt-10.json'), JSON.stringify({ attempt: 10, text: 'the real last one' }));
+
+    const registry = { get: () => null };
+    const app = await buildApp(registry);
+    const res = await app.inject({ method: 'GET', url: `/api/jobs/${contentJobId}/content/last-attempt` });
+    expect(res.json()).toEqual({ present: true, attempt: 10, text: 'the real last one' });
   });
 });

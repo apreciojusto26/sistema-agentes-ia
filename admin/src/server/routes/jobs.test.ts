@@ -9,7 +9,8 @@
 // round-trip are all route-owned checks that must reject BEFORE ever calling
 // registry.create*Job().
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import Fastify from 'fastify';
 import { OUTPUTS_DIR, STAGED_DIR, STAGED_CONTENT_PATH } from '../config';
@@ -46,12 +47,13 @@ function fakeJob(overrides: Partial<JobRecord> = {}): JobRecord {
   };
 }
 
-function fakeRegistry() {
+function fakeRegistry(getImpl?: (id: string) => JobRecord | null) {
   return {
     createScrapeJob: vi.fn((params) => fakeJob({ kind: 'scrape', params })),
     createGenerateJob: vi.fn((params) => fakeJob({ kind: 'generate', params, jobId: 'zz-fake-generate-job' })),
+    createContentJob: vi.fn((params) => fakeJob({ kind: 'content', params, jobId: 'zz-fake-content-job' })),
     list: vi.fn(() => [fakeJob()]),
-    get: vi.fn((id: string) => (id === 'zz-fake-job' ? fakeJob() : null)),
+    get: vi.fn(getImpl ?? ((id: string) => (id === 'zz-fake-job' ? fakeJob() : null))),
     cancel: vi.fn((id: string) => id === 'zz-fake-job'),
   };
 }
@@ -240,6 +242,127 @@ describe('POST /api/jobs — kind:"generate"', () => {
         rmSync(otherOutDir, { recursive: true, force: true });
       }
     });
+  });
+});
+
+describe('POST /api/jobs — kind:"content"', () => {
+  const tmpDirs: string[] = [];
+  afterEach(() => {
+    for (const d of tmpDirs.splice(0)) rmSync(d, { recursive: true, force: true });
+    rmSync(path.join(STAGED_DIR, 'content-instructions'), { recursive: true, force: true });
+  });
+
+  function fakeScrapeJobWithArchive(overrides: Partial<JobRecord> = {}): { job: JobRecord; archiveDir: string } {
+    const archiveDir = mkdtempSync(path.join(os.tmpdir(), 'lg-jobs-test-archive-'));
+    tmpDirs.push(archiveDir);
+    writeFileSync(path.join(archiveDir, 'product.json'), JSON.stringify({ title: 'Fixture' }));
+    return {
+      job: fakeJob({ jobId: 'zz-fake-scrape-job', kind: 'scrape', status: 'succeeded', archivePath: archiveDir, ...overrides }),
+      archiveDir,
+    };
+  }
+
+  test('valid scrapeJobId with an archived product.json -> 201, delegates to createContentJob with the archived path', async () => {
+    const { job } = fakeScrapeJobWithArchive();
+    const registry = fakeRegistry((id) => (id === 'zz-fake-scrape-job' ? job : null));
+    const app = await buildApp(registry);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/jobs',
+      payload: { kind: 'content', scrapeJobId: 'zz-fake-scrape-job' },
+    });
+
+    expect(res.statusCode).toBe(201);
+    expect(registry.createContentJob).toHaveBeenCalledOnce();
+    const params = registry.createContentJob.mock.calls[0][0];
+    expect(params.scrapeJobId).toBe('zz-fake-scrape-job');
+    expect(params.scrapeProductPath).toContain('product.json');
+    expect(params.instructionsPath).toBeNull();
+  });
+
+  test('archived scrape input used: the JOB\'s own archivePath is read, never scraper/output/ directly', async () => {
+    const { job, archiveDir } = fakeScrapeJobWithArchive();
+    const registry = fakeRegistry((id) => (id === 'zz-fake-scrape-job' ? job : null));
+    const app = await buildApp(registry);
+
+    await app.inject({ method: 'POST', url: '/api/jobs', payload: { kind: 'content', scrapeJobId: 'zz-fake-scrape-job' } });
+
+    const params = registry.createContentJob.mock.calls[0][0];
+    expect(params.scrapeProductPath).toBe(path.join(archiveDir, 'product.json'));
+  });
+
+  test('instructions text is written to a file and NEVER passed inline — only a path enters ContentParams', async () => {
+    const { job } = fakeScrapeJobWithArchive();
+    const registry = fakeRegistry((id) => (id === 'zz-fake-scrape-job' ? job : null));
+    const app = await buildApp(registry);
+
+    const instructions = 'x'.repeat(5000) + ' tono divertido, sin emojis';
+    await app.inject({
+      method: 'POST',
+      url: '/api/jobs',
+      payload: { kind: 'content', scrapeJobId: 'zz-fake-scrape-job', instructions },
+    });
+
+    const params = registry.createContentJob.mock.calls[0][0];
+    expect(typeof params.instructionsPath).toBe('string');
+    expect(params.instructionsPath).not.toContain(instructions);
+    expect(readFileSync(params.instructionsPath, 'utf8')).toBe(instructions);
+  });
+
+  test('model is always the server-pinned config.GEMINI_MODEL, a client-supplied model is ignored', async () => {
+    const { job } = fakeScrapeJobWithArchive();
+    const registry = fakeRegistry((id) => (id === 'zz-fake-scrape-job' ? job : null));
+    const app = await buildApp(registry);
+
+    await app.inject({
+      method: 'POST',
+      url: '/api/jobs',
+      payload: { kind: 'content', scrapeJobId: 'zz-fake-scrape-job', model: 'a-client-supplied-model' } as never,
+    });
+
+    const params = registry.createContentJob.mock.calls[0][0];
+    expect(params.model).toBe('gemini-2.5-flash');
+  });
+
+  test('unknown scrapeJobId -> 409 no-scrape-artifact, no spawn', async () => {
+    const registry = fakeRegistry(() => null);
+    const app = await buildApp(registry);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/jobs',
+      payload: { kind: 'content', scrapeJobId: 'does-not-exist' },
+    });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('no-scrape-artifact');
+    expect(registry.createContentJob).not.toHaveBeenCalled();
+  });
+
+  test('scrapeJobId resolves but has no archived product.json -> 409 no-scrape-artifact', async () => {
+    const job = fakeJob({ jobId: 'zz-fake-scrape-job', kind: 'scrape', status: 'succeeded', archivePath: null });
+    const registry = fakeRegistry((id) => (id === 'zz-fake-scrape-job' ? job : null));
+    const app = await buildApp(registry);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/jobs',
+      payload: { kind: 'content', scrapeJobId: 'zz-fake-scrape-job' },
+    });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('no-scrape-artifact');
+    expect(registry.createContentJob).not.toHaveBeenCalled();
+  });
+
+  test('scrapeJobId resolves to a non-scrape job -> 409 no-scrape-artifact', async () => {
+    const job = fakeJob({ jobId: 'zz-fake-generate-job', kind: 'generate' });
+    const registry = fakeRegistry((id) => (id === 'zz-fake-generate-job' ? job : null));
+    const app = await buildApp(registry);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/jobs',
+      payload: { kind: 'content', scrapeJobId: 'zz-fake-generate-job' },
+    });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('no-scrape-artifact');
   });
 });
 

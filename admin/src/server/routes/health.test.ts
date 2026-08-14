@@ -4,11 +4,18 @@
 // Fastify route via app.inject(), and cross-checks against existsSync calls
 // performed independently in the test itself so a hardcoded `true`/`false`
 // in the implementation would fail here.
-import { describe, test, expect } from 'vitest';
+import { describe, test, expect, afterEach, vi } from 'vitest';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import Fastify from 'fastify';
 import { SCRAPER_DIR, TEMPLATE_DIR, OUTPUTS_DIR, GENERATE_SCRIPT, CONTENT_CONTRACT_MODULE, REPO_ROOT } from '../config';
+
+const ORIGINAL_GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+afterEach(() => {
+  if (ORIGINAL_GEMINI_API_KEY === undefined) delete process.env.GEMINI_API_KEY;
+  else process.env.GEMINI_API_KEY = ORIGINAL_GEMINI_API_KEY;
+  vi.unstubAllGlobals();
+});
 
 describe('GET /api/health', () => {
   test('getHealthResponse() reflects real fs state, not guesses', async () => {
@@ -41,5 +48,40 @@ describe('GET /api/health', () => {
     const body = res.json();
     expect(body.checks.templateDir).toBe(true);
     expect(typeof body.checks.playwrightBrowsers).toBe('boolean');
+  });
+
+  describe('geminiApiKey — presence-only check (spec "Health Check Gains geminiApiKey")', () => {
+    test('key present and non-empty -> checks.geminiApiKey is true', async () => {
+      process.env.GEMINI_API_KEY = 'a-real-looking-key';
+      const { getHealthResponse } = await import('./health');
+      expect(getHealthResponse().checks.geminiApiKey).toBe(true);
+    });
+
+    test('key unset -> checks.geminiApiKey is false', async () => {
+      delete process.env.GEMINI_API_KEY;
+      const { getHealthResponse } = await import('./health');
+      expect(getHealthResponse().checks.geminiApiKey).toBe(false);
+    });
+
+    test('key set to an empty/whitespace string -> checks.geminiApiKey is false', async () => {
+      process.env.GEMINI_API_KEY = '   ';
+      const { getHealthResponse } = await import('./health');
+      expect(getHealthResponse().checks.geminiApiKey).toBe(false);
+    });
+
+    test('health check NEVER spends daily quota — zero fetch calls across a GET /api/health invocation', async () => {
+      process.env.GEMINI_API_KEY = 'a-real-looking-key';
+      const fetchSpy = vi.fn();
+      vi.stubGlobal('fetch', fetchSpy);
+
+      const { registerHealthRoutes } = await import('./health');
+      const app = Fastify();
+      registerHealthRoutes(app);
+      const res = await app.inject({ method: 'GET', url: '/api/health' });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().checks.geminiApiKey).toBe(true);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
   });
 });

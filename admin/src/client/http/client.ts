@@ -20,6 +20,7 @@ import type {
   JobListResponse,
   JobDetailResponse,
   CancelJobResponse,
+  LastAttemptResponse,
 } from '../../shared/api';
 
 /** Thrown for a network-level failure (fetch itself rejected) or a response body that failed to parse as JSON. */
@@ -155,4 +156,12 @@ export function scrapeProductJsonUrl(jobId: string): string {
 
 export function scrapeImageUrl(jobId: string, file: string): string {
   return `/api/jobs/${jobId}/scrape/images/${file}`;
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/jobs/:id/content/last-attempt
+// ---------------------------------------------------------------------------
+
+export function getLastContentAttempt(jobId: string): Promise<LastAttemptResponse> {
+  return requestJson(`/api/jobs/${jobId}/content/last-attempt`);
 }

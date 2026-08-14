@@ -7,7 +7,7 @@ import AgentSidebar from './components/AgentSidebar';
 import type { SidebarItem } from './components/AgentSidebarItem';
 import ScrapeAgentPanel from './components/detail/ScrapeAgentPanel';
 import CodeAgentPanel from './components/detail/CodeAgentPanel';
-import ManualArtifactPanel from './components/detail/ManualArtifactPanel';
+import ContentAgentPanel from './components/detail/ContentAgentPanel';
 import OverwriteConfirmDialog from './components/OverwriteConfirmDialog';
 import JobHistory from './components/JobHistory';
 import { useJobs } from './http/useJobs';
@@ -17,6 +17,7 @@ import type { ContentStageState } from '../shared/content-stage';
 import type { OverwriteConfirmationRequired } from '../shared/api';
 import type { HealthResponse } from '../shared/api';
 import type { JobRecord } from '../shared/jobs';
+import { assertNever } from '../shared/assert-never';
 
 type PanelId = 'scrape' | 'content' | 'generate';
 
@@ -33,8 +34,10 @@ export default function App() {
 
   const [scrapeJobId, setScrapeJobId] = useState<string | null>(null);
   const [generateJobId, setGenerateJobId] = useState<string | null>(null);
+  const [contentJobId, setContentJobId] = useState<string | null>(null);
   const [scrapeError, setScrapeError] = useState<string | null>(null);
   const [generateError, setGenerateError] = useState<string | null>(null);
+  const [contentError, setContentError] = useState<string | null>(null);
   const [pendingOverwrite, setPendingOverwrite] = useState<{
     slug: string;
     details: OverwriteConfirmationRequired;
@@ -54,6 +57,7 @@ export default function App() {
     if (jobs.length === 0) return;
     setScrapeJobId((cur) => cur ?? latestJobOfKind(jobs, 'scrape')?.jobId ?? null);
     setGenerateJobId((cur) => cur ?? latestJobOfKind(jobs, 'generate')?.jobId ?? null);
+    setContentJobId((cur) => cur ?? latestJobOfKind(jobs, 'content')?.jobId ?? null);
   }, [jobs]);
 
   useEffect(() => {
@@ -84,7 +88,7 @@ export default function App() {
           setContentState({ kind: 'idle' });
           setContentDrift(
             'present' in res && res.present
-              ? `outputs/.staged/content.json exists but no longer validates — re-paste it to see the current errors.`
+              ? `Hay un content.json guardado, pero ya no es válido. Volvé a pegarlo para ver qué le falta.`
               : null,
           );
         }
@@ -97,6 +101,7 @@ export default function App() {
 
   const scrapeStream = useJobStream(scrapeJobId);
   const generateStream = useJobStream(generateJobId);
+  const contentStream = useJobStream(contentJobId);
 
   // Job history (useJobs' plain GET /api/jobs snapshot) has no SSE of its
   // own — refresh it once each stream reaches a real terminal state, not
@@ -111,20 +116,25 @@ export default function App() {
   useEffect(() => {
     if (generateStream.ended) void refreshJobs();
   }, [generateStream.ended, refreshJobs]);
+  useEffect(() => {
+    if (contentStream.ended) void refreshJobs();
+  }, [contentStream.ended, refreshJobs]);
 
   const scrapeJob = scrapeStream.job ?? latestJobOfKind(jobs, 'scrape');
   const generateJob = generateStream.job ?? latestJobOfKind(jobs, 'generate');
+  const contentJob = contentStream.job ?? latestJobOfKind(jobs, 'content');
 
   const scrapeRunning = scrapeJob?.status === 'running' || scrapeJob?.status === 'queued';
   const generateRunning = generateJob?.status === 'running' || generateJob?.status === 'queued';
+  const contentRunning = contentJob?.status === 'running' || contentJob?.status === 'queued';
 
   const sidebarItems: SidebarItem[] = useMemo(
     () => [
-      { id: 'scrape', kind: 'agent', label: 'Scraping Agent', job: scrapeJob ?? null },
-      { id: 'content', kind: 'manual', label: 'Content / Design', state: contentState },
-      { id: 'generate', kind: 'agent', label: 'Code Agent', job: generateJob ?? null },
+      { id: 'scrape', kind: 'agent', identity: 'scrape', job: scrapeJob ?? null },
+      { id: 'content', kind: 'assisted', identity: 'content', job: contentJob ?? null, state: contentState },
+      { id: 'generate', kind: 'agent', identity: 'generate', job: generateJob ?? null },
     ],
-    [scrapeJob, generateJob, contentState],
+    [scrapeJob, generateJob, contentJob, contentState],
   );
 
   async function runScrape(url: string) {
@@ -159,11 +169,32 @@ export default function App() {
     }
 
     if (res.status === 422 && 'issues' in res.error) {
-      setGenerateError(`content-invalid: ${res.error.issues.map((i) => i.message).join('; ')}`);
+      setGenerateError(`Faltan datos en el contenido: ${res.error.issues.map((i) => i.message).join('; ')}`);
       return;
     }
 
     setGenerateError('message' in res.error ? res.error.message : JSON.stringify(res.error));
+  }
+
+  async function runContent(scrapeJobIdArg: string, instructions: string) {
+    setContentError(null);
+    const res = await api.createJob({
+      kind: 'content',
+      scrapeJobId: scrapeJobIdArg,
+      ...(instructions ? { instructions } : {}),
+    });
+    if (res.ok) {
+      setContentJobId(res.job.jobId);
+      void refreshJobs();
+      return;
+    }
+    setContentError('message' in res.error ? res.error.message : JSON.stringify(res.error));
+  }
+
+  async function copyLastContentAttempt() {
+    if (!contentJob) return;
+    const res = await api.getLastContentAttempt(contentJob.jobId);
+    if (res.present) void submitContentRaw(res.text);
   }
 
   async function submitContentRaw(raw: string) {
@@ -210,12 +241,12 @@ export default function App() {
 
   return (
     <div className="flex h-screen flex-col">
-      <header className="flex items-center justify-between border-b border-slate-200 px-4 py-2">
-        <h1 className="text-lg font-semibold">Landing Admin</h1>
+      <header className="flex items-center justify-between border-b border-hairline px-4 py-2">
+        <h1 className="text-lg font-semibold text-ink">Generador de landings</h1>
         {health && (
-          <div className="flex gap-2 text-xs">
+          <div className="flex gap-2 text-xs text-ink-soft">
             {Object.entries(health.checks).map(([key, ok]) => (
-              <span key={key} className={ok ? 'text-emerald-600' : 'text-red-600'} title={key}>
+              <span key={key} className={ok ? 'text-state-done' : 'text-state-failed'} title={key}>
                 {ok ? '✓' : '✗'} {key}
               </span>
             ))}
@@ -240,10 +271,18 @@ export default function App() {
           )}
 
           {selected === 'content' && (
-            <ManualArtifactPanel
-              state={contentState}
+            <ContentAgentPanel
+              job={contentJob ?? null}
+              logs={contentStream.logs}
+              scrapeJobId={scrapeJob?.status === 'succeeded' ? scrapeJob.jobId : null}
+              onRun={(scrapeJobIdArg, instructions) => void runContent(scrapeJobIdArg, instructions)}
+              onCancel={() => contentJob && void cancelRun(contentJob.jobId)}
+              running={!!contentRunning}
+              submitError={contentError}
+              contentState={contentState}
               onSubmitRaw={(raw) => void submitContentRaw(raw)}
-              onDelete={() => void deleteContent()}
+              onDeleteStaged={() => void deleteContent()}
+              onCopyLastAttempt={() => void copyLastContentAttempt()}
             />
           )}
 
@@ -271,18 +310,27 @@ export default function App() {
           )}
 
           <div className="mt-8">
-            <h3 className="mb-2 text-sm font-semibold text-slate-600">Job history</h3>
+            <h3 className="mb-2 text-sm font-semibold text-ink-soft">Historial de ejecuciones</h3>
             <JobHistory
               jobs={jobs}
               onSelect={(jobId) => {
                 const job = jobs.find((j) => j.jobId === jobId);
                 if (!job) return;
-                if (job.kind === 'scrape') {
-                  setScrapeJobId(jobId);
-                  setSelected('scrape');
-                } else {
-                  setGenerateJobId(jobId);
-                  setSelected('generate');
+                switch (job.kind) {
+                  case 'scrape':
+                    setScrapeJobId(jobId);
+                    setSelected('scrape');
+                    break;
+                  case 'generate':
+                    setGenerateJobId(jobId);
+                    setSelected('generate');
+                    break;
+                  case 'content':
+                    setContentJobId(jobId);
+                    setSelected('content');
+                    break;
+                  default:
+                    assertNever(job.kind);
                 }
               }}
             />

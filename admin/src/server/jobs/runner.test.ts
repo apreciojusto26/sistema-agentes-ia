@@ -203,6 +203,56 @@ describe('runner — buildScrapeSpec / buildGenerateSpec argv (design §7)', () 
   });
 });
 
+describe('runner — buildContentSpec argv (content-agent change, design §4)', () => {
+  test('exact argv shape: --product/--attempts-dir/--staged/--model, cwd=repoRoot, no --instructions when null', async () => {
+    const { buildContentSpec } = await import('./runner');
+    const spec = buildContentSpec(
+      { scrapeJobId: 'zz-scrape', scrapeProductPath: '/abs/product.json', instructionsPath: null, model: 'gemini-2.5-flash' },
+      { repoRoot: REPO_ROOT, timeoutMs: 420_000, jobId: 'zz-content-job' },
+    );
+    expect(spec.command).toBe(process.execPath);
+    expect(spec.args).toEqual([
+      'scripts/generate-content.mjs',
+      '--product',
+      '/abs/product.json',
+      '--attempts-dir',
+      path.join(REPO_ROOT, 'admin', '.jobs', 'zz-content-job', 'content'),
+      '--staged',
+      path.join(REPO_ROOT, 'admin', '.staged', 'content.json'),
+      '--model',
+      'gemini-2.5-flash',
+    ]);
+    expect(spec.cwd).toBe(REPO_ROOT);
+    expect(spec.timeoutMs).toBe(420_000);
+  });
+
+  test('appends --instructions <path> only when instructionsPath is set', async () => {
+    const { buildContentSpec } = await import('./runner');
+    const spec = buildContentSpec(
+      { scrapeJobId: 'zz-scrape', scrapeProductPath: '/abs/product.json', instructionsPath: '/abs/instructions.txt', model: 'gemini-2.5-flash' },
+      { repoRoot: REPO_ROOT, timeoutMs: 420_000, jobId: 'zz-content-job' },
+    );
+    expect(spec.args.slice(-2)).toEqual(['--instructions', '/abs/instructions.txt']);
+  });
+
+  test('GEMINI_API_KEY rides the env spread (present in spec.env) but is NEVER an argv element (key-transport-hygiene structural check)', async () => {
+    const { buildContentSpec } = await import('./runner');
+    const originalKey = process.env.GEMINI_API_KEY;
+    process.env.GEMINI_API_KEY = 'zz-test-secret-should-never-be-in-argv';
+    try {
+      const spec = buildContentSpec(
+        { scrapeJobId: 'zz-scrape', scrapeProductPath: '/abs/product.json', instructionsPath: '/abs/instructions.txt', model: 'gemini-2.5-flash' },
+        { repoRoot: REPO_ROOT, timeoutMs: 420_000, jobId: 'zz-content-job' },
+      );
+      expect(spec.env?.GEMINI_API_KEY).toBe('zz-test-secret-should-never-be-in-argv');
+      expect(spec.args.join(' ')).not.toContain('zz-test-secret-should-never-be-in-argv');
+    } finally {
+      if (originalKey === undefined) delete process.env.GEMINI_API_KEY;
+      else process.env.GEMINI_API_KEY = originalKey;
+    }
+  });
+});
+
 describe('runner — real end-to-end against generate-landing.mjs (no network, fast; proves the wrapper against a REAL agent script)', () => {
   test('drives generate-landing.mjs to completion with the exact expected stage sequence and byte-correct utf8 stdout', async () => {
     const { run, buildGenerateSpec } = await import('./runner');

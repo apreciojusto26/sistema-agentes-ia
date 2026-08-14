@@ -26,6 +26,21 @@ export const STAGED_CONTENT_PATH = path.join(STAGED_DIR, 'content.json');
 
 export const PORT = Number(process.env.PORT ?? 5174);
 
+export const GEMINI_MODEL = 'gemini-2.5-flash';
+export const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
+
+/** Per-Gemini-call abort ceiling. A structured-JSON generation of ~6-8k output
+ *  tokens on 2.5 Flash (a thinking model) commonly runs 20-60s; 120s means "this
+ *  socket is hung", not "this is slow". */
+export const GEMINI_REQUEST_TIMEOUT_MS = 120_000;
+
+/** Derived, not guessed (same discipline as SCRAPE_TIMEOUT_MS): 3 sequential
+ *  attempts x GEMINI_REQUEST_TIMEOUT_MS = 360s, + ~60s for prompt assembly,
+ *  example-content.json + product.json reads, 3 validator passes and 3
+ *  attempt-N.json writes. Rounded to 7 minutes. This is the OUTER backstop —
+ *  a healthy single-attempt run finishes in 20-60s and never approaches it. */
+export const CONTENT_TIMEOUT_MS = 420_000;
+
 /**
  * Derived, not guessed (design §7): page.goto 60s + waitForSelector('h1')
  * 30s + autoScroll ~7s + review-expansion up to ~44s + up to 8 image

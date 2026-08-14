@@ -15,6 +15,10 @@
 
 export const SCRAPE_LOCK_KEY = 'scrape';
 
+/** Global, not per-slug (R6) — admin/.staged/content.json is a single fixed
+ * path, same structural reason SCRAPE_LOCK_KEY is global. */
+export const CONTENT_LOCK_KEY = 'content';
+
 export function generateLockKey(slug: string): string {
   return `generate:${slug}`;
 }

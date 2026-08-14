@@ -35,6 +35,10 @@ export function getHealthResponse(): HealthResponse {
       outputsDir: existsSync(OUTPUTS_DIR),
       generateScript: existsSync(GENERATE_SCRIPT),
       contentContract: existsSync(CONTENT_CONTRACT_MODULE),
+      // Presence only — no live probe. Burning irreplaceable daily quota
+      // (250 RPD) on every page load's health check would be worse than the
+      // dollar-cost reasoning that ruled out probing the Claude CLI.
+      geminiApiKey: (process.env.GEMINI_API_KEY ?? '').trim().length > 0,
     },
   };
 }

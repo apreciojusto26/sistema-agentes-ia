@@ -3,7 +3,7 @@
 // runtime logic lives here. Consumed by BOTH server (registry.ts, routes)
 // and client (job history, detail panels).
 
-export type JobKind = 'scrape' | 'generate';
+export type JobKind = 'scrape' | 'generate' | 'content';
 
 /**
  * `queued` and `running` are the only pre-terminal states. Everything else
@@ -30,6 +30,17 @@ export type GenerateParams = {
   contentPath: string;
   imagesDir: string | null;
   force: boolean;
+};
+
+export type ContentParams = {
+  /** The scrape job whose ARCHIVED product.json feeds this run (D2 — never scraper/output/). */
+  scrapeJobId: string;
+  /** Absolute: admin/.jobs/{scrapeJobId}/scrape/product.json */
+  scrapeProductPath: string;
+  /** Absolute path to the operator's free-text file, or null when they left it empty. NEVER the text itself (D2 argv/record hygiene). */
+  instructionsPath: string | null;
+  /** Pinned server-side (config.GEMINI_MODEL). Recorded per-run so a past landing's model is auditable. Never read from the request body. */
+  model: string;
 };
 
 export type StageProgress = {
@@ -63,6 +74,25 @@ export type GenerateResult = {
   todos: string[];
 };
 
+export type ContentResult = {
+  stagedPath: string;
+  model: string;
+  /** 1..3 — computed by the script, not reported by the provider. */
+  turns: number;
+  promptTokenCount: number;
+  candidatesTokenCount: number;
+  totalTokenCount: number;
+  /** null when Gemini omits it (non-thinking response). Never defaulted to 0 — 0 and "not reported" are different facts. */
+  thoughtsTokenCount: number | null;
+  attemptsDir: string;
+  /** Mirrors ValidateResponse['summary'] so the panel renders the same readout the manual path does. */
+  productFields: number;
+  faqCount: number;
+  testimonialCount: number;
+  hasDesign: boolean;
+  // NO costUsd. NO quotaRemaining. Both explicitly banned by spec.
+};
+
 export type JobError = {
   message: string;
   stage: string | null;
@@ -76,7 +106,7 @@ export type JobRecord = {
   jobId: string;
   kind: JobKind;
   status: JobStatus;
-  params: ScrapeParams | GenerateParams;
+  params: ScrapeParams | GenerateParams | ContentParams;
   /** Exact spawn argv, for auditability (design §2). */
   argv: string[];
   /** Absolute cwd the child was spawned with. */
@@ -89,7 +119,7 @@ export type JobRecord = {
   signal: NodeJS.Signals | null;
   /** Arrival order, derived ONLY from real events — never fabricated. */
   stages: StageProgress[];
-  result: ScrapeResult | GenerateResult | null;
+  result: ScrapeResult | GenerateResult | ContentResult | null;
   error: JobError | null;
   /** null => the child emitted no LG_EVENTS lines (degraded, honest). */
   eventSchemaVersion: number | null;

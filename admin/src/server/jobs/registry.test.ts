@@ -380,6 +380,99 @@ describe('JobRegistry — create/ingest/cancel against a real spawned fixture ch
   });
 });
 
+describe('JobRegistry — A7 spec-factory inversion regression (content-agent change)', () => {
+  test('createScrapeJob still calls buildScrapeSpec with the same (params, opts) shape and uses its exact returned argv/cwd', async () => {
+    const { JobRegistry } = await import('./registry');
+    let receivedParams: unknown = null;
+    let receivedOpts: unknown = null;
+    const registry = new JobRegistry({
+      buildScrapeSpec: (params, opts) => {
+        receivedParams = params;
+        receivedOpts = opts;
+        return { command: process.execPath, args: [FIXTURE_CHILD, 'exit-code', '0'], cwd: __dirname, timeoutMs: 5_000 };
+      },
+    });
+
+    const scrapeParams = { url: 'https://es.aliexpress.com/item/1005007502111078.html', itemId: '1', normalizedUrl: 'x' };
+    const job = registry.createScrapeJob(scrapeParams);
+    reserveJobDir(job.jobId);
+
+    expect(receivedParams).toEqual(scrapeParams);
+    expect(receivedOpts).toMatchObject({ repoRoot: REPO_ROOT });
+    // The inversion changed HOW the spec is built (thunked, after jobId
+    // allocation) but not WHAT argv/cwd the job record ends up with —
+    // #createJob still derives argv as [spec.command, ...spec.args].
+    expect(job.argv).toEqual([process.execPath, FIXTURE_CHILD, 'exit-code', '0']);
+    expect(job.cwd).toBe(__dirname);
+  });
+
+  test('createGenerateJob still calls buildGenerateSpec with the same (params, opts) shape and uses its exact returned argv/cwd', async () => {
+    const { JobRegistry } = await import('./registry');
+    let receivedParams: unknown = null;
+    const registry = new JobRegistry({
+      buildGenerateSpec: (params, opts) => {
+        receivedParams = params;
+        return { command: process.execPath, args: [FIXTURE_CHILD, 'exit-code', '0'], cwd: opts.repoRoot, timeoutMs: 5_000 };
+      },
+    });
+
+    const generateParams = { slug: 'zz-a7-regression-slug', contentPath: '/x', imagesDir: null, force: false };
+    const job = registry.createGenerateJob(generateParams);
+    reserveJobDir(job.jobId);
+
+    expect(receivedParams).toEqual(generateParams);
+    expect(job.argv).toEqual([process.execPath, FIXTURE_CHILD, 'exit-code', '0']);
+    expect(job.cwd).toBe(REPO_ROOT);
+  });
+
+  test('createContentJob\'s buildSpec thunk receives the REAL allocated jobId (the whole point of the inversion — attempts-dir needs it)', async () => {
+    const { JobRegistry } = await import('./registry');
+    let receivedJobId: string | null = null;
+    const registry = new JobRegistry({
+      buildContentSpec: (params, opts) => {
+        receivedJobId = opts.jobId;
+        return { command: process.execPath, args: ['-e', '0'], cwd: opts.repoRoot, timeoutMs: 5_000 };
+      },
+    });
+
+    const job = registry.createContentJob({ scrapeJobId: 'zz-x', scrapeProductPath: '/x', instructionsPath: null, model: 'gemini-2.5-flash' });
+    reserveJobDir(job.jobId);
+    registry.cancel(job.jobId);
+
+    expect(receivedJobId).toBe(job.jobId);
+  });
+});
+
+describe('JobRegistry — content job result casting (C3, spec "Job Kind Exhaustiveness")', () => {
+  test('a content job\'s terminal result event is cast as ContentResult, not silently treated as GenerateResult', async () => {
+    const { JobRegistry } = await import('./registry');
+    const registry = new JobRegistry({
+      buildContentSpec: () => ({ command: process.execPath, args: [FIXTURE_CHILD, 'events'], cwd: __dirname, timeoutMs: 5_000, env: process.env }),
+    });
+
+    const job = registry.createContentJob({ scrapeJobId: 'zz-x', scrapeProductPath: '/x', instructionsPath: null, model: 'gemini-2.5-flash' });
+    reserveJobDir(job.jobId);
+
+    await new Promise<void>((resolve) => {
+      const interval = setInterval(() => {
+        const current = registry.get(job.jobId);
+        if (current && current.status !== 'running') {
+          clearInterval(interval);
+          resolve();
+        }
+      }, 10);
+    });
+
+    const final = registry.get(job.jobId)!;
+    expect(final.kind).toBe('content');
+    // The fixture child's 'events' mode emits a GenerateResultData-shaped
+    // result (outDir/slug/...) — the point of this test is that registry.ts
+    // no longer assumes "not scrape means generate": it trusts job.kind and
+    // casts to ContentResult without inspecting the payload shape.
+    expect(final.result).not.toBeNull();
+  });
+});
+
 describe('JobRegistry — real end-to-end against generate-landing.mjs, default (non-overridden) deps', () => {
   const SLUG = 'zz-registry-e2e-fixture';
   const OUT_DIR = path.join(REPO_ROOT, 'outputs', SLUG);

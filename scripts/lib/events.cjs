@@ -18,7 +18,7 @@ const fs = require('node:fs');
 const EVENT_SCHEMA_VERSION = 1;
 
 /**
- * @param {'scrape'|'generate'} agent
+ * @param {'scrape'|'generate'|'content'} agent
  * @returns {(type: string, stage?: string|null, data?: object|null) => void}
  */
 function createEmitter(agent) {

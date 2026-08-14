@@ -11,32 +11,44 @@
 // plain `SseFrame` objects to serialize onto the wire.
 import { randomUUID } from 'node:crypto';
 import type { WriteStream } from 'node:fs';
-import { run, buildScrapeSpec as defaultBuildScrapeSpec, buildGenerateSpec as defaultBuildGenerateSpec, type RunHandle, type RunSpec } from './runner';
+import {
+  run,
+  buildScrapeSpec as defaultBuildScrapeSpec,
+  buildGenerateSpec as defaultBuildGenerateSpec,
+  buildContentSpec as defaultBuildContentSpec,
+  type RunHandle,
+  type RunSpec,
+} from './runner';
 import { archiveScrape as defaultArchiveScrape, type ArchiveResult } from './archive';
 import { writeJobRecord, readJobRecord, listJobIds, appendLogLine, openLogStream } from './store';
-import { JobQueue, SCRAPE_LOCK_KEY, generateLockKey } from './queue';
-import { REPO_ROOT, SCRAPE_TIMEOUT_MS, GENERATE_TIMEOUT_MS, KILL_GRACE_MS, MAX_JOBS_IN_MEMORY } from '../config';
+import { JobQueue, SCRAPE_LOCK_KEY, generateLockKey, CONTENT_LOCK_KEY } from './queue';
+import { REPO_ROOT, SCRAPE_TIMEOUT_MS, GENERATE_TIMEOUT_MS, CONTENT_TIMEOUT_MS, KILL_GRACE_MS, MAX_JOBS_IN_MEMORY } from '../config';
 import type {
   JobRecord,
   JobStatus,
   ScrapeParams,
   GenerateParams,
+  ContentParams,
   StageProgress,
   ScrapeResult,
   GenerateResult,
+  ContentResult,
 } from '../../shared/jobs';
-import type { LgEvent, ScrapeResultData, GenerateResultData } from '../../shared/events';
+import type { LgEvent, ScrapeResultData, GenerateResultData, ContentResultData } from '../../shared/events';
 import type { SseFrame, SseStageFrame } from '../../shared/api';
 import type { ParsedLine } from './ndjson';
+import { assertNever } from '../../shared/assert-never';
 
 export type JobRegistryDeps = {
   repoRoot?: string;
   scrapeTimeoutMs?: number;
   generateTimeoutMs?: number;
+  contentTimeoutMs?: number;
   killGraceMs?: number;
   /** DI seams for tests only — production callers should never override these. */
   buildScrapeSpec?: typeof defaultBuildScrapeSpec;
   buildGenerateSpec?: typeof defaultBuildGenerateSpec;
+  buildContentSpec?: typeof defaultBuildContentSpec;
   archiveScrape?: (jobId: string) => ArchiveResult;
 };
 
@@ -63,18 +75,22 @@ export class JobRegistry {
   #repoRoot: string;
   #scrapeTimeoutMs: number;
   #generateTimeoutMs: number;
+  #contentTimeoutMs: number;
   #killGraceMs: number;
   #buildScrapeSpec: typeof defaultBuildScrapeSpec;
   #buildGenerateSpec: typeof defaultBuildGenerateSpec;
+  #buildContentSpec: typeof defaultBuildContentSpec;
   #archiveScrape: (jobId: string) => ArchiveResult;
 
   constructor(deps: JobRegistryDeps = {}) {
     this.#repoRoot = deps.repoRoot ?? REPO_ROOT;
     this.#scrapeTimeoutMs = deps.scrapeTimeoutMs ?? SCRAPE_TIMEOUT_MS;
     this.#generateTimeoutMs = deps.generateTimeoutMs ?? GENERATE_TIMEOUT_MS;
+    this.#contentTimeoutMs = deps.contentTimeoutMs ?? CONTENT_TIMEOUT_MS;
     this.#killGraceMs = deps.killGraceMs ?? KILL_GRACE_MS;
     this.#buildScrapeSpec = deps.buildScrapeSpec ?? defaultBuildScrapeSpec;
     this.#buildGenerateSpec = deps.buildGenerateSpec ?? defaultBuildGenerateSpec;
+    this.#buildContentSpec = deps.buildContentSpec ?? defaultBuildContentSpec;
     this.#archiveScrape = deps.archiveScrape ?? ((jobId: string) => defaultArchiveScrape(jobId));
   }
 
@@ -189,23 +205,38 @@ export class JobRegistry {
   // -------------------------------------------------------------------
 
   createScrapeJob(params: ScrapeParams): JobRecord {
-    const spec = this.#buildScrapeSpec(params, { repoRoot: this.#repoRoot, timeoutMs: this.#scrapeTimeoutMs });
-    return structuredClone(this.#createJob('scrape', params, SCRAPE_LOCK_KEY, spec));
+    return structuredClone(
+      this.#createJob('scrape', params, SCRAPE_LOCK_KEY, () =>
+        this.#buildScrapeSpec(params, { repoRoot: this.#repoRoot, timeoutMs: this.#scrapeTimeoutMs }),
+      ),
+    );
   }
 
   createGenerateJob(params: GenerateParams): JobRecord {
     const key = generateLockKey(params.slug);
-    const spec = this.#buildGenerateSpec(params, { repoRoot: this.#repoRoot, timeoutMs: this.#generateTimeoutMs });
-    return structuredClone(this.#createJob('generate', params, key, spec));
+    return structuredClone(
+      this.#createJob('generate', params, key, () =>
+        this.#buildGenerateSpec(params, { repoRoot: this.#repoRoot, timeoutMs: this.#generateTimeoutMs }),
+      ),
+    );
+  }
+
+  createContentJob(params: ContentParams): JobRecord {
+    return structuredClone(
+      this.#createJob('content', params, CONTENT_LOCK_KEY, (jobId) =>
+        this.#buildContentSpec(params, { repoRoot: this.#repoRoot, timeoutMs: this.#contentTimeoutMs, jobId }),
+      ),
+    );
   }
 
   #createJob(
     kind: JobRecord['kind'],
-    params: ScrapeParams | GenerateParams,
+    params: ScrapeParams | GenerateParams | ContentParams,
     lockKey: string,
-    spec: RunSpec,
+    buildSpec: (jobId: string) => RunSpec,
   ): JobRecord {
     const jobId = newJobId();
+    const spec = buildSpec(jobId);
     const now = new Date().toISOString();
     const acquired = this.#queue.tryAcquire(lockKey, jobId);
 
@@ -493,11 +524,20 @@ function applyEventToJob(job: JobRecord, event: LgEvent): void {
       break;
     }
     case 'result': {
-      if (job.kind === 'scrape') {
-        const data = event.data as ScrapeResultData;
-        job.result = { ...data, archivedFiles: 0 } satisfies ScrapeResult;
-      } else {
-        job.result = event.data as GenerateResultData satisfies GenerateResult;
+      switch (job.kind) {
+        case 'scrape': {
+          const data = event.data as ScrapeResultData;
+          job.result = { ...data, archivedFiles: 0 } satisfies ScrapeResult;
+          break;
+        }
+        case 'generate':
+          job.result = event.data as GenerateResultData satisfies GenerateResult;
+          break;
+        case 'content':
+          job.result = event.data as ContentResultData satisfies ContentResult;
+          break;
+        default:
+          assertNever(job.kind);
       }
       break;
     }

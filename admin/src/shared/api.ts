@@ -20,6 +20,8 @@ export type HealthResponse = {
     outputsDir: boolean;
     generateScript: boolean;
     contentContract: boolean;
+    /** Presence-only: process.env.GEMINI_API_KEY is set and non-empty. Never a live probe (would burn irreplaceable daily quota). Cannot distinguish a valid key from a revoked/over-quota/region-blocked one. */
+    geminiApiKey: boolean;
   };
 };
 
@@ -75,7 +77,8 @@ export type CreateJobRequest =
       contentPath?: string;
       imagesDir?: string;
       confirmOverwrite?: { token: string };
-    };
+    }
+  | { kind: 'content'; scrapeJobId: string; instructions?: string };
 
 /** 409 response when outputs/{slug} already exists and no (or an expired/mismatched) confirmToken was supplied. */
 export type OverwriteConfirmationRequired = {
@@ -91,6 +94,9 @@ export type OverwriteConfirmationRequired = {
 };
 
 export type NoContentArtifact = { code: 'no-content-artifact' };
+
+/** 409 for kind:'content' when scrapeJobId doesn't resolve, or has no archived product.json. */
+export type NoScrapeArtifact = { code: 'no-scrape-artifact' };
 
 export type ContentInvalid = { code: 'content-invalid'; issues: ContentIssue[] };
 
@@ -136,3 +142,9 @@ export type SseEndFrame = { type: 'end'; status: JobRecord['status']; exitCode: 
 export type SseOverflowFrame = { type: 'overflow'; dropped: number };
 
 export type SseFrame = SseJobFrame | SseLogFrame | SseStageFrame | SseEndFrame | SseOverflowFrame;
+
+// ---------------------------------------------------------------------------
+// GET /api/jobs/:id/content/last-attempt (design §8)
+// ---------------------------------------------------------------------------
+
+export type LastAttemptResponse = { present: false } | { present: true; attempt: number; text: string };

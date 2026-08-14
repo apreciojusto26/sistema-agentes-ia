@@ -58,6 +58,21 @@ Machine-checked contract (parsed and asserted by `content/landing-base/src/lib/s
 }
 ```
 
+## Automated run (admin dashboard)
+
+The admin dashboard's "Textos y diseño" panel can run this agent for you via a Generate button, backed by the
+Google Gemini API free tier (`gemini-2.5-flash`, pinned) called with plain `fetch` — no SDK, no new runtime
+dependency. Output is validated in a self-correction loop against the exact same `content-contract.mjs` grader
+used by the manual paste flow, capped at 3 total API calls (1 generate + up to 2 corrections); the result is the
+identical `content.json` shape either way.
+
+The free tier has a **250 requests/day** ceiling (shared across every landing generated that day) and, unlike the
+paid tier, **the product data, your instructions, and the reference style example you send may be used by Google
+to improve their models (i.e. for training)**. This is a disclosed trade-off, not a hidden one — it is also shown
+as an always-visible line in the panel itself. If you configure a paid `GEMINI_API_KEY`, this data-for-training
+behavior turns off and the request code is exactly the same. The manual paste path always remains available as a
+fallback, independent of quota or key configuration.
+
 ---
 
 # 2. 🎨 Design Agent

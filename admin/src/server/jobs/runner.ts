@@ -12,8 +12,8 @@
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { LineBuffer, parseLine, type ParsedLine } from './ndjson';
-import { KILL_GRACE_MS } from '../config';
-import type { GenerateParams, ScrapeParams } from '../../shared/jobs';
+import { KILL_GRACE_MS, ADMIN_ROOT, STAGED_CONTENT_PATH } from '../config';
+import type { GenerateParams, ScrapeParams, ContentParams } from '../../shared/jobs';
 
 export type RunSpec = {
   command: string;
@@ -155,6 +155,37 @@ export function buildGenerateSpec(params: GenerateParams, opts: SpecOpts): RunSp
   const args = ['scripts/generate-landing.mjs', '--slug', params.slug, '--content', params.contentPath];
   if (params.imagesDir) args.push('--images', params.imagesDir);
   if (params.force) args.push('--force');
+
+  return {
+    command: process.execPath,
+    args,
+    cwd: opts.repoRoot,
+    env: { ...process.env, LG_EVENTS: '1' },
+    timeoutMs: opts.timeoutMs,
+  };
+}
+
+export type ContentSpecOpts = SpecOpts & { jobId: string };
+
+/**
+ * cwd = repoRoot so `scripts/generate-content.mjs` resolves; every other
+ * path is passed absolute. GEMINI_API_KEY is NOT an argument — it rides the
+ * `...process.env` spread, exactly like LG_EVENTS' sibling vars (spec "API
+ * Key Transport Hygiene": argv is persisted verbatim into job.json).
+ */
+export function buildContentSpec(params: ContentParams, opts: ContentSpecOpts): RunSpec {
+  const args = [
+    'scripts/generate-content.mjs',
+    '--product',
+    params.scrapeProductPath,
+    '--attempts-dir',
+    path.join(ADMIN_ROOT, '.jobs', opts.jobId, 'content'),
+    '--staged',
+    STAGED_CONTENT_PATH,
+    '--model',
+    params.model,
+  ];
+  if (params.instructionsPath) args.push('--instructions', params.instructionsPath);
 
   return {
     command: process.execPath,

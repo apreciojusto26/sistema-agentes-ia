@@ -45,7 +45,18 @@ export type GenerateStage =
   | 'copy-images'
   | 'todos';
 
-export type AgentName = 'scrape' | 'generate';
+/**
+ * `generate-content.mjs` stages. The retry loop (up to 3 Gemini calls) is
+ * folded into ONE long-lived `generate` stage carrying `progress {done,
+ * total: 3}` (design AD1) — `StageChecklist` keys its `<li>` by `s.stage`,
+ * so repeating stages per attempt would produce duplicate React keys.
+ * `validate` was the natural name for step 3 but is already a `GenerateStage`
+ * member — `save` was chosen instead to keep the merged `stage-label.ts`
+ * lookup table unambiguous.
+ */
+export type ContentStage = 'prepare' | 'generate' | 'save';
+
+export type AgentName = 'scrape' | 'generate' | 'content';
 
 export type LgEventType = 'stage.start' | 'stage.end' | 'progress' | 'warn' | 'result' | 'error';
 
@@ -69,6 +80,24 @@ export type GenerateResultData = {
   todos: string[];
 };
 
+/** Structurally identical to ContentResult (shared/jobs.ts) — duplicated,
+ * not aliased, matching the existing GenerateResultData/GenerateResult
+ * precedent (only ScrapeResult diverges, by adding archivedFiles). */
+export type ContentResultData = {
+  stagedPath: string;
+  model: string;
+  turns: number;
+  promptTokenCount: number;
+  candidatesTokenCount: number;
+  totalTokenCount: number;
+  thoughtsTokenCount: number | null;
+  attemptsDir: string;
+  productFields: number;
+  faqCount: number;
+  testimonialCount: number;
+  hasDesign: boolean;
+};
+
 export type LgEventData =
   | null
   | { ms: number } // stage.end
@@ -76,7 +105,8 @@ export type LgEventData =
   | { message: string } // warn
   | { message: string; code?: string } // error
   | ScrapeResultData
-  | GenerateResultData; // result
+  | GenerateResultData
+  | ContentResultData; // result
 
 /**
  * The exact NDJSON envelope written to stderr, one object per line.
@@ -91,6 +121,6 @@ export type LgEvent = {
   ts: string;
   agent: AgentName;
   type: LgEventType;
-  stage: ScrapeStage | GenerateStage | string | null;
+  stage: ScrapeStage | GenerateStage | ContentStage | string | null;
   data: LgEventData;
 };

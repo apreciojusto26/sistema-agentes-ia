@@ -160,4 +160,26 @@ describe('scope-boundaries (Batch G — machine-checkable, spec R14)', () => {
       expect(offenders).toEqual([]);
     });
   });
+
+  describe('boundary: content-agent — the Scope tripwire made mechanical (proposal Scope tripwire, design §7 J5)', () => {
+    it('scripts/lib/content-contract.mjs is unmodified by this change (git reports zero diff/untracked-add)', () => {
+      const output = gitPorcelain(['scripts/lib/content-contract.mjs']);
+      expect(output.trim()).toBe('');
+    });
+
+    it('admin/package.json declares exactly the pre-existing dependency set — no new runtime dependency for the Gemini call', () => {
+      const pkg = JSON.parse(readFileSync(path.join(REPO_ROOT, 'admin/package.json'), 'utf-8'));
+      expect(pkg.dependencies).toEqual({ fastify: pkg.dependencies.fastify, '@fastify/static': pkg.dependencies['@fastify/static'] });
+      expect(Object.keys(pkg.dependencies).sort()).toEqual(['@fastify/static', 'fastify']);
+    });
+
+    it('no file under admin/src or scripts/ references a Gemini SDK, axios, or dotenv — raw fetch only', () => {
+      const files = [...walk(ADMIN_SRC), ...walk(path.join(REPO_ROOT, 'scripts'))];
+      const bannedPattern = /@google\/genai|['"]axios['"]|['"]dotenv['"]/;
+      const offenders = files
+        .filter((f) => bannedPattern.test(readFileSync(f, 'utf-8')))
+        .map((f) => path.relative(REPO_ROOT, f));
+      expect(offenders).toEqual([]);
+    });
+  });
 });
