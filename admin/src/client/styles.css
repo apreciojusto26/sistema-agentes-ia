@@ -1,1 +1,58 @@
 @import "tailwindcss";
+
+@theme {
+  /* --- Agent accents (6, committed by D2) -------------------------------
+     D2a: disjoint from status hues. scrape=orange, content=violet,
+     generate=sky. Each base is >= 4.5:1 on white (AA normal text) so it can
+     carry the agent NAME, not just decoration. Tints are ~ 1.05:1 on white —
+     background only, never text. */
+  --color-agent-scrape: #c2410c; /* orange-700  — 5.18:1 on white */
+  --color-agent-scrape-tint: #fff1e7;
+  --color-agent-content: #6d28d9; /* violet-700  — 7.10:1 on white */
+  --color-agent-content-tint: #f3eeff;
+  --color-agent-generate: #0369a1; /* sky-700     — 5.93:1 on white */
+  --color-agent-generate-tint: #e8f4fb;
+
+  /* --- Neutrals / surfaces (5, committed by D2) ------------------------- */
+  --color-panel: #ffffff;
+  --color-panel-soft: #f6f7f9;
+  --color-ink: #14181f; /* 16.4:1 on white — body text          */
+  --color-ink-soft: #566173; /*  6.26:1 on white — secondary text.
+                                  NOTE: deliberately darker than the
+                                  slate-400/slate-500 currently used for
+                                  hint text, which fails AA at small sizes */
+  --color-hairline: #e3e7ed;
+
+  /* --- Honest status semantics (4, committed by D2) --------------------- */
+  --color-state-running: #047857; /* emerald-700 — 5.48:1 */
+  --color-state-done: #15803d; /* green-700   — 5.51:1 */
+  --color-state-failed: #b91c1c; /* red-700     — 6.47:1 */
+  --color-state-idle: #64748b; /* slate-500   — 4.76:1 */
+
+  /* --- Checklist dark card (3, EXTRA — Assumption 2: dark scoped to this
+     one card only. No prefers-color-scheme query, no app-wide flip.) ----- */
+  --color-checklist-surface: #16202e;
+  --color-checklist-ink: #e6edf6; /* 13.2:1 on surface */
+  --color-checklist-ink-soft: #9aa9bc; /*  6.91:1 on surface */
+
+  /* --- Status ON the dark card (3, EXTRA — MANDATORY, not cosmetic).
+     The light-background status tokens above fail AA on #16202e
+     (e.g. --color-state-done is 3.30:1 there). A status color that is
+     unreadable is a broken honest signal, so these are required, not a
+     nicety. No -idle-on-dark: the checklist renders ONLY real reported
+     stages, which are always running|done|failed — never idle. --------- */
+  --color-state-running-on-dark: #34d399; /* 8.60:1 on surface */
+  --color-state-done-on-dark: #4ade80; /* 9.49:1 on surface */
+  --color-state-failed-on-dark: #f87171; /* 5.98:1 on surface */
+
+  /* --- Sidebar dark surface (NEW — dark navy "Tu equipo IA" panel per user
+     reference mock. Same pattern as the checklist card: dark scoped to this
+     one region only, no prefers-color-scheme query, no app-wide flip.
+     ink-soft reuses the checklist card's already-verified 6.91:1 pairing at
+     an equivalent luminance, so no extra contrast math was needed. -------- */
+  --color-sidebar-surface: #10162c;
+  --color-sidebar-surface-selected: #1c2454;
+  --color-sidebar-ink: #f5f7fb; /* ~15.7:1 on surface */
+  --color-sidebar-ink-soft: #9aa9bc; /* ~6.9:1 on surface */
+  --color-sidebar-heading: #6b7aa8; /* ~5.5:1 on surface — small uppercase label */
+}

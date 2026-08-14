@@ -10,7 +10,10 @@ export type AgentSidebarProps = {
 
 export default function AgentSidebar({ items, selectedId, onSelect }: AgentSidebarProps) {
   return (
-    <nav aria-label="Agents" className="flex w-64 flex-col gap-1 border-r border-slate-200 p-2">
+    <nav aria-label="Tu equipo" className="flex w-72 shrink-0 flex-col gap-1 overflow-y-auto bg-sidebar-surface p-3">
+      <h2 className="mb-1 px-1.5 text-xs font-semibold uppercase tracking-wide text-sidebar-heading">
+        Tu equipo IA
+      </h2>
       {items.map((item) => (
         <AgentSidebarItem
           key={item.id}

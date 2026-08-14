@@ -31,7 +31,7 @@ export default function CodeAgentPanel({ job, logs, onRun, onCancel, running, co
 
   return (
     <AgentRunPanel
-      title="Code Agent"
+      identity="generate"
       job={job}
       logs={logs}
       onCancel={onCancel}
@@ -48,7 +48,7 @@ export default function CodeAgentPanel({ job, logs, onRun, onCancel, running, co
               type="text"
               value={slug}
               onChange={(e) => setSlug(e.target.value)}
-              placeholder="my-landing-slug"
+              placeholder="nombre-de-tu-landing"
               className="flex-1 rounded border border-slate-300 px-2 py-1 text-sm"
             />
             <button
@@ -56,29 +56,28 @@ export default function CodeAgentPanel({ job, logs, onRun, onCancel, running, co
               disabled={running || slug.trim().length === 0}
               className="rounded bg-slate-800 px-3 py-1 text-sm font-medium text-white disabled:opacity-40"
             >
-              Generate
+              Crear landing
             </button>
           </form>
           {!contentReady && (
             <p className="text-xs text-amber-600">
-              Content/Design stage is not yet `validated` — the server will reject this with
-              `no-content-artifact` or `content-invalid` if nothing usable is staged.
+              Todavía no hay textos validados. Completá el paso "Textos y diseño" antes de crear la landing.
             </p>
           )}
         </div>
       }
       resultSlot={
         <>
-          {submitError && <p className="text-xs text-red-600">{submitError}</p>}
+          {submitError && <p className="text-xs text-state-failed">{submitError}</p>}
           {result && (
-            <div className="rounded border border-slate-200 p-3 text-sm">
-              <p className="font-medium">outputs/{result.slug}</p>
-              <p className="text-xs text-slate-500">
-                {result.imagesMatched} image(s) matched
-                {result.force ? ' — overwrote an existing directory' : ''}
+            <div className="rounded border border-hairline p-3 text-sm">
+              <p className="font-medium text-ink">Se creó en outputs/{result.slug}</p>
+              <p className="text-xs text-ink-soft">
+                {result.imagesMatched} imágenes ubicadas
+                {result.force ? ' — se reemplazó una carpeta que ya existía' : ''}
               </p>
               {result.imagesUnmatched.length > 0 && (
-                <p className="text-xs text-amber-600">Unmatched: {result.imagesUnmatched.join(', ')}</p>
+                <p className="text-xs text-amber-600">No se pudieron ubicar: {result.imagesUnmatched.join(', ')}</p>
               )}
               <div className="mt-2">
                 <TodoList todos={result.todos} />

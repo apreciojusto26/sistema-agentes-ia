@@ -14,11 +14,12 @@ export default function OverwriteConfirmDialog({ details, onConfirm, onCancel }:
   return (
     <div role="alertdialog" aria-labelledby="overwrite-title" className="rounded border border-red-300 bg-red-50 p-4">
       <h2 id="overwrite-title" className="text-sm font-semibold text-red-800">
-        {details.existingDir} already exists
+        La carpeta {details.existingDir} ya existe
       </h2>
-      <p className="mt-1 text-xs text-red-700">
-        Last generated {details.existingMtime}
-        {details.priorJob ? ` by job ${details.priorJob.jobId} (exit code ${details.priorJob.exitCode ?? 'n/a'})` : ''}.
+      <p className="mt-1 text-xs text-red-700" title={
+        details.priorJob ? `job ${details.priorJob.jobId} (exit code ${details.priorJob.exitCode ?? 'n/a'})` : undefined
+      }>
+        Se generó por última vez el {details.existingMtime}.
       </p>
       <ul className="mt-2 list-inside list-disc text-xs text-red-700">
         {details.warnings.map((w) => (
@@ -31,10 +32,10 @@ export default function OverwriteConfirmDialog({ details, onConfirm, onCancel }:
           onClick={() => onConfirm(details.confirmToken)}
           className="rounded bg-red-700 px-3 py-1 text-xs font-medium text-white hover:bg-red-800"
         >
-          Overwrite anyway
+          Sobrescribir igual
         </button>
         <button type="button" onClick={onCancel} className="rounded border border-slate-300 px-3 py-1 text-xs">
-          Cancel
+          Cancelar
         </button>
       </div>
     </div>

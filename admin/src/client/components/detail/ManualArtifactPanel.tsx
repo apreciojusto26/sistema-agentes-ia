@@ -1,5 +1,5 @@
 // Content/Design manual stage (spec R7 "Content/Design Manual Stage", R8
-// "Honest UI"; design §6). Accepts ONLY `state: ContentStageState` — no
+// "Honest UI"; design §6, §8.7). Accepts ONLY `state: ContentStageState` — no
 // `JobRecord`, no `status`, nothing process-shaped is in this component's
 // props at all, so it is structurally incapable of rendering a spinner "while
 // running": there is no running-shaped data it could even read. The
@@ -13,6 +13,7 @@
 import { useState } from 'react';
 import type { ContentStageState } from '../../../shared/content-stage';
 import { assertNever } from '../../../shared/assert-never';
+import { contentStageLabelLong } from '../content-stage-label';
 
 export type ManualArtifactPanelProps = {
   state: ContentStageState;
@@ -26,10 +27,10 @@ export default function ManualArtifactPanel({ state, onSubmitRaw, onDelete }: Ma
   return (
     <section className="flex flex-col gap-3">
       <header>
-        <h2 className="text-lg font-semibold">Content / Design</h2>
-        <p className="text-xs text-slate-500">
-          Manual artifact stage — paste or upload the generated <code>content.json</code>. This stage never runs a
-          child process, so it never shows a spinner or elapsed timer (spec R8).
+        <h2 className="text-lg font-semibold text-ink">Textos y diseño</h2>
+        <p className="text-xs text-ink-soft">
+          Esta es la vía manual: pegá acá el <code>content.json</code> con los textos y el diseño. Acá nunca vas a
+          ver algo "cargando" — si preferís que la IA lo escriba por vos, usá el botón "Generar textos" más arriba.
         </p>
       </header>
 
@@ -49,7 +50,7 @@ function renderState(
     case 'idle':
       return (
         <div className="flex flex-col gap-2">
-          <p className="text-sm text-slate-500">waiting for content.json</p>
+          <p className="text-sm text-ink-soft">{contentStageLabelLong(state)}</p>
           <PasteForm draft={draft} setDraft={setDraft} onSubmitRaw={onSubmitRaw} />
         </div>
       );
@@ -57,13 +58,13 @@ function renderState(
     case 'received':
       // Transient: the client immediately follows a paste/upload with a
       // validate call. Rendered defensively in case a caller pauses here.
-      return <p className="text-sm text-slate-500">artifact received — validating…</p>;
+      return <p className="text-sm text-ink-soft">{contentStageLabelLong(state)}</p>;
 
     case 'unparseable':
       return (
         <div className="flex flex-col gap-2">
-          <p className="rounded border border-red-300 bg-red-50 p-2 text-sm text-red-700">
-            Not valid JSON: {state.parseError}
+          <p className="rounded border border-red-300 bg-red-50 p-2 text-sm text-state-failed">
+            {contentStageLabelLong(state)}
           </p>
           <PasteForm draft={draft} setDraft={setDraft} onSubmitRaw={onSubmitRaw} initialValue={state.raw} />
         </div>
@@ -72,10 +73,11 @@ function renderState(
     case 'invalid':
       return (
         <div className="flex flex-col gap-2">
-          <p className="text-sm font-medium text-red-700">invalid ({state.issues.length} error{state.issues.length === 1 ? '' : 's'})</p>
-          <ul className="list-inside list-disc text-xs text-red-700">
+          <p className="text-sm font-medium text-state-failed">{contentStageLabelLong(state)}</p>
+          <ul className="list-inside list-disc text-xs text-state-failed">
             {state.issues.map((issue) => (
               <li key={`${issue.code}-${issue.path}`}>
+                {/* issue.message comes verbatim from the server (design §8, R-b) — not translated here. */}
                 <span className="font-mono">{issue.path}</span>: {issue.message}
               </li>
             ))}
@@ -87,20 +89,24 @@ function renderState(
     case 'validated':
       return (
         <div className="flex flex-col gap-2">
-          <p className="rounded border border-emerald-300 bg-emerald-50 p-2 text-sm text-emerald-700">
-            validated — {state.summary.productFields} product field(s), {state.summary.faqCount} FAQ(s),{' '}
-            {state.summary.testimonialCount} testimonial(s){state.summary.hasDesign ? ', includes design tokens' : ''}
+          <p className="rounded border border-emerald-300 bg-emerald-50 p-2 text-sm text-state-done">
+            {contentStageLabelLong(state)}
           </p>
-          <p className="text-xs text-slate-500">
-            saved to <span className="font-mono">{state.path}</span> ({state.bytes} bytes, sha256{' '}
-            <span className="font-mono">{state.sha256.slice(0, 12)}…</span>)
-          </p>
+
+          <details className="rounded-lg border border-hairline bg-panel-soft px-3 py-2">
+            <summary className="cursor-pointer text-xs font-medium text-ink-soft">Detalles técnicos</summary>
+            <p className="mt-2 text-xs text-ink-soft">
+              saved to <span className="font-mono">{state.path}</span> ({state.bytes} bytes, sha256{' '}
+              <span className="font-mono">{state.sha256.slice(0, 12)}…</span>)
+            </p>
+          </details>
+
           <button
             type="button"
             onClick={onDelete}
             className="w-fit rounded border border-slate-300 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50"
           >
-            Clear staged artifact
+            Borrar lo que pegué
           </button>
         </div>
       );
@@ -134,7 +140,7 @@ function PasteForm({
         value={value}
         onChange={(e) => setDraft(e.target.value)}
         rows={10}
-        placeholder="Paste content.json here"
+        placeholder="Pegá acá el content.json"
         className="rounded border border-slate-300 p-2 font-mono text-xs"
       />
       <button
@@ -142,7 +148,7 @@ function PasteForm({
         disabled={value.trim().length === 0}
         className="w-fit rounded bg-slate-800 px-3 py-1 text-sm font-medium text-white disabled:opacity-40"
       >
-        Validate &amp; stage
+        Revisar y guardar
       </button>
     </form>
   );

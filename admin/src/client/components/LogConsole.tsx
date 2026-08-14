@@ -17,7 +17,7 @@ const CH_LABEL: Record<Extract<SseFrame, { type: 'log' }>['ch'], string> = {
 
 export default function LogConsole({ lines }: LogConsoleProps) {
   if (lines.length === 0) {
-    return <p className="text-xs text-slate-400">No output yet.</p>;
+    return <p className="text-xs text-slate-400">Sin salida todavía.</p>;
   }
 
   return (

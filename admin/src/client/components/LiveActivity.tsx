@@ -6,21 +6,31 @@
 // component "optimistically" — callers must have already proven a live
 // child process exists.
 import type { RunningEvidence } from '../../shared/running-evidence';
+import { stageLabel } from '../../shared/stage-label';
 
 export type LiveActivityProps = {
   evidence: RunningEvidence;
+  /** Renders against the dark sidebar surface instead of the default light panel. Literal class pairs only — never interpolate `text-state-running${suffix}` (Oxide scans source text statically). */
+  onDark?: boolean;
 };
 
-export default function LiveActivity({ evidence }: LiveActivityProps) {
+// pid/jobId are intentionally NOT rendered here (remediation C1/W1): they are
+// technical details and belong only inside a `<details>Detalles
+// técnicos</details>` block. AgentRunPanel already surfaces both (job.jobId
+// in the status line above its <details>, job.pid in the <dl> inside it) —
+// this component's job is only the honest live-status line, in Spanish.
+export default function LiveActivity({ evidence, onDark = false }: LiveActivityProps) {
+  const dotClass = onDark ? 'bg-state-running-on-dark' : 'bg-state-running';
+  const textClass = onDark ? 'text-state-running-on-dark' : 'text-state-running';
+
   return (
-    <div className="flex items-center gap-2 text-sm text-emerald-700" role="status">
+    <div className={`flex items-center gap-2 text-sm ${textClass} ${onDark ? 'italic' : ''}`} role="status">
       <span className="relative flex h-2.5 w-2.5" aria-hidden="true">
-        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+        <span className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${dotClass}`} />
+        <span className={`relative inline-flex h-2.5 w-2.5 rounded-full ${dotClass}`} />
       </span>
       <span>
-        running: <span className="font-medium">{evidence.stage}</span>{' '}
-        <span className="text-xs text-emerald-600">(pid {evidence.pid}, job {evidence.jobId})</span>
+        trabajando en: <span className="font-medium">{stageLabel(evidence.stage)}</span>
       </span>
     </div>
   );
