@@ -7,6 +7,7 @@ import { PriceRow } from '@/components/islands/parts/PriceRow';
 import { VariantPicker } from '@/components/islands/parts/VariantPicker';
 import { packDisplayLabel, projectPack } from '@/lib/shopify/pricing';
 import { formatPrice } from '@/lib/format';
+import { centsToUnits, trackEvent } from '@/lib/analytics';
 import type { ProductCommerce } from '@/lib/shopify/types';
 import type { PricePack, ProductErrorCopy } from '@/types/content';
 
@@ -60,6 +61,18 @@ export function BundleSelector({
     if (cart?.line && inSync) {
       checkout();
     } else {
+      trackEvent('add_to_cart', {
+        currency: commerce.currencyCode,
+        value: centsToUnits(projection.priceCents),
+        items: [
+          {
+            item_id: variant.id,
+            item_name: commerce.title,
+            price: centsToUnits(variant.unitPriceCents),
+            quantity: projection.totalUnits,
+          },
+        ],
+      });
       void syncCartLine(variant.id, projection.totalUnits);
     }
   };
@@ -83,7 +96,7 @@ export function BundleSelector({
         label={variantGroupLabel}
       />
 
-      <div role="radiogroup" aria-label="Elegí tu pack" className="space-y-3">
+      <div role="radiogroup" aria-label="Elige tu pack" className="space-y-3">
         {packs.map((p) => {
           const checked = p.id === pack.id;
           const pProjection = projectPack(variant, p, bundleOfferActive);

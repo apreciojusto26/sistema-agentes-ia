@@ -4,6 +4,7 @@ import type { CartSnapshot } from '@/lib/shopify/types';
 import { product } from '@/data/product';
 import { $selectedPackId, $selectedVariantId } from '@/stores/checkout';
 import type { PricePack } from '@/types/content';
+import { centsToUnits, trackEvent } from '@/lib/analytics';
 
 const KEY = 'astravibe:cartId';
 const DEBOUNCE_MS = 400;
@@ -133,6 +134,12 @@ const CHECKOUT_MODE = import.meta.env.PUBLIC_CHECKOUT_MODE;
 export function checkout(): void {
   const cart = $cart.get();
   if (!cart || !cart.line) return;
+
+  trackEvent('begin_checkout', {
+    currency: 'EUR',
+    value: centsToUnits(cart.totalCents),
+    items: [{ item_id: cart.line.variantId, item_name: product.name, quantity: cart.line.quantity }],
+  });
 
   if (CHECKOUT_MODE === 'shopify') {
     window.location.assign(cart.checkoutUrl);

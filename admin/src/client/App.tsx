@@ -15,7 +15,6 @@ import { useJobStream } from './http/useJobStream';
 import * as api from './http/client';
 import type { ContentStageState } from '../shared/content-stage';
 import type { OverwriteConfirmationRequired } from '../shared/api';
-import type { HealthResponse } from '../shared/api';
 import type { JobRecord } from '../shared/jobs';
 import { assertNever } from '../shared/assert-never';
 
@@ -29,7 +28,6 @@ function latestJobOfKind(jobs: JobRecord[], kind: JobRecord['kind']): JobRecord 
 
 export default function App() {
   const { jobs, refresh: refreshJobs } = useJobs();
-  const [health, setHealth] = useState<HealthResponse | null>(null);
   const [selected, setSelected] = useState<PanelId>('scrape');
 
   const [scrapeJobId, setScrapeJobId] = useState<string | null>(null);
@@ -45,10 +43,11 @@ export default function App() {
 
   const [contentState, setContentState] = useState<ContentStageState>({ kind: 'idle' });
   const [contentDrift, setContentDrift] = useState<string | null>(null);
-
-  useEffect(() => {
-    void api.getHealth().then(setHealth).catch(() => setHealth(null));
-  }, []);
+  // Set only right after a user-initiated runScrape() call (never on a
+  // page-load pickup of an old scrape from job history — see the effect
+  // below), so content generation auto-fires exactly once per fresh scrape
+  // and never retroactively for jobs that finished in a previous session.
+  const [pendingContentForScrapeJobId, setPendingContentForScrapeJobId] = useState<string | null>(null);
 
   // Pick up the latest run of each kind once the job list has loaded, so a
   // page refresh re-attaches to whatever was already in flight or finished
@@ -124,6 +123,21 @@ export default function App() {
   const generateJob = generateStream.job ?? latestJobOfKind(jobs, 'generate');
   const contentJob = contentStream.job ?? latestJobOfKind(jobs, 'content');
 
+  // Auto-generate content the moment the scrape it depends on succeeds — no
+  // "Generar textos" button. Scoped to pendingContentForScrapeJobId so this
+  // only fires for a scrape started via the Run button in this session, not
+  // for an already-finished scrape picked up from job history on page load.
+  useEffect(() => {
+    if (!pendingContentForScrapeJobId || scrapeJob?.jobId !== pendingContentForScrapeJobId) return;
+    if (scrapeJob.status === 'succeeded') {
+      setPendingContentForScrapeJobId(null);
+      void runContent(scrapeJob.jobId, '');
+    } else if (scrapeJob.status !== 'running' && scrapeJob.status !== 'queued') {
+      // Scrape itself failed/timed-out/cancelled/interrupted — nothing to feed the content agent.
+      setPendingContentForScrapeJobId(null);
+    }
+  }, [scrapeJob, pendingContentForScrapeJobId]);
+
   const scrapeRunning = scrapeJob?.status === 'running' || scrapeJob?.status === 'queued';
   const generateRunning = generateJob?.status === 'running' || generateJob?.status === 'queued';
   const contentRunning = contentJob?.status === 'running' || contentJob?.status === 'queued';
@@ -142,6 +156,7 @@ export default function App() {
     const res = await api.createJob({ kind: 'scrape', url });
     if (res.ok) {
       setScrapeJobId(res.job.jobId);
+      setPendingContentForScrapeJobId(res.job.jobId);
       void refreshJobs();
     } else {
       setScrapeError('message' in res.error ? res.error.message : JSON.stringify(res.error));
@@ -243,15 +258,6 @@ export default function App() {
     <div className="flex h-screen flex-col">
       <header className="flex items-center justify-between border-b border-hairline px-4 py-2">
         <h1 className="text-lg font-semibold text-ink">Generador de landings</h1>
-        {health && (
-          <div className="flex gap-2 text-xs text-ink-soft">
-            {Object.entries(health.checks).map(([key, ok]) => (
-              <span key={key} className={ok ? 'text-state-done' : 'text-state-failed'} title={key}>
-                {ok ? '✓' : '✗'} {key}
-              </span>
-            ))}
-          </div>
-        )}
       </header>
 
       <div className="flex flex-1 overflow-hidden">

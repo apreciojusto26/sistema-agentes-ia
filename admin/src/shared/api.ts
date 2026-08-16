@@ -148,3 +148,11 @@ export type SseFrame = SseJobFrame | SseLogFrame | SseStageFrame | SseEndFrame |
 // ---------------------------------------------------------------------------
 
 export type LastAttemptResponse = { present: false } | { present: true; attempt: number; text: string };
+
+// ---------------------------------------------------------------------------
+// POST /api/preview — "Ver el resultado" (live astro dev server for outputs/{slug})
+// ---------------------------------------------------------------------------
+
+export type StartPreviewRequest = { slug: string };
+
+export type StartPreviewResponse = { ok: true; url: string } | { ok: false; message: string };

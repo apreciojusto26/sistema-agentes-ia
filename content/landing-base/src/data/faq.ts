@@ -11,13 +11,13 @@ export const faq: FaqItem[] = [
     id: 'pilas',
     question: '¿Cómo se alimenta? ¿Incluye las pilas?',
     answer:
-      'Funciona con una pila botón que viene incluida, y también incluye la lámpara. No requiere enchufe ni cable: es totalmente portátil, ideal para usar en casa, en el auto o donde quieras.',
+      'Funciona con una pila botón que viene incluida, y también incluye la lámpara. No requiere enchufe ni cable: es totalmente portátil, ideal para usar en casa, en el coche o donde quieras.',
   },
   {
     id: 'encendido',
     question: '¿Cómo se enciende y se cambia la escena?',
     answer:
-      'Se enciende con un simple toque en su superficie. Para cambiar la proyección, deslizá las 24 películas incluidas y elegí entre distintos cielos estrellados, nebulosas y la vía láctea.',
+      'Se enciende con un simple toque en su superficie. Para cambiar la proyección, desliza las 24 películas incluidas y elige entre distintos cielos estrellados, nebulosas y la vía láctea.',
   },
   {
     id: 'uso-oscuro',

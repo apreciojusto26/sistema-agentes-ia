@@ -9,6 +9,7 @@
 // The server runs under tsx with no compile step (design §1, judgment call
 // 2) — see admin/src/server/validation/content.ts's note on why a tsc emit
 // would break the relative import to scripts/lib/content-contract.mjs.
+import './load-env';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import Fastify, { type FastifyInstance } from 'fastify';
@@ -19,6 +20,7 @@ import { registerContentRoutes } from './routes/content';
 import { registerJobsRoutes } from './routes/jobs';
 import { registerEventsRoutes } from './routes/events';
 import { registerArtifactsRoutes } from './routes/artifacts';
+import { registerPreviewRoutes } from './routes/preview';
 import { ADMIN_ROOT, PORT } from './config';
 
 export type BuildAppOptions = {
@@ -45,6 +47,7 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
   registerJobsRoutes(app, registry);
   registerEventsRoutes(app, registry);
   registerArtifactsRoutes(app, registry);
+  registerPreviewRoutes(app);
 
   const distClientDir = opts.distClientDir ?? path.join(ADMIN_ROOT, 'dist', 'client');
   const indexHtmlPath = path.join(distClientDir, 'index.html');

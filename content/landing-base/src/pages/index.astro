@@ -30,6 +30,7 @@ const description = product.subtagline;
 // Memoized in lib/shopify/catalog.ts — no extra network call even though
 // 05-buy-box.astro and 15-sticky-bar.astro also await this.
 const commerce = await getProductCommerce();
+const defaultVariant = commerce.variants.find((v) => v.id === commerce.defaultVariantId) ?? commerce.variants[0];
 ---
 
 <Base title={title} description={description}>
@@ -49,4 +50,26 @@ const commerce = await getProductCommerce();
   <SiteFooter />
   <StickyBar />
   <CartDrawer client:load commerce={commerce} />
+
+  {defaultVariant && (
+    // is:inline can't `import` lib/analytics.ts, so this calls window.gtag
+    // directly — Base.astro only defines it when GA is actually enabled.
+    <script
+      is:inline
+      define:vars={{
+        itemId: defaultVariant.id,
+        itemName: commerce.title,
+        price: defaultVariant.unitPriceCents / 100,
+        currency: commerce.currencyCode,
+      }}
+    >
+      if (typeof window.gtag === 'function') {
+        window.gtag('event', 'view_item', {
+          currency: currency,
+          value: price,
+          items: [{ item_id: itemId, item_name: itemName, price: price, quantity: 1 }],
+        });
+      }
+    </script>
+  )}
 </Base>

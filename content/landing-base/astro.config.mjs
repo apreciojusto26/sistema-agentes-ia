@@ -33,6 +33,8 @@ export default defineConfig({
       UPSTASH_REDIS_REST_URL: envField.string({ context: 'server', access: 'public', optional: true }),
       UPSTASH_REDIS_REST_TOKEN: envField.string({ context: 'server', access: 'secret', optional: true }),
       ALERT_WEBHOOK_URL: envField.string({ context: 'server', access: 'secret', optional: true }),
+      PUBLIC_GA_MEASUREMENT_ID: envField.string({ context: 'server', access: 'public', optional: true }),
+      PUBLIC_CLARITY_PROJECT_ID: envField.string({ context: 'server', access: 'public', optional: true }),
     },
   },
 });

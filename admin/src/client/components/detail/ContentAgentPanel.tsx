@@ -4,6 +4,12 @@
 // Detalles técnicos) exactly like ScrapeAgentPanel/CodeAgentPanel, and
 // renders ManualArtifactPanel — UNMODIFIED in structure — inside a collapsed
 // fallback section, per Q1.
+//
+// The FIRST generation is fully automatic — App.tsx fires it the moment the
+// scrape it depends on succeeds, there is no "start" button here at all.
+// This panel only ever offers a "Regenerar con instrucciones" action, which
+// reuses the exact same onRun plumbing to run a second (paid-in-quota)
+// attempt with operator-supplied tone/style notes.
 import { useEffect, useState } from 'react';
 import type { JobRecord, ContentResult } from '../../../shared/jobs';
 import type { SseFrame } from '../../../shared/api';
@@ -80,38 +86,46 @@ export default function ContentAgentPanel({
       onCancel={onCancel}
       formSlot={
         <div className="flex flex-col gap-1">
-          <form
-            className="flex flex-col gap-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (scrapeJobId) onRun(scrapeJobId, instructions.trim());
-            }}
-          >
-            <textarea
-              value={instructions}
-              onChange={(e) => setInstructions(e.target.value)}
-              rows={3}
-              placeholder="Opcional: tono, estilo, cosas para destacar o evitar."
-              className="rounded border border-slate-300 p-2 text-sm"
-            />
-            <button
-              type="submit"
-              disabled={running || !scrapeJobId}
-              className="w-fit rounded bg-slate-800 px-3 py-1 text-sm font-medium text-white disabled:opacity-40"
-            >
-              Generar textos
-            </button>
-          </form>
-
           {!scrapeJobId && (
             <p className="text-xs text-amber-600">
-              Todavía no hay un producto buscado. Corré primero el Extractor.
+              Todavía no hay un producto buscado. Corré primero el Extractor — en cuanto termine, esto arranca
+              solo.
             </p>
           )}
 
+          {scrapeJobId && !job && !running && (
+            <p className="text-xs text-ink-soft">Arranca solo apenas termine el Extractor…</p>
+          )}
+
+          {job && !running && (
+            <form
+              className="flex flex-col gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (scrapeJobId) onRun(scrapeJobId, instructions.trim());
+              }}
+            >
+              <textarea
+                value={instructions}
+                onChange={(e) => setInstructions(e.target.value)}
+                rows={3}
+                placeholder="Opcional: tono, estilo, cosas para destacar o evitar."
+                className="rounded border border-slate-300 p-2 text-sm"
+              />
+              <button
+                type="submit"
+                disabled={!scrapeJobId}
+                className="w-fit rounded bg-slate-800 px-3 py-1 text-sm font-medium text-white disabled:opacity-40"
+              >
+                Regenerar con estas instrucciones
+              </button>
+            </form>
+          )}
+
           <p className="text-xs text-ink-soft">
-            Usa la capa gratuita de Gemini: lo que mandás (los datos del producto y tus instrucciones) puede ser
-            usado por Google para entrenar sus modelos.
+            Arranca automáticamente apenas termina el Extractor, sin que hagas nada — usa la capa gratuita de
+            Gemini: cada intento gasta 1 de las 250 solicitudes/día del plan gratis, y lo que mandás (los datos
+            del producto y tus instrucciones) puede ser usado por Google para entrenar sus modelos.
           </p>
         </div>
       }

@@ -6,6 +6,7 @@ import { useSelection } from '@/components/islands/parts/use-selection';
 import { PlaceholderShot } from '@/components/islands/parts/PlaceholderShot';
 import { formatPrice } from '@/lib/format';
 import { packDisplayLabel } from '@/lib/shopify/pricing';
+import { centsToUnits, trackEvent } from '@/lib/analytics';
 import type { ProductCommerce } from '@/lib/shopify/types';
 import type { PricePack } from '@/types/content';
 import type { ResolvedImage } from '@/types/content';
@@ -70,6 +71,18 @@ export function StickyAddToCart({
       checkout();
       return;
     }
+    trackEvent('add_to_cart', {
+      currency: commerce.currencyCode,
+      value: centsToUnits(projection.priceCents),
+      items: [
+        {
+          item_id: variant.id,
+          item_name: commerce.title,
+          price: centsToUnits(variant.unitPriceCents),
+          quantity: projection.totalUnits,
+        },
+      ],
+    });
     void syncCartLine(variant.id, projection.totalUnits);
   };
 

@@ -2,6 +2,7 @@
   "name": "cortto-landing",
   "type": "module",
   "version": "0.0.1",
+  "packageManager": "pnpm@11.1.2",
   "engines": {
     "node": ">=22.12.0"
   },
@@ -24,6 +25,7 @@
     "nanostores": "^1.4.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "sharp": "^0.35.3",
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {

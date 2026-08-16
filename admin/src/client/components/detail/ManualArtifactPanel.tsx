@@ -30,7 +30,8 @@ export default function ManualArtifactPanel({ state, onSubmitRaw, onDelete }: Ma
         <h2 className="text-lg font-semibold text-ink">Textos y diseño</h2>
         <p className="text-xs text-ink-soft">
           Esta es la vía manual: pegá acá el <code>content.json</code> con los textos y el diseño. Acá nunca vas a
-          ver algo "cargando" — si preferís que la IA lo escriba por vos, usá el botón "Generar textos" más arriba.
+          ver algo "cargando" — la IA ya lo genera sola apenas termina el Extractor, esto es solo para cuando
+          preferís escribirlo vos o corregir algo a mano.
         </p>
       </header>
 

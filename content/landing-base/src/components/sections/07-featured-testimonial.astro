@@ -1,5 +1,4 @@
 ---
-import PlaceholderShot from '@/components/ui/PlaceholderShot.astro';
 import { testimonials } from '@/data/testimonials';
 
 const featured = testimonials.find((t) => t.variant === 'quote');
@@ -14,10 +13,7 @@ const featured = testimonials.find((t) => t.variant === 'quote');
         </p>
         <p class="text-xl leading-snug text-graphite md:text-2xl">{featured.body}</p>
 
-        <div class="mt-6 flex items-center justify-center gap-3">
-          <div class="size-12 overflow-hidden rounded-full">
-            <PlaceholderShot ratio="1/1" alt={featured.author} rounded="rounded-full" />
-          </div>
+        <div class="mt-6 flex items-center justify-center">
           <div class="text-left">
             <p class="text-sm font-bold text-graphite">{featured.author}</p>
             {featured.verified && (

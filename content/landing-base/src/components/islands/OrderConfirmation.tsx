@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { clearCart } from '@/stores/cart';
+import { $cart, clearCart } from '@/stores/cart';
+import { centsToUnits, trackEvent } from '@/lib/analytics';
+import { product } from '@/data/product';
 
 interface OrderConfirmationProps {
   // NOT named "ref" — React's createElement strips a prop literally named
@@ -48,6 +50,16 @@ export function OrderConfirmation({ paymentRef }: OrderConfirmationProps) {
         if (result.status === 'paid') {
           if (!clearedCart.current) {
             clearedCart.current = true;
+            // Cart snapshot read BEFORE clearCart() — value/items are gone once it clears.
+            const cart = $cart.get();
+            if (cart?.line) {
+              trackEvent('purchase', {
+                transaction_id: result.orderName,
+                currency: 'EUR',
+                value: centsToUnits(cart.totalCents),
+                items: [{ item_id: cart.line.variantId, item_name: product.name, quantity: cart.line.quantity }],
+              });
+            }
             clearCart();
           }
           setState({ kind: 'paid', orderName: result.orderName });

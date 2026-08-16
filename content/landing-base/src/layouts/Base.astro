@@ -1,5 +1,6 @@
 ---
 import '@/styles/global.css';
+import { getSecret } from 'astro:env/server';
 
 interface Props {
   title: string;
@@ -8,6 +9,10 @@ interface Props {
 
 const { title, description } = Astro.props;
 const ogImage = new URL('/og-cover.png', Astro.site ?? Astro.url).toString();
+
+// Gated to prod so local/preview traffic doesn't pollute GA4/Clarity data.
+const gaId = import.meta.env.PROD ? getSecret('PUBLIC_GA_MEASUREMENT_ID') : undefined;
+const clarityId = import.meta.env.PROD ? getSecret('PUBLIC_CLARITY_PROJECT_ID') : undefined;
 ---
 
 <!doctype html>
@@ -28,6 +33,40 @@ const ogImage = new URL('/og-cover.png', Astro.site ?? Astro.url).toString();
     <meta name="twitter:card" content="summary_large_image" />
 
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    {gaId && (
+      <>
+        <script is:inline async src={`https://www.googletagmanager.com/gtag/js?id=${gaId}`}></script>
+        <script is:inline define:vars={{ gaId }}>
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          // define:vars wraps this script in an IIFE, so `gtag` is scoped to
+          // it — exposed explicitly so lib/analytics.ts can reach it.
+          window.gtag = gtag;
+          gtag('js', new Date());
+          gtag('config', gaId);
+        </script>
+      </>
+    )}
+
+    {clarityId && (
+      <script is:inline define:vars={{ clarityId }}>
+        (function (c, l, a, r, i, t, y) {
+          c[a] =
+            c[a] ||
+            function () {
+              (c[a].q = c[a].q || []).push(arguments);
+            };
+          t = l.createElement(r);
+          t.async = 1;
+          t.src = 'https://www.clarity.ms/tag/' + i;
+          y = l.getElementsByTagName(r)[0];
+          y.parentNode.insertBefore(t, y);
+        })(window, document, 'clarity', 'script', clarityId);
+      </script>
+    )}
   </head>
   <body>
     <slot />

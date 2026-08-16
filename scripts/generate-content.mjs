@@ -136,40 +136,6 @@ export function buildFirstUserTurn({ example, product, instructions }) {
   return { role: 'user', parts: [{ text: parts.join('\n') }] };
 }
 
-/** Derived at runtime from content-contract.mjs's exported field lists —
- * never hand-copied (design judgment call J5). A shape HINT only: this
- * schema knows nothing about product-commerce-forbidden or the testimonial
- * variant enum — collectContentErrors remains the sole grader. */
-function buildResponseSchema() {
-  return {
-    type: 'object',
-    properties: {
-      product: {
-        type: 'object',
-        properties: Object.fromEntries(REQUIRED_PRODUCT_FIELDS.map((f) => [f, {}])),
-        required: REQUIRED_PRODUCT_FIELDS,
-      },
-      faq: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: Object.fromEntries(FAQ_FIELDS.map((f) => [f, { type: 'string' }])),
-          required: FAQ_FIELDS,
-        },
-      },
-      testimonials: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: Object.fromEntries(TESTIMONIAL_REQUIRED_FIELDS.map((f) => [f, {}])),
-          required: TESTIMONIAL_REQUIRED_FIELDS,
-        },
-      },
-    },
-    required: ['product', 'faq', 'testimonials'],
-  };
-}
-
 // Marketing copy about pain points / discomfort / weight commonly trips the
 // default BLOCK_MEDIUM_AND_ABOVE threshold and returns no candidate at all
 // (design judgment call J6). Loosening hides nothing — a block still
@@ -190,8 +156,16 @@ export function buildRequestBody({ systemInstruction, contents }) {
     systemInstruction: { parts: [{ text: systemInstruction }] },
     contents,
     generationConfig: {
+      // responseSchema deliberately OMITTED (found by a real live smoke
+      // test, not by any mocked test): buildResponseSchema()'s ~23 flat
+      // product fields + the testimonial `variant` enum blow past Gemini's
+      // undocumented structured-output complexity ceiling — every real
+      // attempt failed HTTP 400 "produces a constraint that has too many
+      // states for serving". responseMimeType alone still forces syntactically
+      // valid JSON; shape correctness is enforced the same way it always
+      // was for the manual-paste path too — collectContentErrors + the
+      // resend-with-feedback retry loop below, not a provider-side schema.
       responseMimeType: 'application/json',
-      responseSchema: buildResponseSchema(),
       temperature: 0.9,
     },
     safetySettings: SAFETY_SETTINGS,
@@ -454,6 +428,12 @@ async function main() {
   const t1 = Date.now();
   const parsed = outcome.diagnosis.parsed;
   const summary = summarizeContent(parsed);
+  // Found by a real live smoke test: on a fresh environment where nobody
+  // ever used the manual-paste route first (content.ts's PUT handler
+  // mkdir's STAGED_DIR itself before writing), .staged/ simply doesn't
+  // exist yet and this write threw ENOENT. Same recursive-mkdir-before-write
+  // shape as content.ts and the attemptsDir write above.
+  mkdirSync(path.dirname(args.stagedPath), { recursive: true });
   writeFileSync(args.stagedPath, JSON.stringify(parsed, null, 2));
   stageEnd('save', Date.now() - t1);
 

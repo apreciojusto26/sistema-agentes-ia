@@ -56,3 +56,11 @@ export const KILL_GRACE_MS = 5_000;
 
 /** In-memory job cap for JobRegistry#jobs (design §2); older records are read from disk on demand. */
 export const MAX_JOBS_IN_MEMORY = 200;
+
+/** Requested starting port for "Ver el resultado"'s astro dev preview. Not 4321 (astro's own
+ * default — someone may already have a landing-base dev server on it); astro dev auto-increments
+ * to the next free port on collision and prints the real one, which startPreview() parses out. */
+export const PREVIEW_PORT = 4322;
+
+/** How long startPreview() waits for astro dev's "Local: http://..." ready line before giving up. */
+export const PREVIEW_START_TIMEOUT_MS = 30_000;

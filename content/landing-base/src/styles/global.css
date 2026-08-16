@@ -52,13 +52,22 @@
   :focus-visible { @apply outline-2 outline-offset-2 outline-graphite; }
 
   /* Cursor pointer en todo lo clickeable. :disabled excluido — esos ya usan
-     cursor-not-allowed en sus clases. */
+     cursor-not-allowed en sus clases. `label:has(...)` cubre los labels que
+     ENVUELVEN un radio/checkbox (sin atributo for, patrón del buy box);
+     `label[for]` cubre los que apuntan por id. */
   button:not(:disabled),
   [role="button"]:not(:disabled),
+  [role="tab"]:not(:disabled),
+  [role="link"]:not(:disabled),
+  [role="checkbox"]:not(:disabled),
+  [role="radio"]:not(:disabled),
+  [role="switch"]:not(:disabled),
   a[href],
   summary,
   select,
   label[for],
+  label:has(> input[type="checkbox"]),
+  label:has(> input[type="radio"]),
   input[type="checkbox"],
   input[type="radio"] {
     cursor: pointer;

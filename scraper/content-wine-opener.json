@@ -1,0 +1,85 @@
+{
+  "product": {
+    "brand": "VinoPop",
+    "name": "VinoPop — Descorchador eléctrico automático",
+    "tagline": "Un clic y listo. Sin fuerza, sin esfuerzo.",
+    "subtagline": "Descorchador eléctrico recargable por USB: apretás un botón y el corcho sale solo, sin luchar con la botella.",
+    "variantGroupLabel": "Color",
+    "ratingAverage": 4.7,
+    "ratingCount": 229,
+    "ratingBreakdown": { "5": 180, "4": 35, "3": 10, "2": 3, "1": 1 },
+    "badges": ["Envío 24-48h", "Batería recargable", "Garantía 30 días"],
+    "trustTicker": ["Envío gratis desde 29€", "Pago 100% seguro", "+229 reseñas de 5 estrellas", "Garantía de 30 días", "Carga USB en 3 horas"],
+    "offer": { "durationMinutes": 15, "label": "Oferta de lanzamiento termina en", "expiredLabel": "La oferta ha finalizado" },
+    "benefits": [
+      { "id": "un-clic", "icon": "check", "title": "Se abre con un solo clic", "text": "Apretás un botón y el corcho sale solo — sin fuerza, sin giros incómodos ni forcejeos con la botella." },
+      { "id": "recargable", "icon": "sparkle", "title": "Batería recargable por USB", "text": "Una carga de aproximadamente 3 horas te rinde para decenas de botellas, sin pilas que comprar ni reponer." },
+      { "id": "sin-esfuerzo", "icon": "shield", "title": "Adiós al sacacorchos de toda la vida", "text": "Descorchá sin forzar ni luchar con el corcho atascado — lo puede usar cualquier persona, sin técnica ni fuerza." },
+      { "id": "para-regalar", "icon": "star", "title": "Ideal para regalar", "text": "Diseño elegante y presentación cuidada: un regalo que sorprende a cualquier amante del vino." }
+    ],
+    "heroPills": ["Un solo clic", "Batería recargable", "Sin esfuerzo"],
+    "specs": [
+      { "label": "Función", "value": "Descorchador eléctrico automático" },
+      { "label": "Alimentación", "value": "Batería recargable por USB" },
+      { "label": "Tiempo de carga", "value": "Aprox. 3 horas" },
+      { "label": "Colores disponibles", "value": "Negro / Blanco" },
+      { "label": "Uso recomendado", "value": "Botellas de vino estándar" }
+    ],
+    "packs": [
+      { "id": "x1", "units": 1, "freeUnits": 0, "label": "Pack 1 unidad", "sublabel": "Ideal para probar", "default": false, "popular": false },
+      { "id": "x2free1", "units": 2, "freeUnits": 1, "label": "Pack 2 + 1 GRATIS", "sublabel": "El que más se lleva", "badge": "Más popular", "popular": true, "freeGift": true, "default": true }
+    ],
+    "gallery": [
+      { "id": "g1", "asset": "gallery-01", "alt": "VinoPop descorchador eléctrico junto a una botella de vino, vista frontal", "ratio": "4/5", "label": "Vista frontal" },
+      { "id": "g2", "asset": "gallery-02", "alt": "VinoPop en uso descorchando una botella de vino con un solo clic", "ratio": "4/5", "label": "En uso" },
+      { "id": "g3", "asset": "gallery-03", "alt": "Detalle del cabezal extractor de VinoPop sosteniendo un corcho", "ratio": "4/5", "label": "Detalle del corcho" },
+      { "id": "g4", "asset": "gallery-04", "alt": "VinoPop cargando por cable USB", "ratio": "1/1", "label": "Carga USB" },
+      { "id": "g5", "asset": "gallery-05", "alt": "VinoPop en su base junto a copas de vino, ambientación de mesa", "ratio": "4/5", "label": "En la mesa" }
+    ],
+    "steps": [
+      { "step": 1, "title": "Colocalo sobre la botella", "text": "Apoyá VinoPop sobre el cuello de la botella, alineado con el corcho.", "media": { "asset": "step-01", "alt": "VinoPop apoyado sobre el cuello de una botella de vino", "ratio": "4/3" } },
+      { "step": 2, "title": "Apretá el botón", "text": "Un solo clic y el mecanismo extrae el corcho automáticamente, sin que tengas que hacer fuerza.", "media": { "asset": "gallery-02", "alt": "VinoPop descorchando una botella con un clic", "ratio": "4/3" } },
+      { "step": 3, "title": "Serví y disfrutá", "text": "El corcho queda liberado en segundos. Recargalo por USB cuando la batería se agote.", "media": { "asset": "gallery-05", "alt": "Botella de vino recién descorchada junto a copas", "ratio": "4/3" } }
+    ],
+    "comparison": [
+      { "feature": "Descorche con un solo clic", "ours": true, "rival": "Requiere girar y hacer fuerza" },
+      { "feature": "Batería recargable por USB", "ours": true, "rival": "Pilas descartables o manual" },
+      { "feature": "Sin forcejeos ni corchos atascados", "ours": true, "rival": "Corcho se puede romper" },
+      { "feature": "Apto para cualquier persona", "ours": true, "rival": "Requiere técnica y fuerza" }
+    ],
+    "guarantee": { "days": 30, "title": "Garantía de 30 días", "text": "Si VinoPop no supera tus expectativas, te devolvemos el dinero. Sin vueltas.", "points": ["Devolución simple dentro de los 30 días", "Reembolso completo, sin preguntas", "Atención al cliente en español"] },
+    "shipping": { "etaLabel": "Envío en 24-48h", "freeOverCents": 2900 },
+    "ugc": [
+      { "asset": "ugc-01", "alt": "VinoPop usado en una cena junto a amigos", "ratio": "9/16" },
+      { "asset": "ugc-02", "alt": "Persona descorchando una botella con VinoPop en la cocina", "ratio": "9/16" },
+      { "asset": "ugc-03", "alt": "VinoPop como regalo, presentación en caja", "ratio": "9/16" }
+    ],
+    "cta": { "primary": "Comprar ahora", "sticky": "Agregar al carrito", "checkout": "Finalizar compra", "pending": "Agregando...", "soldOut": "Agotado" }
+  },
+  "faq": [
+    { "id": "que-es", "question": "¿Qué es VinoPop y cómo funciona?", "answer": "Es un descorchador eléctrico automático. Lo apoyás sobre el cuello de la botella, apretás el botón y el mecanismo extrae el corcho solo, sin que tengas que hacer fuerza." },
+    { "id": "bateria", "question": "¿Cómo se carga? ¿Incluye cable?", "answer": "Se recarga por USB y tarda aproximadamente 3 horas en cargarse por completo. Una carga completa rinde para decenas de botellas." },
+    { "id": "colores", "question": "¿En qué colores viene?", "answer": "Está disponible en Negro y Blanco." },
+    { "id": "dificultad", "question": "¿Lo puede usar cualquier persona?", "answer": "Sí. No requiere fuerza ni técnica: solo hay que colocarlo sobre la botella y apretar el botón." },
+    { "id": "garantia", "question": "¿Qué garantía tiene?", "answer": "VinoPop tiene 30 días de garantía de devolución. Si no cumple tus expectativas, te devolvemos el importe." }
+  ],
+  "testimonials": [
+    { "id": "t-featured", "author": "Anónimo", "location": "Madrid", "rating": 5, "date": "2026-06-13", "title": "Funciona perfectamente", "body": "Funciona perfectamente, buen material y llegó antes de lo esperado, hemos pedido otro.", "verified": true, "variant": "quote" },
+    { "id": "t-reel-1", "author": "D. R.", "location": "Barcelona", "rating": 5, "date": "2026-01-10", "body": "Súper práctico para desatascar sin esfuerzo. Lo recomiendo.", "verified": true, "variant": "reel" },
+    { "id": "t-reel-2", "author": "E. R.", "location": "Valencia", "rating": 5, "date": "2025-09-26", "body": "Me encanta, para regalo es genial. Ya he pedido 5, de los cuales he regalado 4 y les han gustado mucho a mis amigos.", "verified": true, "variant": "reel" },
+    { "id": "t-reel-3", "author": "Anónimo", "location": "Sevilla", "rating": 5, "date": "2025-12-15", "body": "Muy buena relación calidad-precio. Funciona muy bien. Buen embalaje. Lo recomiendo.", "verified": true, "variant": "reel" },
+    { "id": "t-reel-4", "author": "Anónimo", "location": "Bilbao", "rating": 5, "date": "2026-03-17", "body": "Muy bien, ya no es necesario forzar para abrir la botella.", "verified": true, "variant": "reel" },
+    { "id": "t-reel-5", "author": "e. r.", "location": "Zaragoza", "rating": 5, "date": "2025-12-14", "body": "Sencillo pero cumple para lo que es. Abre muy bien. Vino sin nada de carga, y tarda unas 3 horas en cargarse.", "verified": true, "variant": "reel" },
+    { "id": "t-card-1", "author": "r. i.", "location": "Málaga", "rating": 5, "date": "2026-06-15", "body": "Llegó antes de la fecha programada, ya estaba cargado porque lo probé de inmediato y funcionó. Excelente vendedor.", "verified": true, "variant": "card" },
+    { "id": "t-card-2", "author": "Anónimo", "location": "Alicante", "rating": 5, "date": "2026-03-14", "body": "Este producto es bonito y de bastante buena calidad. El embalaje es atractivo. Adecuado para regalar.", "verified": true, "variant": "card" },
+    { "id": "t-card-3", "author": "M. a.", "location": "Vigo", "rating": 5, "date": "2025-12-16", "body": "Entrega rápida. Bien embalado. Producto de calidad.", "verified": true, "variant": "card" }
+  ],
+  "design": {
+    "colors": {
+      "bone": "#F6F1EA",
+      "graphite": "#26201C",
+      "rust": "#7A1F2B",
+      "gold": "#C9A227"
+    }
+  }
+}

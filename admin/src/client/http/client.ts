@@ -21,6 +21,8 @@ import type {
   JobDetailResponse,
   CancelJobResponse,
   LastAttemptResponse,
+  StartPreviewRequest,
+  StartPreviewResponse,
 } from '../../shared/api';
 
 /** Thrown for a network-level failure (fetch itself rejected) or a response body that failed to parse as JSON. */
@@ -164,4 +166,12 @@ export function scrapeImageUrl(jobId: string, file: string): string {
 
 export function getLastContentAttempt(jobId: string): Promise<LastAttemptResponse> {
   return requestJson(`/api/jobs/${jobId}/content/last-attempt`);
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/preview — "Ver el resultado"
+// ---------------------------------------------------------------------------
+
+export function startPreview(slug: string): Promise<StartPreviewResponse> {
+  return requestJson('/api/preview', { method: 'POST', body: JSON.stringify({ slug } satisfies StartPreviewRequest) });
 }

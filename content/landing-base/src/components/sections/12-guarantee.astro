@@ -9,11 +9,7 @@ const { guarantee } = product;
 
 <section class="bg-gold-tint py-12 md:py-16">
   <Container class="text-center">
-    <div class="mx-auto grid size-24 place-items-center rounded-full border-2 border-dashed border-gold font-display text-center text-gold">
-      <span class="text-xs font-black leading-tight">
-        {guarantee.days}<br />DÍAS
-      </span>
-    </div>
+    <img src="/sello-garantia.webp" width="112" height="112" alt={`Sello de garantía de ${guarantee.days} días`} class="mx-auto size-28" loading="lazy" decoding="async" />
 
     <h2 class="mt-4 text-display md:text-4xl">{guarantee.title}</h2>
     <p class="mx-auto mt-2 max-w-md text-sm text-steel">{guarantee.text}</p>

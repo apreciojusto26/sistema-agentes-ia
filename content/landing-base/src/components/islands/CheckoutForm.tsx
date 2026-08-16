@@ -129,17 +129,17 @@ export function CheckoutForm({ commerce }: CheckoutFormProps) {
           const serverField = body.errors && Object.keys(body.errors)[0];
           setErrorMessage(
             serverField
-              ? 'No pudimos validar uno de los campos. Revisá el formulario e intentá de nuevo.'
-              : 'No pudimos validar los datos enviados. Revisá el formulario e intentá de nuevo.',
+              ? 'No pudimos validar uno de los campos. Revisa el formulario e intenta de nuevo.'
+              : 'No pudimos validar los datos enviados. Revisa el formulario e intenta de nuevo.',
           );
         } else if (body?.error === 'empty_cart') {
-          setErrorMessage('Tu carrito está vacío. Volvé a la tienda para añadir productos.');
+          setErrorMessage('Tu carrito está vacío. Vuelve a la tienda para añadir productos.');
         } else if (body?.error === 'bad_request') {
-          setErrorMessage('El pedido enviado no es válido. Recargá la página e intentá de nuevo.');
+          setErrorMessage('El pedido enviado no es válido. Recarga la página e intenta de nuevo.');
         } else {
           // server_error (500) — infrastructure (SumUp/Upstash env, network),
           // NOT the buyer's data. Don't blame the form.
-          setErrorMessage('No pudimos iniciar el pago por un problema del servidor. Intentá de nuevo en unos minutos.');
+          setErrorMessage('No pudimos iniciar el pago por un problema del servidor. Intenta de nuevo en unos minutos.');
         }
         setPhase('form');
         return;
@@ -150,7 +150,7 @@ export function CheckoutForm({ commerce }: CheckoutFormProps) {
       setCheckoutId(data.checkoutId);
       setPhase('widget');
     } catch {
-      setErrorMessage('No pudimos conectar con el servidor. Comprobá tu conexión e intentá de nuevo.');
+      setErrorMessage('No pudimos conectar con el servidor. Comprueba tu conexión e intenta de nuevo.');
       setPhase('form');
     }
   }
@@ -170,21 +170,21 @@ export function CheckoutForm({ commerce }: CheckoutFormProps) {
           // widget mounts) but the alternative to guarding it is a paying
           // buyer stuck on a blank widget with no way forward.
           setPhase('widget');
-          setErrorMessage('Tu pago se procesó pero no pudimos confirmarlo automáticamente. Contactá con soporte.');
+          setErrorMessage('Tu pago se procesó pero no pudimos confirmarlo automáticamente. Contacta con soporte.');
         }
         return;
       case 'invalid':
         setPhase('widget');
-        setErrorMessage('Revisá los datos de tu tarjeta e intentá de nuevo.');
+        setErrorMessage('Revisa los datos de tu tarjeta e intenta de nuevo.');
         return;
       case 'fail':
         setPhase('widget');
-        setErrorMessage('Tu pago fue rechazado. Podés intentar con otra tarjeta.');
+        setErrorMessage('Tu pago fue rechazado. Puedes intentar con otra tarjeta.');
         return;
       case 'error':
       default:
         setPhase('widget');
-        setErrorMessage('Ocurrió un error al procesar el pago. Intentá de nuevo.');
+        setErrorMessage('Ocurrió un error al procesar el pago. Intenta de nuevo.');
     }
   }
 
@@ -202,7 +202,7 @@ export function CheckoutForm({ commerce }: CheckoutFormProps) {
         });
       })
       .catch(() => {
-        if (!cancelled) setErrorMessage('No pudimos cargar el widget de pago. Recargá la página e intentá de nuevo.');
+        if (!cancelled) setErrorMessage('No pudimos cargar el widget de pago. Recarga la página e intenta de nuevo.');
       });
 
     return () => {

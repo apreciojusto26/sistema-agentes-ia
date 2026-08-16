@@ -6,6 +6,7 @@
 import { useState } from 'react';
 import type { JobRecord, GenerateResult } from '../../../shared/jobs';
 import type { SseFrame } from '../../../shared/api';
+import * as api from '../../http/client';
 import AgentRunPanel from './AgentRunPanel';
 import TodoList from '../TodoList';
 
@@ -26,8 +27,23 @@ function isGenerateResult(result: JobRecord['result']): result is GenerateResult
 
 export default function CodeAgentPanel({ job, logs, onRun, onCancel, running, contentReady, submitError }: CodeAgentPanelProps) {
   const [slug, setSlug] = useState('');
+  const [previewStarting, setPreviewStarting] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
 
   const result = job && isGenerateResult(job.result) ? job.result : null;
+
+  async function viewResult() {
+    if (!result) return;
+    setPreviewStarting(true);
+    setPreviewError(null);
+    const res = await api.startPreview(result.slug);
+    setPreviewStarting(false);
+    if (res.ok) {
+      window.open(res.url, '_blank', 'noopener');
+    } else {
+      setPreviewError(res.message);
+    }
+  }
 
   return (
     <AgentRunPanel
@@ -79,6 +95,17 @@ export default function CodeAgentPanel({ job, logs, onRun, onCancel, running, co
               {result.imagesUnmatched.length > 0 && (
                 <p className="text-xs text-amber-600">No se pudieron ubicar: {result.imagesUnmatched.join(', ')}</p>
               )}
+
+              <button
+                type="button"
+                onClick={() => void viewResult()}
+                disabled={previewStarting}
+                className="mt-3 w-fit rounded bg-slate-800 px-3 py-1 text-sm font-medium text-white disabled:opacity-40"
+              >
+                {previewStarting ? 'Levantando el preview…' : 'Ver el resultado'}
+              </button>
+              {previewError && <p className="mt-1 text-xs text-state-failed">{previewError}</p>}
+
               <div className="mt-2">
                 <TodoList todos={result.todos} />
               </div>

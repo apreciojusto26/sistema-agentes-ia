@@ -10,7 +10,7 @@ export const product = {
   name: 'AstraVibe — Proyector de estrellas USB',
   tagline: 'El cielo estrellado, en tu habitación.',
   subtagline:
-    'Proyector de estrellas con 24 películas deslizables y luz nocturna: creá una atmósfera espacial mágica con un solo toque.',
+    'Proyector de estrellas con 24 películas deslizables y luz nocturna: crea una atmósfera espacial mágica con un solo toque.',
 
   commerce: {
     shopifyHandle:
@@ -25,11 +25,11 @@ export const product = {
   variantGroupLabel: 'Tipo de proyección',
 
   errors: {
-    network: 'No pudimos conectar con la tienda. Probá de nuevo en unos segundos.',
+    network: 'No pudimos conectar con la tienda. Prueba de nuevo en unos segundos.',
     soldOut: 'Esta variante está agotada por el momento.',
-    expired: 'Tu carrito expiró. Elegí tu opción de nuevo para continuar.',
+    expired: 'Tu carrito expiró. Elige tu opción de nuevo para continuar.',
     noDiscount: 'El total mostrado es el precio final calculado por la tienda.',
-    generic: 'Algo salió mal. Probá de nuevo.',
+    generic: 'Algo salió mal. Prueba de nuevo.',
   },
 
   ratingAverage: 4.9,
@@ -63,7 +63,7 @@ export const product = {
       id: 'escenas',
       icon: 'sparkle',
       title: '24 escenas deslizables',
-      text: 'Deslizá entre 24 películas de proyección y pasá de un cielo estrellado a la vía láctea en segundos.',
+      text: 'Desliza entre 24 películas de proyección y pasa de un cielo estrellado a la vía láctea en segundos.',
     },
     {
       id: 'luz-nocturna',
@@ -75,7 +75,7 @@ export const product = {
       id: 'un-toque',
       icon: 'check',
       title: 'Se enciende con un toque',
-      text: 'Sin enchufe ni apps: tocá y la proyección arranca al instante, con pila botón incluida.',
+      text: 'Sin enchufe ni apps: toca y la proyección arranca al instante, con pila botón incluida.',
     },
     {
       id: 'abs-resistente',
@@ -104,7 +104,7 @@ export const product = {
       freeUnits: 0,
       label: 'Pack 1 unidad',
       sublabel: 'Ideal para probar',
-      default: false,
+      default: true,
       popular: false,
     },
     {
@@ -116,7 +116,7 @@ export const product = {
       badge: 'Más popular',
       popular: true,
       freeGift: true,
-      default: true,
+      default: false,
     },
   ],
 
@@ -161,7 +161,7 @@ export const product = {
   steps: [
     {
       step: 1,
-      title: 'Deslizá para cambiar la escena',
+      title: 'Desliza para cambiar la escena',
       text: 'Las 24 películas deslizantes te dejan alternar entre cielos estrellados, nebulosas y la vía láctea con un simple gesto.',
       media: {
         asset: 'step-01',
@@ -172,7 +172,7 @@ export const product = {
     {
       step: 2,
       title: 'Un toque para encender',
-      text: 'Sin enchufe ni dispositivos inteligentes: tocá la superficie y la proyección arranca al instante, alimentada por pila botón incluida.',
+      text: 'Sin enchufe ni dispositivos inteligentes: toca la superficie y la proyección arranca al instante, alimentada por pila botón incluida.',
       media: {
         asset: 'video-01',
         kind: 'video',
@@ -184,7 +184,7 @@ export const product = {
     {
       step: 3,
       title: 'Ambiente nocturno en cualquier rincón',
-      text: 'Sus 30 cm compactos y la batería por pila lo hacen perfecto para mesitas, estantes, autos o la habitación de los chicos.',
+      text: 'Sus 30 cm compactos y la batería por pila lo hacen perfecto para mesitas, estantes, coches o la habitación de los niños.',
       media: {
         asset: 'gallery-05',
         alt: 'AstraVibe en modo luz nocturna ambientando un rincón oscuro',
@@ -198,7 +198,7 @@ export const product = {
     { feature: 'Proyección de estrellas en techo y paredes', ours: true, rival: false },
     { feature: 'Doble función: proyector y luz nocturna', ours: true, rival: 'Solo luz' },
     { feature: 'Encendido con toque, sin cables', ours: true, rival: 'Requiere clavija' },
-    { feature: 'Portátil: hogar, auto y dormitorios', ours: true, rival: 'Fija en un lugar' },
+    { feature: 'Portátil: hogar, coche y dormitorios', ours: true, rival: 'Fija en un lugar' },
     { feature: 'Pila botón incluida', ours: true, rival: false },
     { feature: 'Material ABS resistente', ours: true, rival: true },
   ],
