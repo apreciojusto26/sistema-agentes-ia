@@ -191,6 +191,12 @@ describe('Group B — event schema (LG_EVENTS=1, Batch C)', () => {
     expect(new Set(events.map((e) => e.v))).toEqual(new Set([1]));
     expect(new Set(events.map((e) => e.agent))).toEqual(new Set(['generate']));
 
+    // Product Identity + Generation Isolation (design D5, task 5.4): a new
+    // `write-manifest` stage was added between `patch-theme` and `todos` —
+    // this pinned sequence updated deliberately to match, per the SDD
+    // apply 4-step deviation process (design's data-flow diagram + task
+    // 5.4 explicitly require this stage; see
+    // sdd/product-identity-generation-isolation/apply-progress, Batch 5).
     expect(events.filter((e) => e.type === 'stage.start').map((e) => e.stage)).toEqual([
       'args',
       'validate',
@@ -198,6 +204,7 @@ describe('Group B — event schema (LG_EVENTS=1, Batch C)', () => {
       'copy-template',
       'write-data',
       'patch-theme',
+      'write-manifest',
       'todos',
     ]);
     // Every stage.start has a matching stage.end (no dangling stage).
@@ -216,6 +223,9 @@ describe('Group B — event schema (LG_EVENTS=1, Batch C)', () => {
 
     expect(r.status).toBe(0);
     const events = parseEvents(r.stderr);
+    // Same task-5.4 pin update as the test above, with `copy-images` still
+    // preceding `write-manifest` (design data-flow: copy-images → write-
+    // manifest → result).
     expect(events.filter((e) => e.type === 'stage.start').map((e) => e.stage)).toEqual([
       'args',
       'validate',
@@ -224,6 +234,7 @@ describe('Group B — event schema (LG_EVENTS=1, Batch C)', () => {
       'write-data',
       'patch-theme',
       'copy-images',
+      'write-manifest',
       'todos',
     ]);
   });

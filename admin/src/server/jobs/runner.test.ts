@@ -201,6 +201,52 @@ describe('runner — buildScrapeSpec / buildGenerateSpec argv (design §7)', () 
     );
     expect(spec.args).toEqual(['scripts/generate-landing.mjs', '--slug', 'my-product', '--content', '/abs/content.json']);
   });
+
+  // Positive-case coverage for design D2/D5 (task 3.4), addendum flagged in
+  // apply-progress Batch 3/7: only the null/absent productId case had
+  // existing coverage before this task.
+  test('buildScrapeSpec sets env.LG_PRODUCT_ID to params.productId when provided (design D2 — env transport, not argv)', async () => {
+    const { buildScrapeSpec } = await import('./runner');
+    const spec = buildScrapeSpec(
+      {
+        url: 'https://es.aliexpress.com/item/1005007502111078.html',
+        itemId: '1005007502111078',
+        normalizedUrl: 'x',
+        productId: 'prd_abcdef-12345678',
+      },
+      { repoRoot: REPO_ROOT, timeoutMs: 180_000 },
+    );
+    // argv stays byte-identical to the existing pinned case above — the id
+    // rides ONLY on env, never on argv.
+    expect(spec.args).toEqual(['scrape.js', 'https://es.aliexpress.com/item/1005007502111078.html']);
+    expect(spec.env?.LG_PRODUCT_ID).toBe('prd_abcdef-12345678');
+  });
+
+  test('buildScrapeSpec sets env.LG_PRODUCT_ID to the empty string when params.productId is absent (never "undefined")', async () => {
+    const { buildScrapeSpec } = await import('./runner');
+    const spec = buildScrapeSpec(
+      { url: 'https://es.aliexpress.com/item/1005007502111078.html', itemId: '1', normalizedUrl: 'x' },
+      { repoRoot: REPO_ROOT, timeoutMs: 180_000 },
+    );
+    expect(spec.env?.LG_PRODUCT_ID).toBe('');
+  });
+
+  test('buildGenerateSpec appends --product-id <id> only when params.productId is present (design D5/5.1)', async () => {
+    const { buildGenerateSpec } = await import('./runner');
+    const spec = buildGenerateSpec(
+      { slug: 'my-product', contentPath: '/abs/content.json', imagesDir: null, force: false, productId: 'prd_abcdef-12345678' },
+      { repoRoot: REPO_ROOT, timeoutMs: 60_000 },
+    );
+    expect(spec.args).toEqual([
+      'scripts/generate-landing.mjs',
+      '--slug',
+      'my-product',
+      '--content',
+      '/abs/content.json',
+      '--product-id',
+      'prd_abcdef-12345678',
+    ]);
+  });
 });
 
 describe('runner — buildContentSpec argv (content-agent change, design §4)', () => {
@@ -278,7 +324,18 @@ describe('runner — real end-to-end against generate-landing.mjs (no network, f
     });
 
     expect(outcome.code).toBe(0);
-    expect(stageStarts).toEqual(['args', 'validate', 'preflight', 'copy-template', 'write-data', 'patch-theme', 'todos']);
+    // `write-manifest` inserted before `todos` (Product Identity + Generation
+    // Isolation, design D5, task 5.4 — see apply-progress Batch 5).
+    expect(stageStarts).toEqual([
+      'args',
+      'validate',
+      'preflight',
+      'copy-template',
+      'write-data',
+      'patch-theme',
+      'write-manifest',
+      'todos',
+    ]);
     expect(resultEvent).not.toBeNull();
     expect(stdoutLines.join('\n')).toContain(`✓ outputs/${RUNNER_SLUG} created from content/landing-base`);
 

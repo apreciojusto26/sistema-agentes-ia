@@ -1,160 +1,588 @@
-# 🤖 Claude Agent - Landing Generator (SDD)
+# 🤖 Claude Agent — AI Dropshipping Landing Generator
 
 ## Goal
-Generate new landing pages based on an existing Astro + React + TypeScript template,
-preserving ALL functionality while modifying design, content, and assets based on a product input.
+
+Generate production-ready dropshipping landing pages from the immutable
+Astro + React + TypeScript template located at:
+
+`content/landing-base/`
+
+The system uses AI to transform product data into:
+
+1. Product data
+2. Marketing copy
+3. Validated product-specific content
+4. Design and layout configuration
+5. A rendered landing page
+6. A final QA-checked project
+
+The system is TEMPLATE-BASED, not free-form code generation.
+
+The AI may make controlled design decisions, but it must never invent
+arbitrary components, business logic, checkout logic, or dependencies.
 
 ---
 
-## Rules
+# 1. Core Architecture
 
-1. NEVER modify core logic:
-   - components logic
-   - hooks
-   - tracking scripts
-   - checkout / CTA behavior
+The generation pipeline is:
+```text
+Scraping Agent
+    ↓
+product.json
+    ↓
+Content Agent
+    ↓
+copy.json
+    ↓
+Product Consistency Validator
+    ↓
+Design & Layout Agent
+    ↓
+design.json
+    ↓
+Landing Renderer / Code Agent
+    ↓
+Generated Landing
+    ↓
+QA Agent
+    ↓
+PASS → final output
+FAIL → targeted repair
+```
+Every generation MUST have a unique `productId`.
 
-2. ONLY modify:
-   - content (text, titles, descriptions)
-   - styles (colors, spacing, fonts)
-   - images
-   - section ordering (if needed — see Layout changes below; this is a code edit, not a config value)
+All generated artifacts MUST belong to exactly one `productId`.
 
-3. Keep structure identical:
-   - same folders
-   - same component usage
-   - same props
-
-4. Output must be a FULL working project.
+No generated landing may read content, images, configuration, or generated
+files belonging to another product.
 
 ---
 
-## Input Spec (SDD)
+# 2. Immutable Template
 
+`content/landing-base/` is the canonical source template.
+
+The base template MUST be treated as read-only during product generation.
+
+Never generate one product by modifying another generated product.
+
+Never use another generated landing as a source of content or assets.
+
+Every output must start from the canonical template:
+
+`content/landing-base/`
+
+and produce:
+
+`outputs/{slug}/`
+
+---
+
+# 3. Separation of Responsibilities
+
+The system has strict ownership boundaries.
+
+## Scraping Agent
+
+Responsible only for extracting factual source data.
+
+It may extract:
+
+- title
+- description
+- brand
+- rating
+- review count
+- variants
+- specifications
+- images
+- videos
+- reviews
+- source metadata
+
+It MUST NOT write marketing copy.
+
+---
+
+## Content Agent
+
+Responsible for marketing copy.
+
+It may create:
+
+- brand
+- product name
+- tagline
+- subtagline
+- benefits
+- hero copy
+- feature descriptions
+- FAQ
+- testimonials
+- CTA copy
+- guarantees
+- shipping copy
+- comparison copy
+- other fields explicitly marked as agent-writable
+
+It MUST use the Scraping Agent output as factual reference material.
+
+It MUST NOT invent:
+
+- prices
+- Shopify handles
+- product variants not present in source data
+- technical specifications not supported by source data
+- guarantees not supported by the product/business rules
+- fake factual claims
+
+---
+
+## Product Consistency Validator
+
+Responsible for verifying that all generated content and assets refer
+to the SAME product.
+
+It must validate:
+
+- product identity
+- product name
+- product type
+- specifications
+- variants
+- reviews
+- images
+- videos
+- comparison claims
+- benefits
+- technical claims
+- CTA/product references
+- brand references
+- asset ownership
+
+It must detect contamination from previous products.
+
+Examples of failures:
+
+- image belongs to another product
+- old product name remains in copy
+- old brand remains in FAQ
+- comparison mentions another product
+- old testimonial/product reference remains
+- product specifications conflict with scraped data
+- image filename or asset mapping belongs to another product
+
+If validation fails, the landing MUST NOT proceed to rendering.
+
+---
+
+## Design & Layout Agent
+
+Responsible for controlled visual variation.
+
+It may decide:
+
+- design family
+- visual style
+- color palette
+- typography
+- spacing density
+- border radius
+- shadows
+- section order within permitted boundaries
+- section variants
+- hero variant
+- gallery variant
+- benefits variant
+- reviews variant
+- CTA variant
+- visual hierarchy
+- content density
+
+It MUST NOT:
+
+- create arbitrary components
+- invent components that do not exist
+- modify checkout
+- modify business logic
+- modify analytics
+- modify API routes
+- modify Shopify/SumUp/Redis logic
+- introduce dependencies
+
+The Design & Layout Agent outputs configuration, not arbitrary source code.
+
+---
+
+## Landing Renderer / Code Agent
+
+Responsible for rendering the validated product data and design configuration
+using the existing Astro + React component system.
+
+The renderer may modify:
+
+- agent-writable content data
+- design tokens
+- asset mappings
+- allowed section configuration
+- allowed component variants
+- generated product assets
+- generated product configuration
+
+It MUST NOT modify:
+
+- checkout logic
+- Shopify integration
+- SumUp integration
+- Redis
+- API routes
+- analytics
+- tracking
+- hooks unrelated to presentation
+- business logic
+- dependencies
+- core component behavior
+
+The renderer MUST use existing registered components and variants.
+
+It MUST NOT create arbitrary UI components during product generation.
+
+---
+
+## QA Agent
+
+Responsible for validating the final rendered landing.
+
+It must verify:
+
+- project compiles
+- no TypeScript errors
+- no broken imports
+- no missing assets
+- no old product content
+- no old product images
+- no old brand names
+- no old reviews
+- no old comparison data
+- correct product data
+- correct image mappings
+- correct responsive behavior
+- checkout still works
+- CartDrawer still works
+- Shopify integration remains untouched
+- SumUp integration remains untouched
+- Redis integration remains untouched
+- analytics remain functional
+
+The landing must not be considered complete until QA passes.
+
+---
+
+# 4. Input Contract
+
+The generation input is:
+
+```json
 {
+  "productId": "",
+  "sourceUrl": "",
   "product_name": "",
   "niche": "",
   "target_audience": "",
   "pain_points": [],
   "benefits": [],
-  "style": "minimal | luxury | aggressive | tech",
+  "style": "",
   "color_scheme": "",
-  "language": "es | en",
-  "images_theme": ""
+  "language": "es | en"
 }
+```
+productId is mandatory and must be unique per generation.
 
----
+# 5. Output Contract
 
-## Output Spec
+Each generated product MUST be isolated:
 
-- Create new folder: `outputs/{slug}/`
-- Copy `content/landing-base/` into the new folder
-- Replace:
-  - `src/data/product.ts`, `src/data/faq.ts`, `src/data/testimonials.ts` — agent-writable marketing fields only (see `agents.MD` Content Agent Rules for the never-generate list)
-  - `src/assets/product/*` real image/video files, re-keyed through `src/data/images.ts` / `src/data/videos.ts`
-  - the `@theme` custom-property block in `src/styles/global.css` (colors, fonts, text scale, radius, shadow)
+```text
+outputs/
+└── {slug}/
+    ├── product.json
+    ├── copy.json
+    ├── design.json
+    ├── assets/
+    └── landing/
+```
+The exact filesystem may follow the existing project structure,
+but logical isolation is mandatory.
 
----
+Every generated artifact must contain or be associated with the same
+productId.
 
-## Transformation Rules
+# 6. Design System
 
-### Copywriting
-- Use high-conversion dropshipping structure, matching the real 15 sections (see File Mapping and `agents.MD` Layout Agent — there is no separate page section beyond that list):
-  - Hero (hook + CTA)
-  - Benefits (frame pain points as solution-oriented copy inside each benefit's `text` — see `agents.MD` Content Agent Rules)
-  - Social proof (testimonials + reviews)
-  - FAQ
-  - CTA repeated (sticky bar)
+The landing system uses a controlled design system.
 
-### Design changes
-- Tailwind 4 is CSS-first: tokens live in `src/styles/global.css` under an `@theme` block. There is no Tailwind JS/TS config file to edit.
-- Modify:
-  - color tokens (`--color-*`)
-  - font tokens (`--font-*`)
-  - text-scale tokens (`--text-*`, each paired with its own line-height/letter-spacing)
-  - radius tokens (`--radius-*`) and shadow tokens (`--shadow-*`) — these drive button/card style, there is no separate "button style" setting
-- NEVER modify: `--breakpoint-xs`, `--animate-marquee` (+ the paired `@keyframes marquee`), or anything inside `@layer base` — these are structural, not design tokens.
+AI may select from registered:
 
-### Layout changes
-- Section order is hardcoded as import + render order in `src/pages/index.astro` — it is NOT a data-driven config value. Reordering means editing that file directly, then re-verifying the boundaries below still hold.
-- Must always:
-  - start with the utility bar, header, and hero
-  - end with the footer and sticky CTA bar
+* section components
+* section variants
+* design tokens
+* typography options
+* color tokens
+* spacing tokens
+* radius tokens
+* shadow tokens
+* layout patterns
 
----
+AI may NOT create arbitrary visual primitives during generation.
 
-## Constraints
+If a desired design cannot be represented by the existing design system,
+the correct action is to report the missing capability rather than invent
+new implementation during product generation.
 
-- DO NOT break responsive behavior
-- DO NOT remove required sections
-- DO NOT modify component logic
-- DO NOT introduce new dependencies
-- **Single shared commerce backend**: every generated landing draws from ONE Shopify store, ONE SumUp merchant account, and ONE Upstash Redis instance. Generating a landing means provisioning a real product handle that already exists in that shared Shopify store, plus a new content set — it is NEVER a new store, merchant, or Redis instance per landing.
-- **Redis is load-bearing, not a cache**: `src/lib/kv.ts` holds the checkout session map, the settle-time concurrency lock, and the dead-letter record for payments that succeeded but produced no Shopify order. Losing this data breaks checkout correctness, not just performance.
-- **NEVER generate commerce or price data**: `commerce.shopifyHandle`, `commerce.bundleOfferActive`, and all prices/variant prices are off-limits to any agent (see `agents.MD` Content Agent Rules) — they are fetched live from Shopify at build/request time. Generating a fabricated handle or price points checkout at a listing that does not exist or misrepresents what is actually being sold.
+# 7. Layout Rules
 
----
+The following boundaries are mandatory:
 
-## Execution Flow
+```text
+UtilityBar
+SiteHeader
+Hero
+    ↓
+FLEXIBLE CONTENT AREA
+    ↓
+SiteFooter
+StickyBar
+CartDrawer
+```
+The flexible content area may change section ordering and permitted section
+variants.
 
-1. Receive product spec JSON
-2. Trigger Content Agent → generate `product.ts` / `faq.ts` / `testimonials.ts` marketing fields
-3. Trigger Design Agent → generate `@theme` token values
-4. Trigger Layout Agent → confirm section order (rarely changes; changing it means editing `index.astro`, not producing a new value)
-5. Trigger Code Agent → assemble the final project in `outputs/{slug}/`
+The following elements must always remain:
 
-The admin dashboard (`admin/`) can run the Content Agent automatically via the Gemini API free tier
-(`gemini-2.5-flash`, pinned model, plain `fetch`, no SDK) instead of pasting `content.json` by hand — see
-`agents.MD` §1 "Automated run" for the 250 requests/day ceiling and the free-tier data-for-training disclosure.
-The manual paste path remains available as a fallback either way.
+* UtilityBar
+* SiteHeader
+* Hero
+* SiteFooter
+* StickyBar
+* CartDrawer
 
----
+Commerce and tracking behavior must remain untouched.
 
-## File Mapping
+# 8. Design Configuration
 
-| Role | Path |
-|---|---|
-| Template source | `content/landing-base/` |
-| Content | `content/landing-base/src/data/product.ts`, `faq.ts`, `testimonials.ts` |
-| Content types (read-only) | `content/landing-base/src/types/content.ts` — cited for field verification only, never written by generation |
-| Design | `content/landing-base/src/styles/global.css` (`@theme` block) |
-| Layout | `content/landing-base/src/pages/index.astro` (hardcoded import + render order) |
-| Images | `content/landing-base/src/assets/product/*`, keyed via `src/data/images.ts` / `src/data/videos.ts` |
-| Output | `outputs/{slug}/` (created on first generation; the directory itself is tracked via `.gitkeep`, generated contents are gitignored) |
+The Design & Layout Agent must produce a structured configuration.
 
-Machine-checked contract (parsed and asserted against disk by `content/landing-base/src/lib/spec-contract.test.ts`, assertion A1 — every path below MUST resolve, no exceptions):
-
-<!-- spec:file-mapping -->
 ```json
-[
-  { "role": "template-source", "path": "content/landing-base" },
-  { "role": "content-product", "path": "content/landing-base/src/data/product.ts" },
-  { "role": "content-faq", "path": "content/landing-base/src/data/faq.ts" },
-  { "role": "content-testimonials", "path": "content/landing-base/src/data/testimonials.ts" },
-  { "role": "content-types", "path": "content/landing-base/src/types/content.ts", "writable": false },
-  { "role": "design-tokens", "path": "content/landing-base/src/styles/global.css" },
-  { "role": "layout-page", "path": "content/landing-base/src/pages/index.astro" },
-  { "role": "images-dir", "path": "content/landing-base/src/assets/product" },
-  { "role": "images-map", "path": "content/landing-base/src/data/images.ts" },
-  { "role": "videos-map", "path": "content/landing-base/src/data/videos.ts" },
-  { "role": "output-dir", "path": "outputs" }
-]
+{
+  "productId": "prd_123",
+  "design": {
+    "family": "premium",
+    "theme": "warm-luxury",
+    "density": "spacious"
+  },
+  "theme": {
+    "colors": {},
+    "fonts": {},
+    "text": {},
+    "radius": {},
+    "shadow": {}
+  },
+  "sections": [
+    {
+      "type": "hero",
+      "variant": "split"
+    },
+    {
+      "type": "gallery",
+      "variant": "editorial"
+    },
+    {
+      "type": "benefits",
+      "variant": "cards"
+    },
+    {
+      "type": "reviews",
+      "variant": "carousel"
+    },
+    {
+      "type": "faq",
+      "variant": "accordion"
+    }
+  ]
+}
+```
+Only registered section types and variants are valid.
+
+# 9. Commerce Protection
+
+There is one shared commerce backend:
+
+* ONE Shopify store
+* ONE SumUp merchant account
+* ONE Upstash Redis instance
+
+Never create a new commerce backend for a landing.
+Never generate:
+
+* Shopify handles
+* prices
+* variant prices
+* checkout identifiers
+* payment identifiers
+* Redis keys outside the established system
+* fabricated commerce data
+
+Commerce data is fetched from the existing commerce layer.
+The following must remain protected:
+
+* src/lib/shopify/*
+* src/lib/sumup/*
+* src/lib/kv.ts
+* src/pages/api/**
+
+Redis is load-bearing and MUST NOT be treated as disposable cache data.
+
+# 10. Asset Isolation
+Every product must have isolated assets.
+
+Never use a global unqualified asset such as:
+
+product.jpg
+
+when generating multiple products.
+
+Use product-scoped assets:
+```text
+products/
+└── {productId}/
+    ├── main.webp
+    ├── 01.webp
+    ├── 02.webp
+    └── 03.webp
 ```
 
----
+Asset references MUST be explicitly associated with the current productId.
 
-## Output Requirements
+Before rendering, verify that every referenced asset belongs to the current product.
 
-- Must compile without errors
-- Must be production-ready
-- Must preserve all original functionality
-- Must follow Astro + React + TypeScript standards
+# 11. Existing Functionality Is Sacred
 
----
+Never break:
 
-## Notes
+* checkout
+* cart
+* Shopify
+* SumUp
+* Redis
+* analytics
+* tracking
+* responsive behavior
+* API routes
+* existing production behavior
 
-- System is template-based, NOT generated from scratch
-- Focus on speed, scalability, and consistency
-- Designed for dropshipping high-conversion landing pages
-- See `agents.MD` for the per-agent input/output contracts referenced above
+Design variation must happen ABOVE the business-logic layer.
+
+# 12. Do not introduce new dependencies during product generation.
+
+If the design system requires a capability that does not exist,
+stop and report it instead of installing a new package automatically.
+
+# 13. Validation
+
+Before considering a generation complete:
+
+1. Validate product data.
+2. Validate content.
+3. Validate product consistency.
+4. Validate design configuration.
+5. Render the landing.
+6. Run build/type checks.
+7. Run QA.
+8. Confirm no previous-product contamination.
+9. Confirm commerce code was not modified.
+
+A failed validation must block the next stage.
+
+# 14. Important Principle
+
+The AI decides:
+
+WHAT the landing should say.
+
+HOW the landing should look.
+
+WHICH registered components should be used.
+
+WHICH registered variants should be used.
+
+The codebase decides:
+
+HOW those components actually work.
+
+The AI must never replace deterministic application logic with generated code
+when an existing component, renderer, or configuration can perform the task.
+
+# 15.  Repository Mapping
+
+Template:
+
+```text 
+content/landing-base/
+
+Generated output:
+
+outputs/{slug}/
+
+Content:
+
+content/landing-base/src/data/
+
+Design tokens:
+
+content/landing-base/src/styles/global.css
+
+Sections:
+
+content/landing-base/src/components/sections/
+
+Page entry:
+
+content/landing-base/src/pages/index.astro
+
+Types:
+
+content/landing-base/src/types/
+
+Commerce:
+
+content/landing-base/src/lib/shopify/
+
+Payments:
+
+content/landing-base/src/lib/sumup/
+
+Redis:
+
+content/landing-base/src/lib/kv.ts
+
+API:
+
+content/landing-base/src/pages/api/
+```
+
+# 16. Execution Order
+
+The canonical execution order is:
+
+1. Scraping Agent
+2. Content Agent
+3. Product Consistency Validator
+4. Design & Layout Agent
+5. Landing Renderer / Code Agent
+6. QA Agent
+
+No stage may be skipped.
+
+A failed stage blocks the following stage.
+

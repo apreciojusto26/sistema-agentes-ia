@@ -35,7 +35,8 @@ export type ContentIssueCode =
   | 'testimonials-not-array'
   | 'testimonials-missing-fields'
   | 'testimonials-unknown-fields'
-  | 'testimonial-bad-variant';
+  | 'testimonial-bad-variant'
+  | 'product-id-invalid';
 
 export interface ContentIssue {
   code: ContentIssueCode;

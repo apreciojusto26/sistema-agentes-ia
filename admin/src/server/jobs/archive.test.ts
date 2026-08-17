@@ -92,3 +92,85 @@ describe('archiveScrape', () => {
     if (result.ok) expect(result.productJson).toBe(false);
   });
 });
+
+// Formal coverage for design D3 Layer 2 (task 7.2) — the fail-closed
+// ownership gate and the non-fatal ghost-image prune, both added on top of
+// the byte-identical archiveScrape() behavior pinned by the 4 tests above.
+// Those 4 tests are deliberately left untouched: none of them pass
+// `expectedProductId`, so none of them can ever reach the fatal branch —
+// confirming (by construction, not just by re-running) that this task did
+// not alter the pre-existing soft-failure/no-assertion behavior.
+describe('archiveScrape — ownership gate (design D3 Layer 2, task 3.2/7.2)', () => {
+  function seedProductJson(productId: string | undefined) {
+    writeFileSync(
+      path.join(srcDir, 'product.json'),
+      JSON.stringify(productId === undefined ? { title: 'x' } : { title: 'x', productId }),
+    );
+  }
+
+  test('ok path: matching expectedProductId succeeds and reports productId + pruned:0 (no manifest, nothing to prune)', async () => {
+    seedProductJson('prd_abcdef-12345678');
+    const { archiveScrape } = await import('./archive');
+    const result = archiveScrape('job-match', { srcDir, jobsDir, expectedProductId: 'prd_abcdef-12345678' });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.productId).toBe('prd_abcdef-12345678');
+      expect(result.pruned).toBe(0);
+    }
+  });
+
+  test('ok path: prunes a ghost image not listed in .scrape-run.json, reports pruned:1, keeps the listed one', async () => {
+    seedProductJson('prd_abcdef-12345678');
+    mkdirSync(path.join(srcDir, 'images'), { recursive: true });
+    writeFileSync(path.join(srcDir, 'images', 'img_0.jpg'), 'real');
+    writeFileSync(path.join(srcDir, 'images', 'img_9.jpg'), 'ghost-from-a-prior-run');
+    writeFileSync(
+      path.join(srcDir, '.scrape-run.json'),
+      JSON.stringify({ schema: 1, productId: 'prd_abcdef-12345678', images: ['img_0.jpg'] }),
+    );
+
+    const { archiveScrape } = await import('./archive');
+    const result = archiveScrape('job-prune', { srcDir, jobsDir, expectedProductId: 'prd_abcdef-12345678' });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.pruned).toBe(1);
+    const destImages = path.join(jobsDir, 'job-prune', 'scrape', 'images');
+    expect(existsSync(path.join(destImages, 'img_0.jpg'))).toBe(true);
+    expect(existsSync(path.join(destImages, 'img_9.jpg'))).toBe(false);
+  });
+
+  test('FAIL-CLOSED: mismatched productId returns {ok:false, fatal:true, code:"archive-ownership-mismatch"}, never throws, and removes the partially-copied destDir', async () => {
+    seedProductJson('prd_wrong00-11111111');
+    const { archiveScrape } = await import('./archive');
+
+    expect(() => archiveScrape('job-mismatch', { srcDir, jobsDir, expectedProductId: 'prd_expect0-22222222' })).not.toThrow();
+    const result = archiveScrape('job-mismatch-2', { srcDir, jobsDir, expectedProductId: 'prd_expect0-22222222' });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok && result.fatal) {
+      expect(result.code).toBe('archive-ownership-mismatch');
+      expect(result.expected).toBe('prd_expect0-22222222');
+      expect(result.found).toBe('prd_wrong00-11111111');
+      expect(typeof result.error).toBe('string');
+    } else {
+      throw new Error('expected a fatal ownership-mismatch result');
+    }
+    // destDir removed — no downstream stage can accidentally read it.
+    expect(existsSync(path.join(jobsDir, 'job-mismatch-2', 'scrape'))).toBe(false);
+  });
+
+  test('legacy tolerance: expectedProductId absent -> ok:true even though product.json carries an id (no assertion possible)', async () => {
+    seedProductJson('prd_abcdef-12345678');
+    const { archiveScrape } = await import('./archive');
+    const result = archiveScrape('job-no-expectation', { srcDir, jobsDir });
+    expect(result.ok).toBe(true);
+  });
+
+  test('legacy tolerance: archived product.json has NO productId (pre-change scrape) -> ok:true, not fatal, even with an expectedProductId set', async () => {
+    seedProductJson(undefined);
+    const { archiveScrape } = await import('./archive');
+    const result = archiveScrape('job-legacy-product', { srcDir, jobsDir, expectedProductId: 'prd_expect0-22222222' });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.productId).toBeNull();
+  });
+});

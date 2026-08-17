@@ -34,6 +34,9 @@ export type ScrapeStage =
 /**
  * `generate-landing.mjs` stages, mapped to `main()` (generate-landing.mjs
  * L245-297). `copy-images` is only emitted when `--images` is passed.
+ * `write-manifest` (Product Identity + Generation Isolation, design D5, task
+ * 5.4) writes `outputs/{slug}/.generation.json` and always runs, right
+ * before `todos`.
  */
 export type GenerateStage =
   | 'args'
@@ -43,6 +46,7 @@ export type GenerateStage =
   | 'write-data'
   | 'patch-theme'
   | 'copy-images'
+  | 'write-manifest'
   | 'todos';
 
 /**

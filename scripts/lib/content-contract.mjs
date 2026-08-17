@@ -14,6 +14,13 @@
 // Check order within each validator is load-bearing: it must exactly match
 // the order the CLI checked before extraction, because the FIRST issue in
 // collect-all mode must equal what fail-fast throws.
+//
+// Product identity (design "Product Identity + Generation Isolation", Fase 4):
+// an OPTIONAL top-level `productId` is format-checked here (never required —
+// absence is never an error). It rides top-level, NEVER inside `product` —
+// ALLOWED_PRODUCT_FIELDS / the product.* whitelist is intentionally untouched.
+
+import { isProductId } from './product-id.cjs';
 
 export const ALLOWED_PRODUCT_FIELDS = [
   'brand', 'name', 'tagline', 'subtagline',
@@ -150,8 +157,26 @@ function collectTestimonialsIssues(testimonials) {
   return issues;
 }
 
+// Format-only check for the OPTIONAL top-level `productId` (design D1):
+// absent => never an error; present => must match PRODUCT_ID_RE via
+// isProductId. Runs first in both collect-all and fail-fast so the FIRST
+// issue in either mode stays in sync (see header comment on check order).
+function collectTopLevelIssues(input) {
+  const issues = [];
+  if (input.productId !== undefined && !isProductId(input.productId)) {
+    issues.push({
+      code: 'product-id-invalid',
+      path: 'productId',
+      message: `content.json "productId" is present but invalid: expected format prd_{base36ts}-{rand8}, got ${JSON.stringify(input.productId)}`,
+    });
+  }
+  return issues;
+}
+
 export function collectContentErrors(input) {
   const issues = [];
+
+  issues.push(...collectTopLevelIssues(input));
 
   if (!input.product) {
     issues.push({ code: 'missing-top-level', path: 'product', message: 'content.json is missing top-level "product"' });
@@ -190,6 +215,8 @@ export function validateTestimonials(testimonials) {
 }
 
 export function validateContent(input) {
+  throwFirst(collectTopLevelIssues(input));
+
   if (!input.product) {
     throw new ContentContractError('content.json is missing top-level "product"', { code: 'missing-top-level', path: 'product' });
   }

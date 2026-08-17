@@ -26,6 +26,31 @@ export type AgentRunPanelProps = {
   onCancel?: () => void;
 };
 
+/**
+ * Display-only productId lookup (design "product-identity-generation-isolation"
+ * §6.2). Prefers the RESULT's productId (what actually ran/was confirmed)
+ * over the REQUESTED params.productId (what was asked for) — they only
+ * differ when a job is still running or failed before producing a result.
+ * All three ScrapeParams/GenerateParams/ContentParams and all three
+ * ScrapeResult/GenerateResult/ContentResult variants declare an optional
+ * `productId`, so this is a plain property read, not a per-kind branch.
+ */
+function jobProductId(job: JobRecord): string | null {
+  return job.result?.productId ?? job.params.productId ?? null;
+}
+
+/**
+ * True only for the FAIL-CLOSED archive ownership gate (design D3 Layer 2,
+ * registry.ts `#onExit`): the scraped bytes were archived under a DIFFERENT
+ * productId than this job's own lineage. This is a terminal, intentional
+ * block — there is no `--reset`/retry/force path in this phase, the operator
+ * MUST re-scrape. Kept as its own predicate so the UI can give it a distinct,
+ * unambiguous treatment instead of reading like a generic transient error.
+ */
+function isArchiveOwnershipDeadEnd(job: JobRecord): boolean {
+  return job.status === 'failed' && job.error?.stage === 'archive' && job.error?.code === 'archive-ownership-mismatch';
+}
+
 function toneClass(tone: 'running' | 'done' | 'failed' | 'idle'): string {
   switch (tone) {
     case 'running':
@@ -51,6 +76,8 @@ export default function AgentRunPanel({
   const id = AGENT_IDENTITY[identity];
   const evidence = job ? runningEvidence(job) : null;
   const cancellable = !!onCancel && (job?.status === 'running' || job?.status === 'queued');
+  const productId = job ? jobProductId(job) : null;
+  const archiveDeadEnd = job ? isArchiveOwnershipDeadEnd(job) : false;
 
   return (
     <section className="flex flex-col gap-3">
@@ -71,7 +98,12 @@ export default function AgentRunPanel({
             <span className={`font-medium ${toneClass(jobStatusTone(job.status))}`}>
               Estado: {jobStatusLabel(job.status)}
             </span>
-            {job.error ? <span className="text-state-failed">Error: {job.error.message}</span> : null}
+            {productId && (
+              <span className="text-ink-soft">
+                producto <span className="font-mono">{productId}</span>
+              </span>
+            )}
+            {job.error && !archiveDeadEnd ? <span className="text-state-failed">Error: {job.error.message}</span> : null}
             {cancellable && (
               <button
                 type="button"
@@ -82,6 +114,21 @@ export default function AgentRunPanel({
               </button>
             )}
           </p>
+
+          {archiveDeadEnd && (
+            <div className="rounded-lg border-2 border-red-300 bg-red-50 p-3 text-sm text-red-800">
+              <p className="font-semibold">
+                Este scrape quedó bloqueado: lo que se guardó pertenece a OTRO producto, no al de este job.
+              </p>
+              <p className="mt-1 text-xs">
+                Esto NO es un bug ni un error transitorio — es un bloqueo intencional para no mezclar productos.
+                Este job no se puede reintentar ni forzar, y en esta fase no existe una acción para
+                "resetearlo" o recuperarlo. La única salida es volver a correr el Extractor de productos con
+                la URL para arrancar un scrape nuevo.
+              </p>
+              {job.error?.message && <p className="mt-1 font-mono text-xs text-red-700">{job.error.message}</p>}
+            </div>
+          )}
 
           <StageChecklist stages={job.stages} />
 
@@ -108,6 +155,8 @@ export default function AgentRunPanel({
               )}
 
               <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-ink-soft">
+                <dt className="font-medium">productId</dt>
+                <dd className="font-mono">{productId ?? 'n/a'}</dd>
                 <dt className="font-medium">pid</dt>
                 <dd className="font-mono">{job.pid ?? 'n/a'}</dd>
                 <dt className="font-medium">exitCode</dt>

@@ -21,6 +21,16 @@ function isScrapeResult(result: JobRecord['result']): result is ScrapeResult {
   return !!result && 'imageCount' in result;
 }
 
+/** Same predicate as AgentRunPanel's — kept local since this panel only needs
+ * it to suppress the generic "Aviso" (amber, non-fatal) archiveError notice
+ * below when the shared panel already renders the unambiguous red dead-end
+ * banner for the exact same message (design "product-identity-generation-
+ * isolation" §6.2: an amber "notice" tone would understate a fail-closed,
+ * unrecoverable block and could read as a bug). */
+function isArchiveOwnershipDeadEnd(job: JobRecord | null): boolean {
+  return !!job && job.status === 'failed' && job.error?.stage === 'archive' && job.error?.code === 'archive-ownership-mismatch';
+}
+
 export default function ScrapeAgentPanel({ job, logs, onRun, onCancel, running, submitError }: ScrapeAgentPanelProps) {
   const [url, setUrl] = useState('');
 
@@ -75,7 +85,7 @@ export default function ScrapeAgentPanel({ job, logs, onRun, onCancel, running, 
                     guessing an extension the archive route's allowlist may
                     reject). product.json itself lists each local image path. */}
               </div>
-              {job?.archiveError && (
+              {job?.archiveError && !isArchiveOwnershipDeadEnd(job) && (
                 <p className="mt-1 text-xs text-amber-600">Aviso al guardar los archivos: {job.archiveError}</p>
               )}
             </div>

@@ -23,6 +23,7 @@ import { archiveScrape as defaultArchiveScrape, type ArchiveResult } from './arc
 import { writeJobRecord, readJobRecord, listJobIds, appendLogLine, openLogStream } from './store';
 import { JobQueue, SCRAPE_LOCK_KEY, generateLockKey, CONTENT_LOCK_KEY } from './queue';
 import { REPO_ROOT, SCRAPE_TIMEOUT_MS, GENERATE_TIMEOUT_MS, CONTENT_TIMEOUT_MS, KILL_GRACE_MS, MAX_JOBS_IN_MEMORY } from '../config';
+import { newProductId } from '../validation/product-id';
 import type {
   JobRecord,
   JobStatus,
@@ -49,7 +50,8 @@ export type JobRegistryDeps = {
   buildScrapeSpec?: typeof defaultBuildScrapeSpec;
   buildGenerateSpec?: typeof defaultBuildGenerateSpec;
   buildContentSpec?: typeof defaultBuildContentSpec;
-  archiveScrape?: (jobId: string) => ArchiveResult;
+  /** Widened seam (design D3): expectedProductId enables the fail-closed ownership gate. Optional — omitted means "no ownership assertion". */
+  archiveScrape?: (jobId: string, expectedProductId?: string) => ArchiveResult;
 };
 
 type LiveHandle = {
@@ -80,7 +82,7 @@ export class JobRegistry {
   #buildScrapeSpec: typeof defaultBuildScrapeSpec;
   #buildGenerateSpec: typeof defaultBuildGenerateSpec;
   #buildContentSpec: typeof defaultBuildContentSpec;
-  #archiveScrape: (jobId: string) => ArchiveResult;
+  #archiveScrape: (jobId: string, expectedProductId?: string) => ArchiveResult;
 
   constructor(deps: JobRegistryDeps = {}) {
     this.#repoRoot = deps.repoRoot ?? REPO_ROOT;
@@ -91,7 +93,9 @@ export class JobRegistry {
     this.#buildScrapeSpec = deps.buildScrapeSpec ?? defaultBuildScrapeSpec;
     this.#buildGenerateSpec = deps.buildGenerateSpec ?? defaultBuildGenerateSpec;
     this.#buildContentSpec = deps.buildContentSpec ?? defaultBuildContentSpec;
-    this.#archiveScrape = deps.archiveScrape ?? ((jobId: string) => defaultArchiveScrape(jobId));
+    this.#archiveScrape =
+      deps.archiveScrape ??
+      ((jobId: string, expectedProductId?: string) => defaultArchiveScrape(jobId, { expectedProductId }));
   }
 
   // -------------------------------------------------------------------
@@ -205,9 +209,13 @@ export class JobRegistry {
   // -------------------------------------------------------------------
 
   createScrapeJob(params: ScrapeParams): JobRecord {
+    // Mint productId once per lineage when the caller didn't already pin one
+    // (design D1/D2 — the admin flow is the primary minting point; a
+    // standalone CLI scrape self-mints inside scrape.js instead).
+    const withProductId: ScrapeParams = { ...params, productId: params.productId ?? newProductId() };
     return structuredClone(
-      this.#createJob('scrape', params, SCRAPE_LOCK_KEY, () =>
-        this.#buildScrapeSpec(params, { repoRoot: this.#repoRoot, timeoutMs: this.#scrapeTimeoutMs }),
+      this.#createJob('scrape', withProductId, SCRAPE_LOCK_KEY, () =>
+        this.#buildScrapeSpec(withProductId, { repoRoot: this.#repoRoot, timeoutMs: this.#scrapeTimeoutMs }),
       ),
     );
   }
@@ -400,12 +408,29 @@ export class JobRegistry {
       job.status = status;
 
       if (job.kind === 'scrape' && status === 'succeeded') {
-        const archiveResult = this.#archiveScrape(jobId);
+        const expectedProductId = (job.params as ScrapeParams).productId;
+        const archiveResult = this.#archiveScrape(jobId, expectedProductId);
         if (archiveResult.ok) {
           job.archivePath = archiveResult.destDir;
           if (job.result) (job.result as ScrapeResult).archivedFiles = archiveResult.files;
           this.#ingest(jobId, { ch: 'meta', meta: { kind: 'archived', files: archiveResult.files } });
+        } else if (archiveResult.fatal) {
+          // FAIL-CLOSED override (design D3 Layer 2, task 3.3): the child
+          // process genuinely exited 0 — `status` above is already
+          // 'succeeded' — but the archived product.json belongs to a
+          // DIFFERENT productId than this job's lineage. This is a
+          // correctness violation, not an infra hiccup, so it demotes the
+          // job to 'failed' regardless of exitCode. Runs BEFORE
+          // writeJobRecord/publish below, so 'succeeded' is never observable
+          // externally (R9 immutability) and no fabricated stages[] entry is
+          // added — the failure lives in job.error only.
+          job.status = 'failed';
+          job.error = { message: archiveResult.error, stage: 'archive', code: archiveResult.code };
+          job.archivePath = null;
+          job.archiveError = archiveResult.error;
         } else {
+          // Unchanged soft path (IO failure — missing srcDir, cpSync EACCES,
+          // etc): does NOT fail the job, the scrape itself genuinely succeeded.
           job.archiveError = archiveResult.error;
         }
       }

@@ -17,6 +17,31 @@ const emit =
     ? require('../scripts/lib/events.cjs').createEmitter('scrape')
     : () => {};
 
+// ---------------------------------------------------------------------------
+// PRODUCT IDENTITY (design D1/D2) — additive, resolved once per invocation.
+// Precedence: --product-id <val> (defensive argv scan, never touches
+// process.argv[2]'s existing meaning as the target URL) > LG_PRODUCT_ID env
+// (set by admin/src/server/jobs/runner.ts#buildScrapeSpec) > self-mint, so a
+// standalone `node scrape.js <url>` CLI run keeps working exactly as before,
+// just now tagged with a freshly minted id.
+// ---------------------------------------------------------------------------
+
+const { newProductId } = require('../scripts/lib/product-id.cjs');
+
+function resolveProductId() {
+  const flagIndex = process.argv.indexOf('--product-id');
+  if (flagIndex !== -1 && process.argv[flagIndex + 1]) {
+    return { productId: process.argv[flagIndex + 1], productIdSource: 'arg' };
+  }
+  if (process.env.LG_PRODUCT_ID) {
+    return { productId: process.env.LG_PRODUCT_ID, productIdSource: 'env' };
+  }
+  return { productId: newProductId(), productIdSource: 'self' };
+}
+
+const { productId, productIdSource } = resolveProductId();
+const RUN_STARTED_AT = new Date().toISOString();
+
 let currentStage = null;
 
 async function withStage(stage, fn) {
@@ -415,6 +440,13 @@ async function scrapeAliExpress(url) {
 
     // --- descarga de imágenes
     const localImages = await withStage('images', async () => {
+      // Hygiene (design D3-L1): a stale images/ dir from a previous run is
+      // orphaned garbage the moment this run starts — product.json is already
+      // clobbered every run, so there is no recoverable state being lost.
+      // Opt-out for manual debugging: LG_SCRAPE_KEEP_OUTPUT=1.
+      if (process.env.LG_SCRAPE_KEEP_OUTPUT !== '1') {
+        fs.rmSync(CONFIG.imagesDir, { recursive: true, force: true });
+      }
       fs.mkdirSync(CONFIG.imagesDir, { recursive: true });
       console.log(`⬇️  Descargando ${images.length} imágenes...`);
 
@@ -436,6 +468,7 @@ async function scrapeAliExpress(url) {
     });
 
     const product = {
+      productId,
       sourceUrl: url,
       scrapedAt: new Date().toISOString(),
       title: structured.title,
@@ -450,9 +483,23 @@ async function scrapeAliExpress(url) {
     };
 
     const outputPath = path.join(CONFIG.outputDir, 'product.json');
+    const scrapeRunPath = path.join(CONFIG.outputDir, '.scrape-run.json');
     await withStage('write', () => {
       fs.mkdirSync(CONFIG.outputDir, { recursive: true });
       fs.writeFileSync(outputPath, JSON.stringify(product, null, 2));
+
+      // Sidecar run manifest (design D2/D3) — inert to any downstream build,
+      // consumed by admin/src/server/jobs/archive.ts for ownership/pruning.
+      const scrapeRun = {
+        schema: 1,
+        productId,
+        productIdSource,
+        sourceUrl: url,
+        startedAt: RUN_STARTED_AT,
+        finishedAt: new Date().toISOString(),
+        images: localImages.map(p => path.basename(p))
+      };
+      fs.writeFileSync(scrapeRunPath, JSON.stringify(scrapeRun, null, 2));
     });
 
     console.log('\n🔥 RESULTADO\n');
@@ -474,6 +521,7 @@ async function scrapeAliExpress(url) {
     // normal termination. No-op when LG_EVENTS is unset.
     emit('result', null, {
       outputPath,
+      productId,
       title: product.title,
       imageCount: images.length,
       localImageCount: localImages.length,

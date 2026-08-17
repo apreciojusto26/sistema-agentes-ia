@@ -22,6 +22,7 @@ import type {
   OverwriteConfirmationRequired,
   NoContentArtifact,
   NoScrapeArtifact,
+  GenerationOwnerMismatch,
   ContentInvalid,
   SlugInvalid,
   UrlInvalid,
@@ -77,11 +78,44 @@ function redeemConfirmToken(token: string, slug: string): boolean {
   return true;
 }
 
-function overwriteWarnings(slug: string): [string, string] {
-  return [
+/** Extends with a third, productId-aware line when the existing outputs/{slug} dir carries a known lineage (design D5). */
+function overwriteWarnings(slug: string, productId?: string | null): string[] {
+  const warnings = [
     `--force does NOT delete outputs/${slug}. generate-landing.mjs does mkdirSync(recursive) then copies over the existing tree in place (lines 320-321), so files from a previous generation that no longer exist in the template SURVIVE.`,
     `outputs/${slug}/node_modules and outputs/${slug}/.env also survive — usually what you want.`,
   ];
+  if (productId) {
+    warnings.push(
+      `This regeneration reuses productId ${productId} — the existing outputs/${slug}/.generation.json lineage is being extended, not replaced.`,
+    );
+  }
+  return warnings;
+}
+
+type GenerationManifest = { productId?: string | null };
+
+/**
+ * Reads outputs/{slug}/.generation.json when present (design D5's second
+ * barrier; the file is written by generate-landing.mjs's write-manifest
+ * stage, which is out of scope for this batch — it may simply not exist yet
+ * for any given slug, and that MUST be tolerated silently, never thrown).
+ */
+function readGenerationManifest(outDir: string): GenerationManifest | null {
+  const manifestPath = path.join(outDir, '.generation.json');
+  if (!existsSync(manifestPath)) return null;
+  try {
+    const parsed = JSON.parse(readFileSync(manifestPath, 'utf8')) as GenerationManifest;
+    return typeof parsed === 'object' && parsed !== null ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Extracts the optional top-level `productId` from a parsed content.json (design D2 — field is optional, absence is never an error). */
+function extractContentProductId(parsedContent: unknown): string | undefined {
+  if (typeof parsedContent !== 'object' || parsedContent === null) return undefined;
+  const value = (parsedContent as Record<string, unknown>).productId;
+  return typeof value === 'string' ? value : undefined;
 }
 
 function findPriorGenerateJob(registry: RegistryLike, slug: string): OverwriteConfirmationRequired['priorJob'] {
@@ -143,10 +177,29 @@ export function registerJobsRoutes(app: FastifyInstance, registry: RegistryLike)
         return { code: 'content-invalid', issues } satisfies ContentInvalid;
       }
 
+      const contentProductId = extractContentProductId(parsedContent);
       const outDir = path.join(OUTPUTS_DIR, slug);
       let force = false;
 
       if (existsSync(outDir)) {
+        const manifest = readGenerationManifest(outDir);
+
+        // FAIL-CLOSED, no bypass (design D5 defense-in-depth barrier):
+        // checked BEFORE any confirmOverwrite/confirmToken handling, and
+        // confirmOverwrite is NEVER consulted for this branch — an
+        // ownership mismatch is a correctness violation, not a "do you want
+        // to overwrite?" question. A missing manifest, or either side
+        // lacking a productId, is legacy/untagged, not a mismatch.
+        if (manifest?.productId && contentProductId && manifest.productId !== contentProductId) {
+          reply.code(409);
+          return {
+            code: 'generation-owner-mismatch',
+            slug,
+            expected: manifest.productId,
+            found: contentProductId,
+          } satisfies GenerationOwnerMismatch;
+        }
+
         const confirmed = body.confirmOverwrite && redeemConfirmToken(body.confirmOverwrite.token, slug);
         if (!confirmed) {
           const stat = statSync(outDir);
@@ -158,7 +211,7 @@ export function registerJobsRoutes(app: FastifyInstance, registry: RegistryLike)
             existingMtime: stat.mtime.toISOString(),
             priorJob: findPriorGenerateJob(registry, slug),
             confirmToken: issueConfirmToken(slug),
-            warnings: overwriteWarnings(slug),
+            warnings: overwriteWarnings(slug, manifest?.productId ?? null),
           } satisfies OverwriteConfirmationRequired;
         }
         force = true;
@@ -169,6 +222,7 @@ export function registerJobsRoutes(app: FastifyInstance, registry: RegistryLike)
         contentPath,
         imagesDir: body.imagesDir ?? null,
         force,
+        productId: contentProductId,
       });
       reply.code(201);
       return { job } satisfies JobDetailResponse;
@@ -179,7 +233,11 @@ export function registerJobsRoutes(app: FastifyInstance, registry: RegistryLike)
       const scrapeJob = registry.get(scrapeJobId);
       const productPath = scrapeJob?.archivePath ? path.join(scrapeJob.archivePath, 'product.json') : null;
 
-      if (!scrapeJob || scrapeJob.kind !== 'scrape' || !productPath || !existsSync(productPath)) {
+      // Explicit status guard (design D3 — states the intent already
+      // enforced structurally by archivePath being null on any fatal
+      // archive; a fatally-archived scrape's job.status is 'failed', never
+      // 'succeeded', so this is additive-but-not-yet-load-bearing today).
+      if (!scrapeJob || scrapeJob.kind !== 'scrape' || scrapeJob.status !== 'succeeded' || !productPath || !existsSync(productPath)) {
         reply.code(409);
         return { code: 'no-scrape-artifact' } satisfies NoScrapeArtifact;
       }
@@ -199,6 +257,11 @@ export function registerJobsRoutes(app: FastifyInstance, registry: RegistryLike)
         // Always the server-pinned model — any client-supplied model field is
         // ignored (D1's pinning must not become client-settable).
         model: GEMINI_MODEL,
+        // Forward the scrape job's lineage id (design D2 propagation) — may
+        // be undefined for a job created before this change landed. Every
+        // JobRecord['params'] variant carries an optional `productId` since
+        // task 3.1, so this is accessible without a cast.
+        productId: scrapeJob.params.productId,
       });
       reply.code(201);
       return { job } satisfies JobDetailResponse;

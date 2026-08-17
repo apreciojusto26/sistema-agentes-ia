@@ -23,6 +23,8 @@ export type ScrapeParams = {
   url: string;
   itemId: string;
   normalizedUrl: string;
+  /** Product identity lineage (design "product-identity-generation-isolation" D1/D2). Minted by registry.createScrapeJob when absent. */
+  productId?: string;
 };
 
 export type GenerateParams = {
@@ -30,6 +32,8 @@ export type GenerateParams = {
   contentPath: string;
   imagesDir: string | null;
   force: boolean;
+  /** Product identity lineage (design D1/D5). Optional — absent means no ownership check is asserted at this call site. */
+  productId?: string;
 };
 
 export type ContentParams = {
@@ -41,6 +45,8 @@ export type ContentParams = {
   instructionsPath: string | null;
   /** Pinned server-side (config.GEMINI_MODEL). Recorded per-run so a past landing's model is auditable. Never read from the request body. */
   model: string;
+  /** Product identity lineage (design D1/D2), carried through for provenance. */
+  productId?: string;
 };
 
 export type StageProgress = {
@@ -63,6 +69,8 @@ export type ScrapeResult = {
   sourceUrl: string;
   scrapedAt: string;
   archivedFiles: number;
+  /** Product identity lineage (design D2), echoed from scrape.js's result event. */
+  productId?: string;
 };
 
 export type GenerateResult = {
@@ -72,6 +80,10 @@ export type GenerateResult = {
   imagesMatched: number;
   imagesUnmatched: string[];
   todos: string[];
+  /** Product identity lineage (design D2), echoed from generate-landing.mjs's result event. */
+  productId?: string;
+  /** Absolute path to the written outputs/{slug}/.generation.json manifest (design "write-manifest" stage). */
+  manifestPath?: string;
 };
 
 export type ContentResult = {
@@ -91,6 +103,8 @@ export type ContentResult = {
   testimonialCount: number;
   hasDesign: boolean;
   // NO costUsd. NO quotaRemaining. Both explicitly banned by spec.
+  /** Product identity lineage (design D2), echoed from generate-content.mjs's result event. */
+  productId?: string;
 };
 
 export type JobError = {

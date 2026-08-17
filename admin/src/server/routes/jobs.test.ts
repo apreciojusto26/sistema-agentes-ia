@@ -364,6 +364,79 @@ describe('POST /api/jobs — kind:"content"', () => {
     expect(res.statusCode).toBe(409);
     expect(res.json().code).toBe('no-scrape-artifact');
   });
+
+  // Task 7.3 (design D3, spec "Archive Ownership Mismatch — Fail-Closed"):
+  // a FATAL archive demotes the scrape job to status:'failed' with
+  // archivePath:null (see registry.ts#onChildExit / archive.test.ts's
+  // fatal-mismatch case). This route's explicit `status !== 'succeeded'`
+  // guard (task 3.5) must reject it the SAME way as any other unusable
+  // scrape — 409 no-scrape-artifact — even though the underlying reason
+  // (a correctness violation, not a missing artifact) is different. No
+  // content job, and therefore no downstream generate job for that
+  // lineage, can ever be created.
+  describe('a FATAL-archived scrape (design D3 downstream containment)', () => {
+    function fatallyArchivedScrapeJob(): JobRecord {
+      return fakeJob({
+        jobId: 'zz-fake-scrape-job-fatal-archive',
+        kind: 'scrape',
+        status: 'failed',
+        exitCode: 0, // the child genuinely exited 0 — Risk R1's deliberate exitCode:0 + status:'failed' combination
+        archivePath: null,
+        archiveError:
+          'archived product.json belongs to productId "prd_wrong00-11111111", expected "prd_expect0-22222222"',
+        error: {
+          message:
+            'archived product.json belongs to productId "prd_wrong00-11111111", expected "prd_expect0-22222222"',
+          stage: 'archive',
+          code: 'archive-ownership-mismatch',
+        },
+      });
+    }
+
+    test('-> 409 no-scrape-artifact, no content job created', async () => {
+      const job = fatallyArchivedScrapeJob();
+      const registry = fakeRegistry((id) => (id === job.jobId ? job : null));
+      const app = await buildApp(registry);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/jobs',
+        payload: { kind: 'content', scrapeJobId: job.jobId },
+      });
+
+      expect(res.statusCode).toBe(409);
+      expect(res.json().code).toBe('no-scrape-artifact');
+      expect(registry.createContentJob).not.toHaveBeenCalled();
+      // Structurally, no content job exists -> no .staged/content.json ->
+      // no generate job can ever be created for this lineage either.
+      expect(registry.createGenerateJob).not.toHaveBeenCalled();
+    });
+
+    test('extra fields resembling force/confirmToken on the request do NOT reopen the path — kind:"content" has no such flag at all', async () => {
+      const job = fatallyArchivedScrapeJob();
+      const registry = fakeRegistry((id) => (id === job.jobId ? job : null));
+      const app = await buildApp(registry);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/jobs',
+        // `force`/`confirmOverwrite` are not part of CreateJobRequest's
+        // kind:'content' variant at all (see shared/api.ts) — sent anyway
+        // to prove the route ignores them rather than silently accepting
+        // an undeclared bypass field.
+        payload: {
+          kind: 'content',
+          scrapeJobId: job.jobId,
+          force: true,
+          confirmOverwrite: { token: 'not-a-real-token' },
+        } as never,
+      });
+
+      expect(res.statusCode).toBe(409);
+      expect(res.json().code).toBe('no-scrape-artifact');
+      expect(registry.createContentJob).not.toHaveBeenCalled();
+    });
+  });
 });
 
 describe('GET /api/jobs, GET /api/jobs/:id, POST /api/jobs/:id/cancel', () => {

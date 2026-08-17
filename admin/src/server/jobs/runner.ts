@@ -140,7 +140,11 @@ export function buildScrapeSpec(params: ScrapeParams, opts: SpecOpts): RunSpec {
     command: process.execPath,
     args: ['scrape.js', params.url],
     cwd: path.join(opts.repoRoot, 'scraper'),
-    env: { ...process.env, LG_EVENTS: '1' },
+    // LG_PRODUCT_ID, not argv (design D2): scrape.js has no arg parser and
+    // resolves productId arg>env>self-mint — env costs zero parsing and
+    // keeps args byte-identical to before this change. Same transport
+    // pattern as the existing LG_EVENTS var.
+    env: { ...process.env, LG_EVENTS: '1', LG_PRODUCT_ID: params.productId ?? '' },
     timeoutMs: opts.timeoutMs,
   };
 }
@@ -155,6 +159,10 @@ export function buildGenerateSpec(params: GenerateParams, opts: SpecOpts): RunSp
   const args = ['scripts/generate-landing.mjs', '--slug', params.slug, '--content', params.contentPath];
   if (params.imagesDir) args.push('--images', params.imagesDir);
   if (params.force) args.push('--force');
+  // Conditional (design D5/5.1): only pushed when params.productId is
+  // present, so argv stays byte-identical to before this change for every
+  // call site that doesn't pass one yet. NO --reset — not part of this phase.
+  if (params.productId) args.push('--product-id', params.productId);
 
   return {
     command: process.execPath,

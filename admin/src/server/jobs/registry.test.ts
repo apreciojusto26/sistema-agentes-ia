@@ -378,6 +378,68 @@ describe('JobRegistry — create/ingest/cancel against a real spawned fixture ch
     expect(existsSync(path.join(final.archivePath!, 'images', 'img_1.jpg'))).toBe(true);
     expect((final.result as { archivedFiles: number }).archivedFiles).toBeGreaterThanOrEqual(3);
   });
+
+  // Formal coverage for design D3 Layer 2 / task 3.3 (task 7.2): a fatal
+  // archive result must demote an otherwise-succeeded child exit (code 0)
+  // to job.status 'failed', via the DI seam the test suite already uses
+  // above for the non-fatal archive path — no real archiveScrape() call, no
+  // real ownership mismatch needed, just its documented return shape.
+  test('a FATAL archiveScrape() result demotes the job to "failed" with error.code/stage set, archivePath null, archiveError mirrored, and no fabricated stages[] entry', async () => {
+    const { JobRegistry } = await import('./registry');
+    let receivedExpectedProductId: string | undefined;
+    const registry = new JobRegistry({
+      buildScrapeSpec: () => genSpecFor('scrape-success', 5_000),
+      archiveScrape: (_jobId: string, expectedProductId?: string) => {
+        receivedExpectedProductId = expectedProductId;
+        return {
+          ok: false,
+          fatal: true,
+          code: 'archive-ownership-mismatch',
+          error: 'archived product.json belongs to productId "prd_wrong00-11111111", expected "prd_expect0-22222222"',
+          expected: 'prd_expect0-22222222',
+          found: 'prd_wrong00-11111111',
+        };
+      },
+    });
+
+    const job = registry.createScrapeJob({
+      url: 'https://es.aliexpress.com/item/1005007502111078.html',
+      itemId: '1',
+      normalizedUrl: 'x',
+      productId: 'prd_expect0-22222222',
+    });
+    reserveJobDir(job.jobId);
+
+    await new Promise<void>((resolve) => {
+      const interval = setInterval(() => {
+        const current = registry.get(job.jobId);
+        if (current && current.status !== 'running') {
+          clearInterval(interval);
+          resolve();
+        }
+      }, 10);
+    });
+
+    expect(receivedExpectedProductId).toBe('prd_expect0-22222222');
+
+    const final = registry.get(job.jobId)!;
+    // The child genuinely exited 0 — this is the deliberate exitCode:0 +
+    // status:'failed' combination flagged as Risk R1 in design #423.
+    expect(final.exitCode).toBe(0);
+    expect(final.status).toBe('failed');
+    expect(final.error).toEqual({
+      message: 'archived product.json belongs to productId "prd_wrong00-11111111", expected "prd_expect0-22222222"',
+      stage: 'archive',
+      code: 'archive-ownership-mismatch',
+    });
+    expect(final.archivePath).toBeNull();
+    expect(final.archiveError).toBe(
+      'archived product.json belongs to productId "prd_wrong00-11111111", expected "prd_expect0-22222222"',
+    );
+    // No fabricated stages[] entry for 'archive' — the fixture child only
+    // ever emitted 'open' and 'write' stage events.
+    expect(final.stages.map((s) => s.stage)).toEqual(['open', 'write']);
+  });
 });
 
 describe('JobRegistry — A7 spec-factory inversion regression (content-agent change)', () => {
@@ -397,7 +459,14 @@ describe('JobRegistry — A7 spec-factory inversion regression (content-agent ch
     const job = registry.createScrapeJob(scrapeParams);
     reserveJobDir(job.jobId);
 
-    expect(receivedParams).toEqual(scrapeParams);
+    // Updated for design "product-identity-generation-isolation" D1/D2/task
+    // 3.3 (Batch 3): createScrapeJob now mints a productId when the caller
+    // didn't pin one, and passes the WIDENED params (including productId)
+    // to buildScrapeSpec — this is an intentional, design-contemplated
+    // contract change, not a regression. The rest of this test's assertions
+    // (argv/cwd shape) are unaffected and unchanged.
+    expect(receivedParams).toMatchObject(scrapeParams);
+    expect(typeof (receivedParams as { productId?: unknown }).productId).toBe('string');
     expect(receivedOpts).toMatchObject({ repoRoot: REPO_ROOT });
     // The inversion changed HOW the spec is built (thunked, after jobId
     // allocation) but not WHAT argv/cwd the job record ends up with —

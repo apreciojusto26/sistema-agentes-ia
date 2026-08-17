@@ -8,7 +8,9 @@
 // to a raw enum name:
 //   - scrape:   scraper/scrape.js's real `withStage('…')` call sites (10)
 //   - generate: admin/test/contract.generate-landing.test.ts's two
-//               `stage.start` expectation arrays (7 + 1 conditional = 8 union)
+//               `stage.start` expectation arrays (8 + 1 conditional = 9
+//               union — `write-manifest` added by Product Identity +
+//               Generation Isolation, design D5, task 5.4)
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -43,6 +45,7 @@ const EXPECTED_GENERATE_STAGES: GenerateStage[] = [
   'write-data',
   'patch-theme',
   'copy-images',
+  'write-manifest',
   'todos',
 ];
 
@@ -104,7 +107,7 @@ describe('stage-label-coverage (spec Real-Stage Label Mapping, corrected sources
     }
   });
 
-  it('contract.generate-landing.test.ts has exactly the 8 expected stage.start stages (union of both arrays)', () => {
+  it('contract.generate-landing.test.ts has exactly the 9 expected stage.start stages (union of both arrays)', () => {
     const real = extractGenerateStagesFromContractTest().sort();
     expect(real).toEqual([...EXPECTED_GENERATE_STAGES].sort());
   });

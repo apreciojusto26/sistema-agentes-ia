@@ -98,6 +98,21 @@ export type NoContentArtifact = { code: 'no-content-artifact' };
 /** 409 for kind:'content' when scrapeJobId doesn't resolve, or has no archived product.json. */
 export type NoScrapeArtifact = { code: 'no-scrape-artifact' };
 
+/**
+ * 409 for kind:'generate' when outputs/{slug}/.generation.json's productId
+ * differs from the staged content's productId (design D5 defense-in-depth
+ * barrier — the primary D5 gate lives in generate-landing.mjs's own
+ * preflight). This is a correctness violation, NOT an "are you sure?"
+ * prompt: `confirmOverwrite`/`confirmToken` is NEVER consulted for this
+ * check, and there is no flag that bypasses it.
+ */
+export type GenerationOwnerMismatch = {
+  code: 'generation-owner-mismatch';
+  slug: string;
+  expected: string;
+  found: string;
+};
+
 export type ContentInvalid = { code: 'content-invalid'; issues: ContentIssue[] };
 
 export type SlugInvalid = { code: 'slug-invalid'; message: string };
