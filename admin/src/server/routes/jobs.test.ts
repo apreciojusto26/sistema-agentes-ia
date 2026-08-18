@@ -255,14 +255,14 @@ describe('POST /api/jobs — kind:"content"', () => {
   function fakeScrapeJobWithArchive(overrides: Partial<JobRecord> = {}): { job: JobRecord; archiveDir: string } {
     const archiveDir = mkdtempSync(path.join(os.tmpdir(), 'lg-jobs-test-archive-'));
     tmpDirs.push(archiveDir);
-    writeFileSync(path.join(archiveDir, 'product.json'), JSON.stringify({ title: 'Fixture' }));
+    writeFileSync(path.join(archiveDir, 'canonical-product.json'), JSON.stringify({ title: 'Fixture' }));
     return {
       job: fakeJob({ jobId: 'zz-fake-scrape-job', kind: 'scrape', status: 'succeeded', archivePath: archiveDir, ...overrides }),
       archiveDir,
     };
   }
 
-  test('valid scrapeJobId with an archived product.json -> 201, delegates to createContentJob with the archived path', async () => {
+  test('valid scrapeJobId with an archived canonical-product.json -> 201, delegates to createContentJob with the archived path', async () => {
     const { job } = fakeScrapeJobWithArchive();
     const registry = fakeRegistry((id) => (id === 'zz-fake-scrape-job' ? job : null));
     const app = await buildApp(registry);
@@ -277,7 +277,7 @@ describe('POST /api/jobs — kind:"content"', () => {
     expect(registry.createContentJob).toHaveBeenCalledOnce();
     const params = registry.createContentJob.mock.calls[0][0];
     expect(params.scrapeJobId).toBe('zz-fake-scrape-job');
-    expect(params.scrapeProductPath).toContain('product.json');
+    expect(params.scrapeProductPath).toContain('canonical-product.json');
     expect(params.instructionsPath).toBeNull();
   });
 
@@ -289,7 +289,7 @@ describe('POST /api/jobs — kind:"content"', () => {
     await app.inject({ method: 'POST', url: '/api/jobs', payload: { kind: 'content', scrapeJobId: 'zz-fake-scrape-job' } });
 
     const params = registry.createContentJob.mock.calls[0][0];
-    expect(params.scrapeProductPath).toBe(path.join(archiveDir, 'product.json'));
+    expect(params.scrapeProductPath).toBe(path.join(archiveDir, 'canonical-product.json'));
   });
 
   test('instructions text is written to a file and NEVER passed inline — only a path enters ContentParams', async () => {
@@ -338,7 +338,7 @@ describe('POST /api/jobs — kind:"content"', () => {
     expect(registry.createContentJob).not.toHaveBeenCalled();
   });
 
-  test('scrapeJobId resolves but has no archived product.json -> 409 no-scrape-artifact', async () => {
+  test('scrapeJobId resolves but has no archived canonical-product.json -> 409 no-scrape-artifact', async () => {
     const job = fakeJob({ jobId: 'zz-fake-scrape-job', kind: 'scrape', status: 'succeeded', archivePath: null });
     const registry = fakeRegistry((id) => (id === 'zz-fake-scrape-job' ? job : null));
     const app = await buildApp(registry);

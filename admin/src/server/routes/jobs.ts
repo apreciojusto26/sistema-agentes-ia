@@ -231,7 +231,7 @@ export function registerJobsRoutes(app: FastifyInstance, registry: RegistryLike)
     if (body.kind === 'content') {
       const { scrapeJobId } = body;
       const scrapeJob = registry.get(scrapeJobId);
-      const productPath = scrapeJob?.archivePath ? path.join(scrapeJob.archivePath, 'product.json') : null;
+      const productPath = scrapeJob?.archivePath ? path.join(scrapeJob.archivePath, 'canonical-product.json') : null;
 
       // Explicit status guard (design D3 — states the intent already
       // enforced structurally by archivePath being null on any fatal

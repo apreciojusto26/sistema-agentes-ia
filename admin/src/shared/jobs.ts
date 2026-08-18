@@ -39,7 +39,7 @@ export type GenerateParams = {
 export type ContentParams = {
   /** The scrape job whose ARCHIVED product.json feeds this run (D2 — never scraper/output/). */
   scrapeJobId: string;
-  /** Absolute: admin/.jobs/{scrapeJobId}/scrape/product.json */
+  /** Absolute: admin/.jobs/{scrapeJobId}/scrape/canonical-product.json */
   scrapeProductPath: string;
   /** Absolute path to the operator's free-text file, or null when they left it empty. NEVER the text itself (D2 argv/record hygiene). */
   instructionsPath: string | null;
