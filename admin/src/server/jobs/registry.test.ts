@@ -14,7 +14,7 @@
 // one full-stack proof that production wiring (default deps, no overrides)
 // actually works end to end.
 import { describe, test, expect, afterEach } from 'vitest';
-import { mkdirSync, writeFileSync, rmSync, existsSync, mkdtempSync } from 'node:fs';
+import { mkdirSync, writeFileSync, rmSync, existsSync, mkdtempSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -22,6 +22,8 @@ import { JOBS_DIR, REPO_ROOT } from '../config';
 import type { JobRecord } from '../../shared/jobs';
 import type { SseFrame } from '../../shared/api';
 import type { RunSpec } from './runner';
+import { readLogLines } from './store';
+import type { NormalizeResult } from './normalize';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE_CHILD = path.join(__dirname, '..', '..', '..', 'test', 'fixtures', 'runner-fixture-child.cjs');
@@ -36,6 +38,29 @@ function reserveJobDir(jobId: string): string {
   const dir = path.join(JOBS_DIR, jobId);
   cleanupDirs.push(dir);
   return dir;
+}
+
+/**
+ * Polls log.ndjson for a line matching `predicate`. Meta entries (e.g.
+ * {kind:'normalized'}) are written through the job's buffered log
+ * WriteStream — reading the file synchronously the instant job.status
+ * flips in memory can race the stream flush, especially under full-suite
+ * parallel load. Short-poll instead of a single synchronous read.
+ */
+async function waitForLogEntry(
+  jobId: string,
+  predicate: (entry: Record<string, unknown>) => boolean,
+  timeoutMs = 2_000,
+): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const found = readLogLines(jobId)
+      .map((line) => JSON.parse(line) as Record<string, unknown>)
+      .some(predicate);
+    if (found) return true;
+    if (Date.now() >= deadline) return false;
+    await new Promise((r) => setTimeout(r, 10));
+  }
 }
 
 function fixtureJob(jobId: string, overrides: Partial<JobRecord> = {}): JobRecord {
@@ -346,7 +371,8 @@ describe('JobRegistry — create/ingest/cancel against a real spawned fixture ch
     const srcDir = mkdtempSync(path.join(os.tmpdir(), 'lg-registry-archive-src-'));
     cleanupDirs.push(srcDir);
     mkdirSync(path.join(srcDir, 'images'), { recursive: true });
-    writeFileSync(path.join(srcDir, 'product.json'), JSON.stringify({ title: 'Fixture Product' }));
+    const originalProductJson = JSON.stringify({ title: 'Fixture Product' });
+    writeFileSync(path.join(srcDir, 'product.json'), originalProductJson);
     writeFileSync(path.join(srcDir, 'images', 'img_1.jpg'), 'x');
     writeFileSync(path.join(srcDir, 'images', 'img_2.jpg'), 'y');
 
@@ -377,6 +403,23 @@ describe('JobRegistry — create/ingest/cancel against a real spawned fixture ch
     expect(existsSync(path.join(final.archivePath!, 'product.json'))).toBe(true);
     expect(existsSync(path.join(final.archivePath!, 'images', 'img_1.jpg'))).toBe(true);
     expect((final.result as { archivedFiles: number }).archivedFiles).toBeGreaterThanOrEqual(3);
+
+    // product-normalizer-wiring (design ADR-1..6): the normalizer runs
+    // automatically after a successful archive.
+    const canonicalPath = path.join(final.archivePath!, 'canonical-product.json');
+    expect(existsSync(canonicalPath)).toBe(true);
+    // Archived product.json must remain byte-unchanged — the normalizer
+    // never mutates its input.
+    expect(readFileSync(path.join(final.archivePath!, 'product.json'), 'utf8')).toBe(originalProductJson);
+    // {kind:'normalized'} lands in log.ndjson only (no SSE frame, mirrors
+    // {kind:'archived'}). The write goes through the job's buffered log
+    // WriteStream, so poll briefly rather than assuming it is flushed to
+    // disk the instant job.status flips in memory.
+    const foundNormalizedEntry = await waitForLogEntry(
+      job.jobId,
+      (entry) => entry.kind === 'normalized' && entry.canonicalPath === canonicalPath,
+    );
+    expect(foundNormalizedEntry).toBe(true);
   });
 
   // Formal coverage for design D3 Layer 2 / task 3.3 (task 7.2): a fatal
@@ -439,6 +482,179 @@ describe('JobRegistry — create/ingest/cancel against a real spawned fixture ch
     // No fabricated stages[] entry for 'archive' — the fixture child only
     // ever emitted 'open' and 'write' stage events.
     expect(final.stages.map((s) => s.stage)).toEqual(['open', 'write']);
+  });
+
+  test('a FATAL archiveScrape() result means the normalizer DI seam is never invoked', async () => {
+    const { JobRegistry } = await import('./registry');
+    let normalizeCalls = 0;
+    const registry = new JobRegistry({
+      buildScrapeSpec: () => genSpecFor('scrape-success', 5_000),
+      archiveScrape: () => ({
+        ok: false,
+        fatal: true,
+        code: 'archive-ownership-mismatch',
+        error: 'archived product.json belongs to productId "prd_wrong00-11111111", expected "prd_expect0-22222222"',
+        expected: 'prd_expect0-22222222',
+        found: 'prd_wrong00-11111111',
+      }),
+      normalizeArchived: (): NormalizeResult => {
+        normalizeCalls += 1;
+        return { ok: true, canonicalPath: '/unused', productId: null };
+      },
+    });
+
+    const job = registry.createScrapeJob({
+      url: 'https://es.aliexpress.com/item/1005007502111078.html',
+      itemId: '1',
+      normalizedUrl: 'x',
+      productId: 'prd_expect0-22222222',
+    });
+    reserveJobDir(job.jobId);
+
+    await new Promise<void>((resolve) => {
+      const interval = setInterval(() => {
+        const current = registry.get(job.jobId);
+        if (current && current.status !== 'running') {
+          clearInterval(interval);
+          resolve();
+        }
+      }, 10);
+    });
+
+    expect(registry.get(job.jobId)?.status).toBe('failed');
+    expect(normalizeCalls).toBe(0);
+  });
+
+  test('product-normalizer-wiring ADR-5 (OQ-1): archive succeeds but product.json is absent — the normalizer skips silently and the job still succeeds', async () => {
+    const srcDir = mkdtempSync(path.join(os.tmpdir(), 'lg-registry-normalize-skip-src-'));
+    cleanupDirs.push(srcDir);
+    // Deliberately no product.json written — archiveScrape() itself reports
+    // ok:true with productJson:false for a source dir with nothing else in it.
+    mkdirSync(path.join(srcDir, 'images'), { recursive: true });
+    writeFileSync(path.join(srcDir, 'images', 'img_1.jpg'), 'x');
+
+    const { JobRegistry } = await import('./registry');
+    const { archiveScrape } = await import('./archive');
+    const registry = new JobRegistry({
+      buildScrapeSpec: () => genSpecFor('scrape-success', 5_000),
+      archiveScrape: (jobId: string) => archiveScrape(jobId, { srcDir }),
+    });
+
+    const job = registry.createScrapeJob({ url: 'https://es.aliexpress.com/item/1005007502111078.html', itemId: '1', normalizedUrl: 'x' });
+    reserveJobDir(job.jobId);
+
+    await new Promise<void>((resolve) => {
+      const interval = setInterval(() => {
+        const current = registry.get(job.jobId);
+        if (current && current.status !== 'running') {
+          clearInterval(interval);
+          resolve();
+        }
+      }, 10);
+    });
+
+    const final = registry.get(job.jobId)!;
+    expect(final.status).toBe('succeeded');
+    expect(final.error).toBeNull();
+    expect(final.archiveError).toBeNull();
+    expect(existsSync(path.join(final.archivePath!, 'canonical-product.json'))).toBe(false);
+    const logLines = readLogLines(job.jobId).map((line) => JSON.parse(line) as Record<string, unknown>);
+    expect(logLines.some((entry) => entry.kind === 'normalized')).toBe(false);
+  });
+
+  test('product-normalizer-wiring: normalizer ownership mismatch fails the job WITHOUT nulling archivePath (ADR-3 deliberate divergence from the archive guard)', async () => {
+    const { JobRegistry } = await import('./registry');
+    const { archiveScrape } = await import('./archive');
+    const srcDir = mkdtempSync(path.join(os.tmpdir(), 'lg-registry-normalize-mismatch-src-'));
+    cleanupDirs.push(srcDir);
+    writeFileSync(path.join(srcDir, 'product.json'), JSON.stringify({ title: 'Fixture Product' }));
+
+    const registry = new JobRegistry({
+      buildScrapeSpec: () => genSpecFor('scrape-success', 5_000),
+      archiveScrape: (jobId: string) => archiveScrape(jobId, { srcDir }),
+      normalizeArchived: (): NormalizeResult => ({
+        ok: false,
+        fatal: true,
+        code: 'canonical-product-ownership-mismatch',
+        error: 'canonical product belongs to productId "prd_found0-11111111", expected "prd_expect0-22222222"',
+        expected: 'prd_expect0-22222222',
+        found: 'prd_found0-11111111',
+      }),
+    });
+
+    const job = registry.createScrapeJob({
+      url: 'https://es.aliexpress.com/item/1005007502111078.html',
+      itemId: '1',
+      normalizedUrl: 'x',
+      productId: 'prd_expect0-22222222',
+    });
+    reserveJobDir(job.jobId);
+
+    await new Promise<void>((resolve) => {
+      const interval = setInterval(() => {
+        const current = registry.get(job.jobId);
+        if (current && current.status !== 'running') {
+          clearInterval(interval);
+          resolve();
+        }
+      }, 10);
+    });
+
+    const final = registry.get(job.jobId)!;
+    expect(final.status).toBe('failed');
+    expect(final.error).toEqual({
+      message: 'canonical product belongs to productId "prd_found0-11111111", expected "prd_expect0-22222222"',
+      stage: 'normalize',
+      code: 'canonical-product-ownership-mismatch',
+    });
+    // Deliberate divergence from the archive-fatal guard (ADR-3): the
+    // archive genuinely succeeded and the bytes are still on disk, so
+    // archivePath must NOT be nulled and archiveError must NOT be set.
+    expect(final.archivePath).toBeTruthy();
+    expect(final.archiveError).toBeNull();
+  });
+
+  test('product-normalizer-wiring ADR-6 (OQ-2): a write-failure fatal result fails the job with archivePath still truthy', async () => {
+    const { JobRegistry } = await import('./registry');
+    const { archiveScrape } = await import('./archive');
+    const srcDir = mkdtempSync(path.join(os.tmpdir(), 'lg-registry-normalize-write-fail-src-'));
+    cleanupDirs.push(srcDir);
+    writeFileSync(path.join(srcDir, 'product.json'), JSON.stringify({ title: 'Fixture Product' }));
+
+    const registry = new JobRegistry({
+      buildScrapeSpec: () => genSpecFor('scrape-success', 5_000),
+      archiveScrape: (jobId: string) => archiveScrape(jobId, { srcDir }),
+      normalizeArchived: (): NormalizeResult => ({
+        ok: false,
+        fatal: true,
+        code: 'canonical-product-write-failed',
+        error: "EACCES: permission denied, open '/fake/canonical-product.json'",
+        canonicalPath: '/fake/canonical-product.json',
+      }),
+    });
+
+    const job = registry.createScrapeJob({ url: 'https://es.aliexpress.com/item/1005007502111078.html', itemId: '1', normalizedUrl: 'x' });
+    reserveJobDir(job.jobId);
+
+    await new Promise<void>((resolve) => {
+      const interval = setInterval(() => {
+        const current = registry.get(job.jobId);
+        if (current && current.status !== 'running') {
+          clearInterval(interval);
+          resolve();
+        }
+      }, 10);
+    });
+
+    const final = registry.get(job.jobId)!;
+    expect(final.status).toBe('failed');
+    expect(final.error).toEqual({
+      message: "EACCES: permission denied, open '/fake/canonical-product.json'",
+      stage: 'normalize',
+      code: 'canonical-product-write-failed',
+    });
+    expect(final.archivePath).toBeTruthy();
+    expect(final.archiveError).toBeNull();
   });
 });
 

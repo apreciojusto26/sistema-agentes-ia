@@ -20,6 +20,7 @@ import {
   type RunSpec,
 } from './runner';
 import { archiveScrape as defaultArchiveScrape, type ArchiveResult } from './archive';
+import { normalizeArchivedProduct as defaultNormalizeArchivedProduct, type NormalizeResult } from './normalize';
 import { writeJobRecord, readJobRecord, listJobIds, appendLogLine, openLogStream } from './store';
 import { JobQueue, SCRAPE_LOCK_KEY, generateLockKey, CONTENT_LOCK_KEY } from './queue';
 import { REPO_ROOT, SCRAPE_TIMEOUT_MS, GENERATE_TIMEOUT_MS, CONTENT_TIMEOUT_MS, KILL_GRACE_MS, MAX_JOBS_IN_MEMORY } from '../config';
@@ -52,6 +53,8 @@ export type JobRegistryDeps = {
   buildContentSpec?: typeof defaultBuildContentSpec;
   /** Widened seam (design D3): expectedProductId enables the fail-closed ownership gate. Optional — omitted means "no ownership assertion". */
   archiveScrape?: (jobId: string, expectedProductId?: string) => ArchiveResult;
+  /** DI seam for tests only — production callers should never override this. */
+  normalizeArchived?: (jobId: string, archiveDir: string, expectedProductId?: string | null) => NormalizeResult;
 };
 
 type LiveHandle = {
@@ -83,6 +86,7 @@ export class JobRegistry {
   #buildGenerateSpec: typeof defaultBuildGenerateSpec;
   #buildContentSpec: typeof defaultBuildContentSpec;
   #archiveScrape: (jobId: string, expectedProductId?: string) => ArchiveResult;
+  #normalizeArchived: (jobId: string, archiveDir: string, expectedProductId?: string | null) => NormalizeResult;
 
   constructor(deps: JobRegistryDeps = {}) {
     this.#repoRoot = deps.repoRoot ?? REPO_ROOT;
@@ -96,6 +100,10 @@ export class JobRegistry {
     this.#archiveScrape =
       deps.archiveScrape ??
       ((jobId: string, expectedProductId?: string) => defaultArchiveScrape(jobId, { expectedProductId }));
+    this.#normalizeArchived =
+      deps.normalizeArchived ??
+      ((jobId: string, archiveDir: string, expectedProductId?: string | null) =>
+        defaultNormalizeArchivedProduct(jobId, archiveDir, expectedProductId));
   }
 
   // -------------------------------------------------------------------
@@ -414,6 +422,30 @@ export class JobRegistry {
           job.archivePath = archiveResult.destDir;
           if (job.result) (job.result as ScrapeResult).archivedFiles = archiveResult.files;
           this.#ingest(jobId, { ch: 'meta', meta: { kind: 'archived', files: archiveResult.files } });
+
+          // Product Normalizer wiring (design product-normalizer-wiring,
+          // ADR-1..6): runs only after a successful archive. Reuses the SAME
+          // expectedProductId already computed above — never re-read from
+          // job.params or disk. archiveDir is archiveResult.destDir, the
+          // exact directory archiveScrape just returned.
+          const nr = this.#normalizeArchived(jobId, archiveResult.destDir, expectedProductId);
+          if (nr.ok) {
+            this.#ingest(jobId, { ch: 'meta', meta: { kind: 'normalized', canonicalPath: nr.canonicalPath } });
+          } else if ('skipped' in nr) {
+            // ADR-5 (OQ-1): intentional no-op. Do NOT set job.error, do NOT
+            // emit a meta event, do NOT touch job.archivePath/archiveError.
+            // The job proceeds to 'succeeded' exactly as it does today; the
+            // pre-existing downstream 409 no-scrape-artifact gate is the
+            // unchanged observable result.
+          } else {
+            // FATAL (ownership mismatch or ADR-6 write failure). Same
+            // pre-publish demotion mechanism as the archive fatal branch
+            // below, but deliberately NOT mirroring it fully (ADR-3): the
+            // archive genuinely succeeded and the bytes are still on disk,
+            // so archivePath is NOT nulled and archiveError is NOT set.
+            job.status = 'failed';
+            job.error = { message: nr.error, stage: 'normalize', code: nr.code };
+          }
         } else if (archiveResult.fatal) {
           // FAIL-CLOSED override (design D3 Layer 2, task 3.3): the child
           // process genuinely exited 0 — `status` above is already
