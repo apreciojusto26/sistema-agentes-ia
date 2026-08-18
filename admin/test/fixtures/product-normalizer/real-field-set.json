@@ -1,0 +1,48 @@
+{
+  "productId": "prd_abcdef-12345678",
+  "sourceUrl": "https://www.aliexpress.com/item/1005006123456789.html",
+  "scrapedAt": "2026-08-10T14:32:07.512Z",
+  "title": "Almohada Cervical Ortopédica de Espuma Viscoelástica",
+  "description": "Almohada ergonómica diseñada para aliviar el dolor cervical durante el sueño. Núcleo de espuma con memoria que se adapta a la forma del cuello.",
+  "brand": "SleepWell",
+  "rating": 4.6,
+  "reviewCount": 1284,
+  "variants": [
+    {
+      "name": "Color",
+      "selected": "Gris",
+      "options": ["Gris", "Azul", "Beige"]
+    },
+    {
+      "name": "Talla",
+      "selected": "Estándar",
+      "options": ["Estándar", "Grande"]
+    }
+  ],
+  "images": [
+    "https://ae-pic-a1.aliexpress-media.com/kf/S0001.jpg",
+    "https://ae-pic-a1.aliexpress-media.com/kf/S0002.jpg",
+    "https://ae-pic-a1.aliexpress-media.com/kf/S0003.jpg"
+  ],
+  "localImages": [
+    "out/images/img_0.jpg",
+    "out/images/img_1.jpg",
+    "out/images/img_2.jpg"
+  ],
+  "reviews": [
+    {
+      "text": "Excelente almohada, dormí mucho mejor desde el primer día.",
+      "rating": 5,
+      "author": "Anónimo",
+      "date": "25 AGO 2025",
+      "variant": "Gris / Estándar"
+    },
+    {
+      "text": "Buena calidad pero tardó bastante en llegar.",
+      "rating": 4,
+      "author": null,
+      "date": "02 SEP 2025",
+      "variant": null
+    }
+  ]
+}
