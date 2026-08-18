@@ -112,17 +112,31 @@ export function buildSystemInstruction() {
 }
 
 // Product identity fields (design "Product Identity + Generation Isolation",
-// Fase 4/D2): these ride on product.json (when scrape.js minted/propagated
-// them) but must never enter the Gemini prompt — the model neither reads nor
-// alters identity/lineage. Stripped here; the ORIGINAL `product` object (as
-// read from disk, untouched) is what re-stamping reads from after the
-// validate/retry loop, in main().
-const PROVENANCE_KEYS = ['productId', 'sourceUrl', 'itemId', 'scrapedAt', 'scrapeJobId'];
+// Fase 4/D2, product-normalizer-wiring design ADR-4): the input is now a
+// CanonicalProduct (scripts/lib/product-normalizer.mjs) — identity/provenance
+// ids live NESTED inside `identity` and the top-level `provenance` object,
+// not as flat top-level fields. These ride on the canonical product (when the
+// normalizer minted/propagated them) but must never enter the Gemini prompt —
+// the model neither reads nor alters identity/lineage. Stripped here; the
+// ORIGINAL `product` object (as read from disk, untouched) is what
+// re-stamping reads from after the validate/retry loop, in main().
+const IDENTITY_PROVENANCE_KEYS = ['productId', 'sourceUrl', 'sourceItemId'];
 
+// ADR-4 (design): must NEVER mutate the original `product` object — main()
+// re-reads it verbatim after the retry loop to re-stamp content.json. A
+// shallow `{...product}` copy still shares the SAME nested `identity`
+// reference as the original, so `delete copy.identity.productId` would
+// silently corrupt the object main() reads afterward. `identity` is
+// therefore rebuilt as a brand-new object here, never mutated in place.
 export function stripProvenance(product) {
-  const copy = { ...product };
-  for (const key of PROVENANCE_KEYS) delete copy[key];
-  return copy;
+  const { provenance: _provenance, identity, ...rest } = product;
+  const freshIdentity = { ...(identity ?? {}) };
+  for (const key of IDENTITY_PROVENANCE_KEYS) delete freshIdentity[key];
+  // identity.name/identity.brand are marketing data, not provenance — they
+  // stay in freshIdentity and reach the prompt. The entire top-level
+  // `provenance` object (scrapedAt/scrapeJobId) is discarded, never partially
+  // stripped.
+  return { ...rest, identity: freshIdentity };
 }
 
 export function wrapScrapedData(product) {
@@ -426,8 +440,9 @@ async function main() {
   }
 
   const systemInstruction = buildSystemInstruction();
-  // Prompt sees a provenance-stripped copy only — productId/sourceUrl/itemId/
-  // scrapedAt/scrapeJobId never reach Gemini (design D2). `product` itself
+  // Prompt sees a provenance-stripped copy only — identity.productId/
+  // identity.sourceUrl/identity.sourceItemId and the entire top-level
+  // `provenance` object never reach Gemini (design D2). `product` itself
   // (with those fields intact) is re-read after the loop to stamp the final
   // content.json — see 'save' stage below.
   const contents = [buildFirstUserTurn({ example, product: stripProvenance(product), instructions })];
@@ -448,18 +463,24 @@ async function main() {
   const parsed = outcome.diagnosis.parsed;
 
   // Re-stamp productId + provenance AFTER the validate/retry loop, taken from
-  // the product.json read at the top of main() — never invented here, never
-  // echoed back by Gemini (design D2, Fase 4). A product.json without a
-  // productId is the legacy/pre-existing case: content.json must not gain
-  // one either — minting only ever happens in the scraper/registry (Fase
-  // 2/3), not here.
-  if (isProductId(product.productId)) {
-    parsed.productId = product.productId;
+  // the canonical-product.json read at the top of main() — never invented
+  // here, never echoed back by Gemini (design D2, Fase 4). Identity/provenance
+  // now live NESTED (product.identity.*, product.provenance.*) per the
+  // product-normalizer-wiring rewrite; output key names in content.json are
+  // UNCHANGED (still flat `productId`/`provenance.{sourceUrl,itemId,
+  // scrapedAt,scrapeJobId}`). A canonical product without an identity.productId
+  // is the legacy/pre-existing case: content.json must not gain one either —
+  // minting only ever happens in the scraper/registry (Fase 2/3), not here.
+  // identity.sourceItemId and provenance.scrapeJobId are ALWAYS null by design
+  // (product-normalizer.mjs DECISION-2) — this script simply propagates
+  // whatever it is handed, faithfully, without patching them from elsewhere.
+  if (isProductId(product.identity?.productId)) {
+    parsed.productId = product.identity.productId;
     parsed.provenance = {
-      sourceUrl: product.sourceUrl ?? null,
-      itemId: product.itemId ?? null,
-      scrapedAt: product.scrapedAt ?? null,
-      scrapeJobId: product.scrapeJobId ?? null,
+      sourceUrl: product.identity?.sourceUrl ?? null,
+      itemId: product.identity?.sourceItemId ?? null,
+      scrapedAt: product.provenance?.scrapedAt ?? null,
+      scrapeJobId: product.provenance?.scrapeJobId ?? null,
       contentModel: args.model ?? null,
       contentAt: new Date().toISOString(),
     };
