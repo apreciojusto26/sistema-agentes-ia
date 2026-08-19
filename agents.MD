@@ -784,6 +784,100 @@ The agent MUST NOT modify:
 ```
 These are structural.
 
+#### 5.7 DesignSpec v1 — What Is ACTUALLY Implemented
+
+Sections 5 through 5.6 above describe the Design & Layout Agent as a whole.
+This section records what exists **in code today** versus what is still
+aspirational, so the two are never confused.
+
+**Implemented (Fase 1 — contract only):**
+
+```
+scripts/lib/design-registry.mjs    the ONE source of truth for capabilities
+scripts/lib/design-registry.d.mts  hand-written declarations
+scripts/lib/design-contract.mjs    deterministic validator (collect-all + fail-fast)
+scripts/lib/design-contract.d.mts  hand-written declarations
+admin/src/server/validation/design.ts  thin re-export adapter (not wired to any route)
+admin/test/contract.design-spec.test.ts
+admin/test/fixtures/design-spec/*.json
+```
+
+The DesignSpec v1 document shape:
+
+```json
+{
+  "schema": 1,
+  "productId": "prd_...",
+  "design": { "family": "premium", "density": "balanced" },
+  "theme": {
+    "colors": {}, "fonts": {}, "radius": {}, "shadow": {}, "text": {}
+  },
+  "sections": [
+    { "category": "hero", "type": "Hero", "variant": "default", "order": 0 }
+  ]
+}
+```
+
+`theme` is optional. `productId` is REQUIRED here (unlike content.json's
+optional one) because §8 mandates every artifact carry it.
+
+The registry's 11 capabilities are NOT restated in this document on purpose:
+duplicating them here would create the exact second source of truth that
+`admin/test/no-duplicated-contract.test.ts` forbids. Read
+`scripts/lib/design-registry.mjs` — it is the contract, and it is tested.
+
+**Verdicts.** The contract returns exactly three outcomes, never a fourth:
+
+```
+{ "status": "pass" }
+{ "status": "unsupported_design", "missingCapability": "hero/ImmersiveHero/parallax" }
+{ "status": "invalid", "issues": [ ... ] }
+```
+
+`unsupported_design` means the design system cannot express the request (§6.3 —
+a developer must then expand it deliberately). `invalid` means the document
+itself is malformed. Conflating them would let a schema typo read as a missing
+feature. There is no fallback component, no nearest-variant substitution, and
+no best-effort render.
+
+**Structural invariants enforced by the contract:** exactly one hero, hero
+first, at least one `conversion` section, each registered `type` at most once,
+`order` equal to array position, and every section resolvable in the registry.
+Shell presence (§5.3) is deliberately NOT enforced here — the shell is not
+addressable through `sections[]` at all, and enforcing it is the renderer's
+job. The contract validates; the renderer resolves.
+
+**Explicitly OUT of v1 — do not assume these exist:**
+
+| Capability | Status |
+| --- | --- |
+| `motion` / Framer Motion | Not implemented. The key is REJECTED (`spec-unknown-fields`), not ignored. No dependency added. |
+| spacing / density design tokens | `global.css` declares no spacing or density scale. `design.density` is a SEMANTIC dimension only — it maps to nothing yet. |
+| component `props` | Every capability declares `propsSchema: {}` because no section component accepts props. The validation engine exists and is tested against a fixture registry; production declares no prop. |
+| family / density restrictions | `familiesAllowed: '*'`, `densityAllowed: '*'` — no real restriction has been established. |
+| incompatibility rules | `incompatibleWith: []` everywhere. The engine is tested against a fixture registry; production declares none. |
+| section variants beyond `default` | No variant system exists. All 11 capabilities are `default`. |
+| Design Agent (LLM) | Does not exist. Nothing produces a DesignSpec yet. |
+| `JobKind: 'design'` | Not added. `JobKind` denotes a real spawned-child lifecycle; there is no Design Agent script, runner, route, event stream or UI stage, so adding it would create dead branches. It lands together with the agent. |
+| dynamic `sections[]` rendering | `index.astro` still imports 15 sections statically in fixed order. The renderer does not consume `sections[]`. |
+
+**KNOWN GAP — the Content Agent is not wired to this contract.**
+
+`scripts/generate-content.mjs` still instructs the model to optionally emit a
+`design` key (§12's Gemini path). That value flows to
+`scripts/generate-landing.mjs`'s `patchThemeBlock()`, which applies known keys
+and, for unknown ones, emits `console.warn(...)` and CONTINUES.
+
+That is a silent fallback — precisely what §5.7's contract forbids — and it is
+still live. It was left untouched deliberately: Fase 1 is purely contractual,
+and rewiring the pipeline inside it would change production generation
+behavior. Closing this gap (routing the Content Agent's `design` output, or a
+future Design Agent's, through `design-contract.mjs` and failing hard) is the
+responsibility of a later phase.
+
+Until then, two paths coexist: an unvalidated legacy one that runs, and a
+validated contract that nothing calls yet.
+
 # 6. 🛠️ Landing Renderer / Code Agent
 
 ### Goal

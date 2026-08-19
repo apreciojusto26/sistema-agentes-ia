@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "productId": "prd_msyyd9nm-e48bcce7",
+  "design": {
+    "family": "premium",
+    "density": "balanced"
+  },
+  "theme": {
+    "colors": {
+      "rust": "#B4472A",
+      "graphite": "#191C1F"
+    },
+    "fonts": {
+      "display": "\"Archivo Variable\", ui-sans-serif, system-ui, sans-serif"
+    },
+    "radius": {
+      "card": "1.25rem"
+    },
+    "shadow": {
+      "lift": "0 12px 28px -10px rgb(25 28 31 / 0.30)"
+    },
+    "text": {
+      "hero": {
+        "size": "2.75rem",
+        "lineHeight": "1.02",
+        "letterSpacing": "-0.03em"
+      }
+    }
+  },
+  "sections": [
+    { "category": "hero", "type": "Hero", "variant": "default", "order": 0 },
+    { "category": "media", "type": "GalleryStrip", "variant": "default", "order": 1 },
+    { "category": "conversion", "type": "BuyBox", "variant": "default", "order": 2 },
+    { "category": "socialProof", "type": "ReviewsReel", "variant": "default", "order": 3 },
+    { "category": "product", "type": "Comparison", "variant": "default", "order": 4 },
+    { "category": "conversion", "type": "Guarantee", "variant": "default", "order": 5 }
+  ]
+}
