@@ -167,7 +167,11 @@ describe('Group A — legacy CLI behavior (LG_EVENTS unset, byte-for-byte baseli
     expect(r.stderr).toBe(''); // proves events (once added in Batch C) stay opt-in
     expect(r.stdout).toContain(`✓ outputs/${SLUG} created from content/landing-base`);
     expect(r.stdout).toContain('\nTODO before this landing is production-ready:');
-    expect(r.stdout).toContain('  - commerce.shopifyHandle is a placeholder');
+    // Fase 5 replaced the old "shopifyHandle is a placeholder" TODO. A run
+    // without --shopify-handle is now explicitly PREVIEW mode: the handle is
+    // no longer a placeholder to be filled in later, it is absent, and
+    // catalog.ts fails closed rather than inheriting another product's.
+    expect(r.stdout).toContain('  - PREVIEW MODE');
     expect(r.stdout).toContain(
       "  - No --images passed — src/assets/product/* still has the base template's stock photos.",
     );

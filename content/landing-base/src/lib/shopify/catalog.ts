@@ -39,9 +39,51 @@ export function getProductCommerce(): Promise<ProductCommerce> {
   return memoizedFetch;
 }
 
+/**
+ * The base template's own product. Kept ONLY so `pnpm dev` and the existing
+ * tests inside content/landing-base still have something to resolve — it is
+ * reachable exclusively through the explicit compatibility switch below and
+ * is never a fallback for a generated landing.
+ */
+const TEMPLATE_COMPAT_HANDLE =
+  'usb-mini-galaxy-star-projector-star-with-24-sliding-projection-films-starry-space-atmosphere-nightlight-kid-car-home-decoration';
+
+/**
+ * Resolves which Shopify product this landing sells.
+ *
+ * Until Fase 5 the handle above was hardcoded here, so EVERY generated
+ * landing — whatever product it advertised — fetched the star projector's
+ * price and variants. `commerce.shopifyHandle` in the data layer looked like
+ * the knob but was read by nobody: dead data.
+ *
+ * FAIL-CLOSED. A missing handle throws. The template literal is reachable
+ * only when `PUBLIC_SHOPIFY_TEMPLATE_COMPAT` is explicitly "1", which
+ * generate-landing.mjs never writes into a generated output. Falling back
+ * silently would reintroduce exactly the contamination this replaces: a
+ * landing for product B quietly selling product A.
+ *
+ * Exported so the wiring can be tested without a network call.
+ */
+export function resolveProductHandle(
+  // Indexed rather than a named-property shape: `ImportMetaEnv` declares no
+  // properties in common with a literal type, so a structural annotation
+  // fails `astro check` with ts(2559).
+  env: Record<string, string | undefined> = import.meta.env as unknown as Record<string, string | undefined>,
+): string {
+  const handle = env.PUBLIC_SHOPIFY_PRODUCT_HANDLE?.trim();
+  if (handle) return handle;
+
+  if (env.PUBLIC_SHOPIFY_TEMPLATE_COMPAT === '1') return TEMPLATE_COMPAT_HANDLE;
+
+  throw new ShopifyError(
+    'Missing PUBLIC_SHOPIFY_PRODUCT_HANDLE — this landing declares no Shopify product, so there is nothing to price or sell. ' +
+      'Set it in the landing\'s .env (generate-landing.mjs --shopify-handle writes it), or set PUBLIC_SHOPIFY_TEMPLATE_COMPAT=1 ' +
+      'to build the base template against its own demo product. No silent fallback exists on purpose.',
+  );
+}
+
 async function fetchProductCommerce(): Promise<ProductCommerce> {
-  const handle =
-    'usb-mini-galaxy-star-projector-star-with-24-sliding-projection-films-starry-space-atmosphere-nightlight-kid-car-home-decoration';
+  const handle = resolveProductHandle();
 
   const data = await storefront<ProductQueryResponse>(PRODUCT_QUERY, { handle });
 

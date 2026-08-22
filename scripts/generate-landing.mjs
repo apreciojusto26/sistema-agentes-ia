@@ -16,6 +16,7 @@ import { execSync } from 'node:child_process';
 import { DEFAULT_ERRORS, ContentContractError, validateContent } from './lib/content-contract.mjs';
 import { checkDesignSupport } from './lib/design-contract.mjs';
 import { isProductId } from './lib/product-id.cjs';
+import { isShopifyHandle } from './lib/shopify-handle.mjs';
 import { planAssets, materializeAssets, buildImagesModule, describeRejections, TEMPLATE_SLOT_KEYS } from './lib/asset-pipeline.mjs';
 import events from './lib/events.cjs';
 
@@ -66,6 +67,22 @@ function parseArgs(argv) {
     // Fase 4: the CanonicalProduct whose media[] drives the asset pipeline.
     // Opt-in — its absence keeps both legacy --images modes byte-identical.
     else if (a === '--product') args.productJson = argv[++i];
+    // Fase 5: COMMERCE MODE. Its presence is what makes the landing buyable;
+    // its absence leaves the landing in preview mode. Operator-supplied only
+    // — never produced by the Content or Design Agent (agents.MD §1/§5).
+    // PRESENCE is tracked separately from VALUE. `--shopify-handle` as the
+    // last argument yields `undefined`, which would skip validation and drop
+    // the run into PREVIEW mode silently — the operator asks for commerce and
+    // gets an unbuyable landing with no error. Same defect the `--design`
+    // flag had; fixed the same way.
+    else if (a === '--shopify-handle') {
+      args.shopifyHandleRequested = true;
+      const value = argv[i + 1];
+      if (value !== undefined && !value.startsWith('--')) {
+        args.shopifyHandle = value;
+        i++;
+      }
+    }
     // Design System Fase 2: opting into explicit design mode. Its presence —
     // not its content — is what switches theme-token sourcing (see the
     // `validate` stage and patchThemeBlock's `strict` option).
@@ -98,6 +115,22 @@ function parseArgs(argv) {
   // its srcFile entries against.
   if (args.imagesManifest && !args.images) {
     fail('--images-manifest requires --images <dir>');
+  }
+  // Fase 5 fail-closed: a commerce landing is validated BEFORE anything is
+  // written. An empty or malformed handle must never produce an output that
+  // looks buyable — it would either 404 at build or, worse, be "fixed" later
+  // by hand back to some other product's handle.
+  if (args.shopifyHandleRequested) {
+    if (!args.shopifyHandle) {
+      fail('Missing --shopify-handle <handle>', 'shopify-handle-missing');
+    }
+    if (!isShopifyHandle(args.shopifyHandle)) {
+      fail(
+        `--shopify-handle "${args.shopifyHandle}" is not a valid Shopify handle ` +
+          `(lowercase alphanumerics separated by single hyphens, max 255 chars)`,
+        'shopify-handle-invalid',
+      );
+    }
   }
   return args;
 }
@@ -143,7 +176,7 @@ function serialize(value, indent = 2, level = 0) {
 
 // --- file generators ------------------------------------------------------
 
-function buildProductTs(product) {
+function buildProductTs(product, shopifyHandle) {
   const errors = product.errors ?? DEFAULT_ERRORS;
   const lines = [
     `import type { Product } from '@/types/content';`,
@@ -157,7 +190,15 @@ function buildProductTs(product) {
     `  // NEVER agent-generated (agents.MD §1) — provision the real Shopify handle`,
     `  // before this landing can accept orders.`,
     `  commerce: {`,
-    `    shopifyHandle: 'TODO-provision-in-shared-store',`,
+    // NOTE: nothing in src/ reads this field — the runtime handle comes from
+    // PUBLIC_SHOPIFY_PRODUCT_HANDLE via catalog.ts's resolveProductHandle().
+    // It is written truthfully anyway so the generated data layer does not
+    // carry a stale placeholder contradicting the landing's real product.
+    // Preview mode keeps the legacy placeholder byte-identical, single quotes
+    // included, so nothing about a non-commerce generation changes.
+    shopifyHandle
+      ? `    shopifyHandle: ${serialize(shopifyHandle, 2, 2)},`
+      : `    shopifyHandle: 'TODO-provision-in-shared-store',`,
     `    bundleOfferActive: false,`,
     `  },`,
     ``,
@@ -598,7 +639,7 @@ function main() {
   });
 
   withStage('write-data', () => {
-    writeFileSync(path.join(outDir, 'src/data/product.ts'), buildProductTs(input.product));
+    writeFileSync(path.join(outDir, 'src/data/product.ts'), buildProductTs(input.product, args.shopifyHandle));
     writeFileSync(path.join(outDir, 'src/data/faq.ts'), buildFaqTs(input.faq));
     writeFileSync(path.join(outDir, 'src/data/testimonials.ts'), buildTestimonialsTs(input.testimonials));
   });
@@ -774,6 +815,13 @@ function main() {
       sourceUrl: typeof provenance.sourceUrl === 'string' ? provenance.sourceUrl : null,
       itemId: typeof provenance.itemId === 'string' ? provenance.itemId : null,
       productName: input.product && typeof input.product.name === 'string' ? input.product.name : null,
+      // Fase 5: which Shopify product this landing sells, and whether it was
+      // generated buyable at all. Auditable without opening the .env — and
+      // the handle is a public slug, so recording it leaks nothing.
+      commerce: {
+        mode: args.shopifyHandle ? 'commerce' : 'preview',
+        shopifyHandle: args.shopifyHandle ?? null,
+      },
       jobs: {
         scrape: typeof provenance.scrapeJobId === 'string' ? provenance.scrapeJobId : null,
         // No --content-job-id / --job-id CLI arg exists yet (out of scope
@@ -798,8 +846,48 @@ function main() {
   });
 
   withStage('todos', () => {
-    todos.push('commerce.shopifyHandle is a placeholder ("TODO-provision-in-shared-store") — provision the real product handle in the shared Shopify store before enabling checkout.');
-    todos.push(`Create outputs/${args.slug}/.env with PUBLIC_SHOPIFY_STORE_DOMAIN, PUBLIC_SHOPIFY_STOREFRONT_TOKEN, PUBLIC_SHOPIFY_API_VERSION (see content/landing-base/README.md — note: no .env.example is checked into the repo, so there's nothing to copy from).`);
+    // Fase 5: two explicitly separated modes.
+    //
+    // COMMERCE — `--shopify-handle` given. The handle is written into the
+    // output's .env so catalog.ts's resolveProductHandle() finds it. ONLY the
+    // handle is written: it is a public product slug, not a secret. The three
+    // credentials stay the operator's job and are never touched by this
+    // script, so no token can ever reach a generated file.
+    //
+    // PREVIEW — no handle. Nothing Shopify-related is written and the landing
+    // is explicitly NOT buyable. It cannot silently inherit another product's
+    // handle, because resolveProductHandle() throws without one.
+    if (args.shopifyHandle) {
+      const envPath = path.join(outDir, '.env');
+      writeFileSync(
+        envPath,
+        [
+          '# Generated by scripts/generate-landing.mjs — commerce mode.',
+          '# The handle is a public product slug, not a secret.',
+          `PUBLIC_SHOPIFY_PRODUCT_HANDLE=${args.shopifyHandle}`,
+          '',
+          '# Credentials are NEVER written by the generator. Add them here:',
+          '# PUBLIC_SHOPIFY_STORE_DOMAIN=',
+          '# PUBLIC_SHOPIFY_STOREFRONT_TOKEN=',
+          '# PUBLIC_SHOPIFY_API_VERSION=',
+          '',
+        ].join('\n'),
+      );
+      console.log(`✓ commerce mode — PUBLIC_SHOPIFY_PRODUCT_HANDLE=${args.shopifyHandle} written to .env`);
+      todos.push(
+        `Add PUBLIC_SHOPIFY_STORE_DOMAIN, PUBLIC_SHOPIFY_STOREFRONT_TOKEN and PUBLIC_SHOPIFY_API_VERSION to ` +
+          `outputs/${args.slug}/.env — the handle is already set, the credentials are not (and never will be) written by the generator.`,
+      );
+      todos.push(
+        `Confirm the Shopify product "${args.shopifyHandle}" exists in the shared store with at least one EUR variant — ` +
+          `the build aborts with "Product not found" otherwise.`,
+      );
+    } else {
+      todos.push(
+        'PREVIEW MODE — no --shopify-handle was passed, so this landing is NOT buyable. ' +
+          'catalog.ts fails closed without PUBLIC_SHOPIFY_PRODUCT_HANDLE; it will never fall back to another product.',
+      );
+    }
 
     console.log('\nTODO before this landing is production-ready:');
     todos.forEach((t) => console.log(`  - ${t}`));

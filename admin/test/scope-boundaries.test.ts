@@ -97,6 +97,25 @@ describe('scope-boundaries (Batch G — machine-checkable, spec R14)', () => {
     // hooks, tracking, checkout, or commerce behavior. Design's real file
     // inventory (verified at design time) maps "checkout/commerce" onto
     // these concrete paths.
+    //
+    // AUTHORISED EXCEPTION — Design System Fase 5 (owner, 2026-08-22).
+    //
+    // `content/landing-base/src/lib/shopify/catalog.ts` was modified once,
+    // deliberately, to delete a hardcoded product handle. Until then every
+    // generated landing fetched the base template's star projector whatever
+    // product it advertised, and `commerce.shopifyHandle` in the data layer
+    // looked like the knob while being read by nobody. The replacement is
+    // `resolveProductHandle()`, which fails closed and reads
+    // PUBLIC_SHOPIFY_PRODUCT_HANDLE per landing. Its guard is
+    // `catalog.handle.test.ts`, alongside it.
+    //
+    // NO PATH IS EXEMPTED HERE, ON PURPOSE. This assertion measures WORKING
+    // TREE dirtiness (`git status --porcelain`), not history, so once that
+    // change is committed these files are clean again and the boundary holds
+    // exactly as before — with no hole carved into it. Adding an ignore entry
+    // would have turned src/lib/shopify into a permanently editable zone to
+    // "fix" a condition that resolves itself on commit. The authorisation is
+    // recorded here as history; the guardrail keeps its full strength.
     const protectedRelPaths = [
       'content/landing-base/src/components',
       'content/landing-base/src/lib/kv.ts',
