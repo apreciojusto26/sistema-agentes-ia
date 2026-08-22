@@ -8,7 +8,7 @@
 //
 // content.json shape — see scripts/example-content.json for a full example.
 
-import { existsSync, mkdirSync, cpSync, readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, cpSync, readFileSync, writeFileSync, readdirSync, statSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
@@ -16,6 +16,7 @@ import { execSync } from 'node:child_process';
 import { DEFAULT_ERRORS, ContentContractError, validateContent } from './lib/content-contract.mjs';
 import { checkDesignSupport } from './lib/design-contract.mjs';
 import { isProductId } from './lib/product-id.cjs';
+import { planAssets, materializeAssets, buildImagesModule, describeRejections, TEMPLATE_SLOT_KEYS } from './lib/asset-pipeline.mjs';
 import events from './lib/events.cjs';
 
 // Product Identity + Generation Isolation (design "product-identity-
@@ -62,6 +63,9 @@ function parseArgs(argv) {
     else if (a === '--images') args.images = argv[++i];
     else if (a === '--images-manifest') args.imagesManifest = argv[++i];
     else if (a === '--product-id') args.productId = argv[++i];
+    // Fase 4: the CanonicalProduct whose media[] drives the asset pipeline.
+    // Opt-in — its absence keeps both legacy --images modes byte-identical.
+    else if (a === '--product') args.productJson = argv[++i];
     // Design System Fase 2: opting into explicit design mode. Its presence —
     // not its content — is what switches theme-token sourcing (see the
     // `validate` stage and patchThemeBlock's `strict` option).
@@ -630,6 +634,29 @@ function main() {
   let imagesAssets = [];
   let imagesUnmatched = [];
   let imagesSourceDir = null;
+  let imagesMainAsset = null;
+
+  // Fase 4: media[] is read here, once, so the copy-images stage stays a pure
+  // consumer of an already-validated document.
+  let canonicalMedia = null;
+  if (args.productJson) {
+    if (!args.images) fail('--product requires --images <dir> (the directory holding the scraped files)', 'assets-images-dir-required');
+    if (!existsSync(args.productJson)) fail(`--product file not found: ${args.productJson}`, 'assets-product-not-found');
+    let canonical;
+    try {
+      canonical = JSON.parse(readFileSync(args.productJson, 'utf-8'));
+    } catch {
+      fail(`--product is not valid JSON: ${args.productJson}`, 'assets-product-invalid');
+    }
+    canonicalMedia = canonical?.media?.images ?? null;
+    if (!Array.isArray(canonicalMedia) || canonicalMedia.length === 0) {
+      fail(
+        `--product ${args.productJson} declares no media.images — nothing to materialise, and shipping the ` +
+          `template's stock photos for a real product would be contamination.`,
+        'assets-media-empty',
+      );
+    }
+  }
 
   if (args.images) {
     withStage('copy-images', () => {
@@ -654,6 +681,62 @@ function main() {
 
       imagesSourceDir = path.resolve(args.images);
       const destDir = path.join(outDir, 'src/assets/product');
+
+      // Fase 4 — product asset mode. OPT-IN via --product so the two legacy
+      // modes stay byte-identical: contract.generate-landing.test.ts pins the
+      // observable behaviour of filename matching, and this must not change
+      // it for any existing caller.
+      if (args.productJson) {
+        const plan = planAssets(canonicalMedia, args.images);
+
+        // Fail-closed: --product is an explicit claim that this product HAS
+        // real media. Zero usable images means the claim is false, and
+        // shipping the template's stock photos for a different product would
+        // be exactly the contamination the isolation rules forbid.
+        if (plan.assets.length === 0) {
+          fail(
+            `--product declared real media but no usable image was found in ${args.images}. ` +
+              `Rejected: ${describeRejections(plan.rejected).join('; ') || 'none'}`,
+            'assets-none-usable',
+          );
+        }
+
+        imagesAssets = materializeAssets(plan, destDir);
+        imagesUnmatched = [];
+        imagesMainAsset = plan.main.dest;
+
+        // Regenerating this module is what actually removes the template
+        // stock: resolveMedia() looks every `asset` ref up here, and returns
+        // an EMPTY placeholder for a key it cannot find.
+        writeFileSync(path.join(outDir, 'src/data/images.ts'), buildImagesModule(plan));
+
+        // Delete the stock files the regenerated module no longer references.
+        // Astro would not bundle an unreferenced asset anyway, so this is not
+        // about bytes: it removes any path by which another product's photo
+        // could be reintroduced by a later hand edit. Only the slot files are
+        // touched — video posters and og assets are not image slots.
+        const orphaned = [];
+        for (const key of TEMPLATE_SLOT_KEYS) {
+          for (const ext of ['.jpg', '.jpeg', '.png', '.webp']) {
+            const stale = path.join(destDir, `${key}${ext}`);
+            if (existsSync(stale)) {
+              rmSync(stale);
+              orphaned.push(`${key}${ext}`);
+            }
+          }
+        }
+
+        console.log(`✓ ${imagesAssets.length} product image(s) materialised in src/assets/product/ (main: ${plan.main.dest})`);
+        if (orphaned.length) console.log(`✓ ${orphaned.length} template stock image(s) removed: ${orphaned.join(', ')}`);
+        console.log('✓ src/data/images.ts regenerated — product-NN, source filenames and template slots all resolve to real media');
+
+        if (plan.rejected.length) {
+          for (const line of describeRejections(plan.rejected)) console.warn(`  ! ${line}`);
+          todos.push(...describeRejections(plan.rejected));
+        }
+        return;
+      }
+
       const { assets, unmatched } = args.imagesManifest
         ? copyImagesByManifest(args.images, destDir, args.imagesManifest)
         : copyImagesByName(args.images, destDir);
