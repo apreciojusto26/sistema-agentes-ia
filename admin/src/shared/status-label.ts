@@ -5,7 +5,7 @@
 // existing pattern. Its own exhaustiveness is compiler-enforced (no
 // dedicated coverage test — see tasks.md judgment call log); correctness is
 // exercised indirectly once AgentSidebarItem.tsx wires it in.
-import type { JobStatus } from './jobs';
+import type { JobKind, JobStatus } from './jobs';
 import { assertNever } from './assert-never';
 
 /** Spanish, non-technical. `null` = this agent has no job record at all. */
@@ -52,4 +52,14 @@ export function jobStatusTone(status: JobStatus | null): 'running' | 'done' | 'f
   }
 }
 
-export const JOB_KIND_LABEL = { scrape: 'búsqueda', generate: 'construcción', content: 'redacción' } as const;
+/**
+ * Typed as Record<JobKind, string> so the compiler enforces coverage: adding a
+ * member to the JobKind union without labelling it here fails `pnpm typecheck`
+ * instead of rendering `undefined` in the operator's job history.
+ */
+export const JOB_KIND_LABEL: Record<JobKind, string> = {
+  scrape: 'búsqueda',
+  content: 'redacción',
+  design: 'diseño',
+  generate: 'construcción',
+};

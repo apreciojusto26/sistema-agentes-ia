@@ -115,7 +115,8 @@ export type LgEventData =
   | { message: string; code?: string } // error
   | ScrapeResultData
   | GenerateResultData
-  | ContentResultData; // result
+  | ContentResultData
+  | DesignResultData; // result
 
 /**
  * The exact NDJSON envelope written to stderr, one object per line.
@@ -132,4 +133,22 @@ export type LgEvent = {
   type: LgEventType;
   stage: ScrapeStage | GenerateStage | ContentStage | string | null;
   data: LgEventData;
+};
+
+/**
+ * Design & Layout Agent result (agents.MD §5). Mirrors the `result` event
+ * emitted by scripts/generate-design.mjs — the DesignSpec itself is NOT
+ * carried here: it lives at `outPath` and stays the single interface to the
+ * renderer. `impeccableFindings` lists the visual-criterion rules the agent
+ * could not resolve within its attempts, so a landing that shipped with
+ * observations is auditable rather than silently "fine".
+ */
+export type DesignResultData = {
+  outPath: string;
+  productId: string | null;
+  family: string;
+  density: string;
+  sections: number;
+  attempts: number;
+  impeccableFindings: string[];
 };

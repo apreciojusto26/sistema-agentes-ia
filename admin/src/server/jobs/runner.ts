@@ -13,7 +13,7 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { LineBuffer, parseLine, type ParsedLine } from './ndjson';
 import { KILL_GRACE_MS, ADMIN_ROOT, STAGED_CONTENT_PATH } from '../config';
-import type { GenerateParams, ScrapeParams, ContentParams } from '../../shared/jobs';
+import type { GenerateParams, ScrapeParams, ContentParams, DesignParams } from '../../shared/jobs';
 
 export type RunSpec = {
   command: string;
@@ -162,6 +162,46 @@ export function buildGenerateSpec(params: GenerateParams, opts: SpecOpts): RunSp
   // Conditional (design D5/5.1): only pushed when params.productId is
   // present, so argv stays byte-identical to before this change for every
   // call site that doesn't pass one yet. NO --reset — not part of this phase.
+  if (params.productId) args.push('--product-id', params.productId);
+  // Fase 2/4/5 flags, each additive and each only pushed when the caller
+  // actually supplied it — a pipeline run passes all three, a legacy call
+  // passes none and its argv stays byte-identical to before.
+  if (params.designPath) args.push('--design', params.designPath);
+  if (params.productJsonPath) args.push('--product', params.productJsonPath);
+  if (params.shopifyHandle) args.push('--shopify-handle', params.shopifyHandle);
+
+  return {
+    command: process.execPath,
+    args,
+    cwd: opts.repoRoot,
+    env: { ...process.env, LG_EVENTS: '1' },
+    timeoutMs: opts.timeoutMs,
+  };
+}
+
+/**
+ * Design & Layout Agent. cwd = repoRoot so `scripts/generate-design.mjs`
+ * resolves; every other path is absolute. GEMINI_API_KEY rides the env spread
+ * exactly like the Content Agent's — never argv, which is persisted verbatim
+ * into job.json.
+ *
+ * The admin ORCHESTRATES this script. It does not reimplement the agent:
+ * prompt, registry-derived vocabulary, Impeccable criteria and the retry loop
+ * all stay inside generate-design.mjs, and a contract test asserts the server
+ * carries no second copy.
+ */
+export function buildDesignSpec(params: DesignParams, opts: SpecOpts): RunSpec {
+  const args = [
+    'scripts/generate-design.mjs',
+    '--product',
+    params.scrapeProductPath,
+    '--content',
+    params.contentPath,
+    '--out',
+    params.outPath,
+    '--model',
+    params.model,
+  ];
   if (params.productId) args.push('--product-id', params.productId);
 
   return {

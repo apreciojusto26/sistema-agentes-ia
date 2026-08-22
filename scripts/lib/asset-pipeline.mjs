@@ -121,6 +121,13 @@ export function planAssets(media, imagesDir) {
 
     assets.push({
       src: base,
+      // The reference EXACTLY as the canonical product wrote it
+      // ("output/images/img_0.webp"). Kept because the Content Agent echoes
+      // an `asset` ref whose form is NOT stable: some runs emit the bare
+      // basename, others the full localPath. Aliasing only one of the two
+      // silently produced a page with zero images — every lookup missed and
+      // resolveMedia() returned empty placeholders, with no error anywhere.
+      ref: typeof ref === 'string' ? ref : base,
       dest: stableName(assets.length, ext),
       srcPath,
       bytes,
@@ -179,9 +186,21 @@ export function buildImagesModule(plan) {
   const varOf = (i) => `product${String(i + 1).padStart(2, '0')}`;
 
   const entries = [];
-  assets.forEach((a, i) => entries.push(`  '${path.basename(a.dest, path.extname(a.dest))}': ${varOf(i)},`));
-  assets.forEach((a, i) => entries.push(`  '${a.src}': ${varOf(i)},`));
-  TEMPLATE_SLOT_KEYS.forEach((key, i) => entries.push(`  '${key}': ${varOf(i % assets.length)},`));
+  const seenKeys = new Set();
+  const put = (key, i) => {
+    if (!key || seenKeys.has(key)) return;
+    seenKeys.add(key);
+    entries.push(`  '${key.replace(/'/g, "\\'")}': ${varOf(i)},`);
+  };
+
+  assets.forEach((a, i) => put(path.basename(a.dest, path.extname(a.dest)), i));
+  // BOTH forms of the original reference: the bare filename AND the canonical
+  // localPath. The Content Agent emits one or the other depending on the run,
+  // and covering only one produced a page whose every image silently resolved
+  // to an empty placeholder.
+  assets.forEach((a, i) => put(a.src, i));
+  assets.forEach((a, i) => put(a.ref, i));
+  TEMPLATE_SLOT_KEYS.forEach((key, i) => put(key, i % assets.length));
 
   return [
     "import type { ImageMetadata } from 'astro';",

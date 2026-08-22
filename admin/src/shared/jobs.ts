@@ -3,7 +3,7 @@
 // runtime logic lives here. Consumed by BOTH server (registry.ts, routes)
 // and client (job history, detail panels).
 
-export type JobKind = 'scrape' | 'generate' | 'content';
+export type JobKind = 'scrape' | 'generate' | 'content' | 'design';
 
 /**
  * `queued` and `running` are the only pre-terminal states. Everything else
@@ -33,6 +33,33 @@ export type GenerateParams = {
   imagesDir: string | null;
   force: boolean;
   /** Product identity lineage (design D1/D5). Optional — absent means no ownership check is asserted at this call site. */
+  productId?: string;
+  /** Fase 2: the DesignSpec produced by the Design Agent. Absent = legacy generation. */
+  designPath?: string | null;
+  /** Fase 4: the CanonicalProduct whose media[] drives the asset pipeline. Absent = legacy filename matching. */
+  productJsonPath?: string | null;
+  /** Fase 5: operator-supplied Shopify handle. Its PRESENCE switches the landing to commerce mode. Never agent-produced. */
+  shopifyHandle?: string | null;
+};
+
+/**
+ * Design & Layout Agent (agents.MD §5). Runs `scripts/generate-design.mjs`,
+ * which is the ONLY implementation — the admin orchestrates it, it does not
+ * reimplement it. Its single output is a DesignSpec, which stays the sole
+ * interface between the agent and the renderer.
+ */
+export type DesignParams = {
+  /** The scrape job whose canonical product feeds this run. */
+  scrapeJobId: string;
+  /** Absolute: admin/.jobs/{scrapeJobId}/scrape/canonical-product.json */
+  scrapeProductPath: string;
+  /** Absolute path to the content.json the Content Agent produced. */
+  contentPath: string;
+  /** Absolute path the DesignSpec is written to. */
+  outPath: string;
+  /** Pinned server-side, recorded per-run so a past landing's model is auditable. */
+  model: string;
+  /** Product identity lineage, carried through for provenance. */
   productId?: string;
 };
 
@@ -120,7 +147,7 @@ export type JobRecord = {
   jobId: string;
   kind: JobKind;
   status: JobStatus;
-  params: ScrapeParams | GenerateParams | ContentParams;
+  params: ScrapeParams | GenerateParams | ContentParams | DesignParams;
   /** Exact spawn argv, for auditability (design §2). */
   argv: string[];
   /** Absolute cwd the child was spawned with. */
@@ -133,7 +160,7 @@ export type JobRecord = {
   signal: NodeJS.Signals | null;
   /** Arrival order, derived ONLY from real events — never fabricated. */
   stages: StageProgress[];
-  result: ScrapeResult | GenerateResult | ContentResult | null;
+  result: ScrapeResult | GenerateResult | ContentResult | DesignResult | null;
   error: JobError | null;
   /** null => the child emitted no LG_EVENTS lines (degraded, honest). */
   eventSchemaVersion: number | null;
@@ -146,4 +173,15 @@ export type JobRecord = {
   /** scrape jobs only. */
   archivePath: string | null;
   archiveError: string | null;
+};
+
+/** Terminal result of a `design` job — see DesignResultData in events.ts. */
+export type DesignResult = {
+  outPath: string;
+  productId: string | null;
+  family: string;
+  density: string;
+  sections: number;
+  attempts: number;
+  impeccableFindings: string[];
 };

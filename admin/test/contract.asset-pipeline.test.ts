@@ -160,6 +160,17 @@ describe('generated images.ts — no template stock may survive', () => {
     expect(src).not.toMatch(/gallery-0\d\.jpg|ugc-0\d\.jpg|step-01\.jpg/);
   });
 
+  it('aliases BOTH the bare filename and the canonical localPath', () => {
+    // Real regression: one Content Agent run emitted
+    // "asset": "output/images/img_0.webp" (the full localPath) instead of the
+    // bare "img_0.webp". Only the basename was aliased, so every lookup
+    // missed, resolveMedia() returned empty placeholders, and the built page
+    // contained ZERO images — with no error anywhere.
+    const src = build();
+    expect(src).toContain("'img_0.webp': product01");
+    expect(src).toContain("'output/images/img_0.webp': product01");
+  });
+
   it('keeps the ORIGINAL scraped filenames as aliases, so content.json keeps resolving', () => {
     // The Content Agent already emits `"asset": "img_0.webp"`. Dropping these
     // aliases would make resolveMedia() return an empty placeholder for every

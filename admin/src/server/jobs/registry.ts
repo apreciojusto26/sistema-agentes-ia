@@ -16,6 +16,7 @@ import {
   buildScrapeSpec as defaultBuildScrapeSpec,
   buildGenerateSpec as defaultBuildGenerateSpec,
   buildContentSpec as defaultBuildContentSpec,
+  buildDesignSpec as defaultBuildDesignSpec,
   type RunHandle,
   type RunSpec,
 } from './runner';
@@ -31,12 +32,14 @@ import type {
   ScrapeParams,
   GenerateParams,
   ContentParams,
+  DesignParams,
   StageProgress,
   ScrapeResult,
   GenerateResult,
   ContentResult,
+  DesignResult,
 } from '../../shared/jobs';
-import type { LgEvent, ScrapeResultData, GenerateResultData, ContentResultData } from '../../shared/events';
+import type { LgEvent, ScrapeResultData, GenerateResultData, ContentResultData, DesignResultData } from '../../shared/events';
 import type { SseFrame, SseStageFrame } from '../../shared/api';
 import type { ParsedLine } from './ndjson';
 import { assertNever } from '../../shared/assert-never';
@@ -51,6 +54,8 @@ export type JobRegistryDeps = {
   buildScrapeSpec?: typeof defaultBuildScrapeSpec;
   buildGenerateSpec?: typeof defaultBuildGenerateSpec;
   buildContentSpec?: typeof defaultBuildContentSpec;
+  /** DI seam for tests only. */
+  buildDesignSpec?: typeof defaultBuildDesignSpec;
   /** Widened seam (design D3): expectedProductId enables the fail-closed ownership gate. Optional — omitted means "no ownership assertion". */
   archiveScrape?: (jobId: string, expectedProductId?: string) => ArchiveResult;
   /** DI seam for tests only — production callers should never override this. */
@@ -85,6 +90,7 @@ export class JobRegistry {
   #buildScrapeSpec: typeof defaultBuildScrapeSpec;
   #buildGenerateSpec: typeof defaultBuildGenerateSpec;
   #buildContentSpec: typeof defaultBuildContentSpec;
+  #buildDesignSpec: typeof defaultBuildDesignSpec;
   #archiveScrape: (jobId: string, expectedProductId?: string) => ArchiveResult;
   #normalizeArchived: (jobId: string, archiveDir: string, expectedProductId?: string | null) => NormalizeResult;
 
@@ -97,6 +103,7 @@ export class JobRegistry {
     this.#buildScrapeSpec = deps.buildScrapeSpec ?? defaultBuildScrapeSpec;
     this.#buildGenerateSpec = deps.buildGenerateSpec ?? defaultBuildGenerateSpec;
     this.#buildContentSpec = deps.buildContentSpec ?? defaultBuildContentSpec;
+    this.#buildDesignSpec = deps.buildDesignSpec ?? defaultBuildDesignSpec;
     this.#archiveScrape =
       deps.archiveScrape ??
       ((jobId: string, expectedProductId?: string) => defaultArchiveScrape(jobId, { expectedProductId }));
@@ -245,9 +252,22 @@ export class JobRegistry {
     );
   }
 
+  /**
+   * Design & Layout Agent. Shares the Content Agent's lock: both are Gemini
+   * calls against the same key and quota, so running them concurrently only
+   * buys rate-limit errors.
+   */
+  createDesignJob(params: DesignParams): JobRecord {
+    return structuredClone(
+      this.#createJob('design', params, CONTENT_LOCK_KEY, () =>
+        this.#buildDesignSpec(params, { repoRoot: this.#repoRoot, timeoutMs: this.#contentTimeoutMs }),
+      ),
+    );
+  }
+
   #createJob(
     kind: JobRecord['kind'],
-    params: ScrapeParams | GenerateParams | ContentParams,
+    params: ScrapeParams | GenerateParams | ContentParams | DesignParams,
     lockKey: string,
     buildSpec: (jobId: string) => RunSpec,
   ): JobRecord {
@@ -592,6 +612,9 @@ function applyEventToJob(job: JobRecord, event: LgEvent): void {
           break;
         case 'content':
           job.result = event.data as ContentResultData satisfies ContentResult;
+          break;
+        case 'design':
+          job.result = event.data as DesignResultData satisfies DesignResult;
           break;
         default:
           assertNever(job.kind);
