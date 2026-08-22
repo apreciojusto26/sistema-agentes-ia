@@ -37,6 +37,10 @@ export type ScrapeStage =
  * `write-manifest` (Product Identity + Generation Isolation, design D5, task
  * 5.4) writes `outputs/{slug}/.generation.json` and always runs, right
  * before `todos`.
+ * `write-design` (Design System Fase 2, OQ-1/OQ-2) writes the resolved
+ * DesignSpec to `outputs/{slug}/src/data/design.ts` between `write-data` and
+ * `patch-theme`. Like `copy-images` it is CONDITIONAL — emitted only when
+ * `--design` is passed, so a legacy generation's stage sequence is unchanged.
  */
 export type GenerateStage =
   | 'args'
@@ -44,6 +48,7 @@ export type GenerateStage =
   | 'preflight'
   | 'copy-template'
   | 'write-data'
+  | 'write-design'
   | 'patch-theme'
   | 'copy-images'
   | 'write-manifest'

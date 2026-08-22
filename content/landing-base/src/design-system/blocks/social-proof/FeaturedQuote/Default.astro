@@ -1,0 +1,72 @@
+---
+// DESIGN SYSTEM building block — socialProof/FeaturedQuote/default (Fase 2).
+//
+// Derives visually from @/components/sections/07-featured-testimonial.astro but
+// is a SEPARATE component with a NEW capability type. The legacy section is
+// never imported, wrapped or modified — a generation without --design keeps
+// rendering it exactly as today.
+//
+// Prop `tone` is a DESIGN decision, never content. The quote itself still comes
+// from @/data/testimonials, exactly as the legacy section does.
+//
+// Tailwind v4 scans SOURCE TEXT: every class is a complete literal string
+// selected by lookup, never interpolated (see ADR-4).
+import { testimonials } from '@/data/testimonials';
+
+interface Props {
+  tone?: 'light' | 'muted';
+}
+
+const { tone = 'light' } = Astro.props;
+
+const SURFACE = {
+  light: 'bg-surface',
+  muted: 'bg-bone-dim',
+} as const;
+
+const QUOTE_MARK = {
+  light: 'text-rust/20',
+  muted: 'text-graphite/15',
+} as const;
+
+const BODY = {
+  light: 'text-graphite',
+  muted: 'text-graphite-soft',
+} as const;
+
+const surface = SURFACE[tone];
+const quoteMark = QUOTE_MARK[tone];
+const body = BODY[tone];
+
+const featured = testimonials.find((t) => t.variant === 'quote');
+---
+
+{
+  featured && (
+    <section class:list={['py-12 text-center md:py-16', surface]}>
+      <div class="mx-auto w-full max-w-[36rem] px-5 lg:max-w-[42rem]">
+        <p class:list={['font-display text-6xl', quoteMark]} aria-hidden="true">
+          &rdquo;
+        </p>
+        <p class:list={['text-xl leading-snug md:text-2xl', body]}>{featured.body}</p>
+
+        <div class="mt-6 flex items-center justify-center">
+          <div class="text-left">
+            <p class="text-sm font-bold text-graphite">{featured.author}</p>
+            {featured.verified && (
+              <p class="flex items-center gap-1 text-xs font-semibold text-gold">
+                <svg viewBox="0 0 20 20" class="size-3.5" aria-hidden="true">
+                  <path
+                    fill="currentColor"
+                    d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+                  />
+                </svg>
+                Compra verificada
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}

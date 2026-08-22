@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "productId": "prd_blocks01-0b10c0de",
+  "design": {
+    "family": "editorial",
+    "density": "airy"
+  },
+  "sections": [
+    {
+      "category": "hero",
+      "type": "ProductHero",
+      "variant": "split",
+      "order": 0,
+      "props": { "align": "center" }
+    },
+    {
+      "category": "socialProof",
+      "type": "FeaturedQuote",
+      "variant": "default",
+      "order": 1,
+      "props": { "tone": "muted" }
+    },
+    {
+      "category": "conversion",
+      "type": "ProductGuarantee",
+      "variant": "default",
+      "order": 2,
+      "props": { "tone": "plain" }
+    }
+  ]
+}

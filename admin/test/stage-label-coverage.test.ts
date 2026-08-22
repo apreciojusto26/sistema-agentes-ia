@@ -43,6 +43,10 @@ const EXPECTED_GENERATE_STAGES: GenerateStage[] = [
   'preflight',
   'copy-template',
   'write-data',
+  // Design System Fase 2 (OQ-1/OQ-2, owner-authorized): emitted only when
+  // --design is passed, so it appears in Group D's pin but not Group B's.
+  // This array is the UNION of both, hence 10.
+  'write-design',
   'patch-theme',
   'copy-images',
   'write-manifest',
@@ -107,7 +111,7 @@ describe('stage-label-coverage (spec Real-Stage Label Mapping, corrected sources
     }
   });
 
-  it('contract.generate-landing.test.ts has exactly the 9 expected stage.start stages (union of both arrays)', () => {
+  it('contract.generate-landing.test.ts has exactly the 10 expected stage.start stages (union of both arrays)', () => {
     const real = extractGenerateStagesFromContractTest().sort();
     expect(real).toEqual([...EXPECTED_GENERATE_STAGES].sort());
   });

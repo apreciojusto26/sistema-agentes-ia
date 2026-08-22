@@ -62,3 +62,6 @@ export declare function resolveCapability(
   registry?: readonly RegistryEntry[],
 ): RegistryEntry | null;
 export declare function capabilityKey(category: string, type: string, variant: string): string;
+
+/** True for design-system building blocks (`@/design-system/...`), false for legacy sections. */
+export declare function isBuildingBlock(entry: RegistryEntry): boolean;

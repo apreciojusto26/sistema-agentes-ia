@@ -790,7 +790,7 @@ Sections 5 through 5.6 above describe the Design & Layout Agent as a whole.
 This section records what exists **in code today** versus what is still
 aspirational, so the two are never confused.
 
-**Implemented (Fase 1 — contract only):**
+**Implemented (Fase 1 — contract):**
 
 ```
 scripts/lib/design-registry.mjs    the ONE source of truth for capabilities
@@ -801,6 +801,47 @@ admin/src/server/validation/design.ts  thin re-export adapter (not wired to any 
 admin/test/contract.design-spec.test.ts
 admin/test/fixtures/design-spec/*.json
 ```
+
+**Implemented (Fase 2 — the contract is now RENDERED):**
+
+```
+content/landing-base/src/types/design.ts             runtime types
+content/landing-base/src/design-system/registry.ts   runtime registry (pure data)
+content/landing-base/src/design-system/blocks/**     the 3 building blocks
+content/landing-base/src/data/design.ts              default DesignSpec
+content/landing-base/src/pages/index.astro           dynamic sections[] rendering
+scripts/generate-landing.mjs                         --design, fail-closed, write-design
+admin/test/contract.design-registry-parity.test.ts   build-time ↔ runtime parity
+```
+
+The registry now declares **14** capabilities: the 11 legacy flexible-content
+sections plus 3 design-system building blocks. The blocks are ADDITIVE — every
+legacy capability keeps its own type and its own component, so a generation
+without `--design` renders exactly what it rendered before Fase 2. In
+particular `conversion/Guarantee/default` (the legacy section) and
+`conversion/ProductGuarantee/default` (the block) coexist; the second never
+replaces the first.
+
+**Two registries, one contract.** `content/landing-base` is COPIED into
+`outputs/{slug}/`, so at runtime it cannot reach `scripts/lib`. The registry
+therefore exists twice by necessity. `admin/test/contract.design-registry-parity.test.ts`
+is the compensating control and is LOAD-BEARING: it fails if the two diverge on
+any field of any capability. Never weaken it to make a change pass.
+
+**Generation modes.** `--design <spec.json>` selects explicit mode:
+
+| | `--design` present | `--design` absent (legacy) |
+| --- | --- | --- |
+| Section list | the DesignSpec's `sections[]` | template default = the 11 legacy sections, original order |
+| Theme tokens | `DesignSpec.theme` ONLY | `content.json.design` |
+| Unknown token | **hard failure**, nothing written | `console.warn` + skip (unchanged) |
+| Invalid spec | **fails before `copy-template`** — no partial output | n/a |
+| `write-design` stage | emitted | not emitted |
+
+`content.json.design` and `DesignSpec.theme` carry the same token shape but are
+DIFFERENT documents. In explicit mode `content.json.design` is ignored
+entirely — no merge, no fallback — because two unordered writers of the same
+`@theme` block is precisely the silent-fallback failure this system forbids.
 
 The DesignSpec v1 document shape:
 
@@ -821,7 +862,7 @@ The DesignSpec v1 document shape:
 `theme` is optional. `productId` is REQUIRED here (unlike content.json's
 optional one) because §8 mandates every artifact carry it.
 
-The registry's 11 capabilities are NOT restated in this document on purpose:
+The registry's 14 capabilities are NOT restated in this document on purpose:
 duplicating them here would create the exact second source of truth that
 `admin/test/no-duplicated-contract.test.ts` forbids. Read
 `scripts/lib/design-registry.mjs` — it is the contract, and it is tested.
@@ -853,13 +894,13 @@ job. The contract validates; the renderer resolves.
 | --- | --- |
 | `motion` / Framer Motion | Not implemented. The key is REJECTED (`spec-unknown-fields`), not ignored. No dependency added. |
 | spacing / density design tokens | `global.css` declares no spacing or density scale. `design.density` is a SEMANTIC dimension only — it maps to nothing yet. |
-| component `props` | Every capability declares `propsSchema: {}` because no section component accepts props. The validation engine exists and is tested against a fixture registry; production declares no prop. |
+| component `props` | PARTIAL (Fase 2). The 11 legacy sections still declare `propsSchema: {}` — none of them accepts a prop. The 3 building blocks declare REAL props (`align`, `tone`) backed by an actual rendering difference. No other capability may invent one. |
 | family / density restrictions | `familiesAllowed: '*'`, `densityAllowed: '*'` — no real restriction has been established. |
 | incompatibility rules | `incompatibleWith: []` everywhere. The engine is tested against a fixture registry; production declares none. |
-| section variants beyond `default` | No variant system exists. All 11 capabilities are `default`. |
+| section variants beyond `default` | PARTIAL (Fase 2). `hero/ProductHero/split` is the first non-default variant. All 11 legacy capabilities remain `default`. A variant is only ever resolved by exact match — `ProductHero/default` does NOT resolve, and nothing substitutes a sibling variant. |
 | Design Agent (LLM) | Does not exist. Nothing produces a DesignSpec yet. |
 | `JobKind: 'design'` | Not added. `JobKind` denotes a real spawned-child lifecycle; there is no Design Agent script, runner, route, event stream or UI stage, so adding it would create dead branches. It lands together with the agent. |
-| dynamic `sections[]` rendering | `index.astro` still imports 15 sections statically in fixed order. The renderer does not consume `sections[]`. |
+| dynamic `sections[]` rendering | IMPLEMENTED (Fase 2). `index.astro` renders its flexible content area from `src/data/design.ts`'s `sections[]`, resolved through the runtime registry via an eager `import.meta.glob` (so `prerender = true` still holds). The shell stays statically imported and is never addressable. An unresolvable capability FAILS THE BUILD — it is never skipped and never substituted. |
 
 **KNOWN GAP — the Content Agent is not wired to this contract.**
 

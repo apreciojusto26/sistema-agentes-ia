@@ -98,6 +98,26 @@ export const REGISTRY = [
   legacy('product', 'Comparison', '@/components/sections/11-comparison.astro'),
   legacy('conversion', 'Guarantee', '@/components/sections/12-guarantee.astro'),
   legacy('socialProof', 'RealResults', '@/components/sections/13-real-results.astro'),
+
+  // --- DESIGN SYSTEM building blocks (Fase 2 vertical slice) ---------------
+  // Props-driven derivations living under src/design-system/blocks/. Each one
+  // derives visually from a legacy section (documented in its own header) but
+  // exposes a real, narrow design prop. Deliberately given NEW type names
+  // rather than re-pointing a legacy key: a generation without --design must
+  // keep rendering exactly the legacy components it renders today.
+  //
+  // `props` here are DESIGN decisions only, never content. Content still
+  // arrives through the src/data/* modules generate-landing.mjs writes — the
+  // Content Agent owns what is said, the Design Agent owns how it is composed.
+  block('hero', 'ProductHero', 'split', '@/design-system/blocks/hero/ProductHero/Split.astro', {
+    align: { type: 'string', enum: ['left', 'center'] },
+  }),
+  block('socialProof', 'FeaturedQuote', 'default', '@/design-system/blocks/social-proof/FeaturedQuote/Default.astro', {
+    tone: { type: 'string', enum: ['light', 'muted'] },
+  }),
+  block('conversion', 'ProductGuarantee', 'default', '@/design-system/blocks/conversion/ProductGuarantee/Default.astro', {
+    tone: { type: 'string', enum: ['gold', 'plain'] },
+  }),
 ];
 
 /**
@@ -117,6 +137,31 @@ function legacy(category, type, component) {
     densityAllowed: '*',
     incompatibleWith: [],
   };
+}
+
+/**
+ * A design-system building block. Still declares no family/density restriction
+ * and no incompatibility: none has been established yet, and inventing one to
+ * look sophisticated would be exactly the fiction this registry forbids. The
+ * only thing these add over `legacy()` is a REAL props contract backed by a
+ * real rendering difference in the component.
+ */
+function block(category, type, variant, component, propsSchema) {
+  return {
+    category,
+    type,
+    variant,
+    component,
+    propsSchema,
+    familiesAllowed: '*',
+    densityAllowed: '*',
+    incompatibleWith: [],
+  };
+}
+
+/** Capabilities implemented as design-system building blocks (vs. legacy sections). */
+export function isBuildingBlock(entry) {
+  return entry.component.startsWith('@/design-system/');
 }
 
 /** Categories that actually have at least one capability — derived, never hand-listed. */

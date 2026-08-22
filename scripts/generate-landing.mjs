@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { execSync } from 'node:child_process';
 import { DEFAULT_ERRORS, ContentContractError, validateContent } from './lib/content-contract.mjs';
+import { checkDesignSupport } from './lib/design-contract.mjs';
 import { isProductId } from './lib/product-id.cjs';
 import events from './lib/events.cjs';
 
@@ -61,6 +62,17 @@ function parseArgs(argv) {
     else if (a === '--images') args.images = argv[++i];
     else if (a === '--images-manifest') args.imagesManifest = argv[++i];
     else if (a === '--product-id') args.productId = argv[++i];
+    // Design System Fase 2: opting into explicit design mode. Its presence —
+    // not its content — is what switches theme-token sourcing (see the
+    // `validate` stage and patchThemeBlock's `strict` option).
+    else if (a === '--design') {
+      const value = argv[i + 1];
+      if (value === undefined || value.startsWith('--')) {
+        fail('Missing --design <path-to-json>', 'design-argument-missing');
+      }
+      args.design = value;
+      i++;
+    }
     else if (a === '--force') args.force = true;
     else fail(`Unknown argument: ${a}`);
   }
@@ -195,6 +207,18 @@ function buildFaqTs(faq) {
   ].join('\n');
 }
 
+// Design System Fase 2. Written only in explicit design mode; the template's
+// committed default (the legacy 11-section order) stands otherwise. The spec
+// was already validated in the `validate` stage, so nothing is re-checked here.
+function buildDesignTs(spec) {
+  return [
+    `import type { DesignSpec } from '@/types/design';`,
+    ``,
+    `export const design: DesignSpec = ${serialize(spec, 2, 0)};`,
+    ``,
+  ].join('\n');
+}
+
 function buildTestimonialsTs(testimonials) {
   return [
     `import type { Testimonial } from '@/types/content';`,
@@ -213,9 +237,37 @@ const CSS_VAR_MAP = {
   shadow: (k) => `--shadow-${k}`,
 };
 
-function patchThemeBlock(css, design) {
+/**
+ * Patches the template's `@theme` block with design tokens.
+ *
+ * `strict` is the Design System Fase 2 mode switch, NOT a cleanup:
+ *
+ *   strict:false (legacy, no --design) — tokens come from content.json's
+ *     `design` key, which NOTHING validates (content-contract.mjs has no rule
+ *     for it). An unrecognized token is warned about and skipped. This branch
+ *     is preserved byte-for-byte: the same message, the same `continue`, the
+ *     same success exit. Every generation that works today must keep working.
+ *
+ *   strict:true (--design present) — tokens come from a DesignSpec that HAS
+ *     been validated against the contract. Here an unpatchable token is a hard
+ *     failure: the document claims to address a token the template does not
+ *     declare, and silently dropping it would produce a landing that does not
+ *     match its own spec.
+ */
+function patchThemeBlock(css, design, { strict = false } = {}) {
   if (!design) return css;
   let out = css;
+
+  const unpatchable = (label, varName) => {
+    if (strict) {
+      fail(
+        `design token ${label} → ${varName} is not declared in global.css's @theme block. ` +
+          `A validated DesignSpec may only address real tokens; nothing was written.`,
+        'design-token-unknown',
+      );
+    }
+    console.warn(`  ! design.${label} → ${varName} not found in global.css, skipped`);
+  };
 
   for (const group of ['colors', 'fonts', 'radius', 'shadow']) {
     if (!design[group]) continue;
@@ -223,7 +275,7 @@ function patchThemeBlock(css, design) {
       const varName = CSS_VAR_MAP[group](key);
       const re = new RegExp(`(${escapeRegExp(varName)}:\\s*)[^;]+;`);
       if (!re.test(out)) {
-        console.warn(`  ! design.${group}.${key} → ${varName} not found in global.css, skipped`);
+        unpatchable(`${group}.${key}`, varName);
         continue;
       }
       out = out.replace(re, `$1${value};`);
@@ -241,7 +293,7 @@ function patchThemeBlock(css, design) {
         if (value === undefined) continue;
         const re = new RegExp(`(${escapeRegExp(varName)}:\\s*)[^;]+;`);
         if (!re.test(out)) {
-          console.warn(`  ! design.text.${key} → ${varName} not found in global.css, skipped`);
+          unpatchable(`text.${key}`, varName);
           continue;
         }
         out = out.replace(re, `$1${value};`);
@@ -372,6 +424,11 @@ function getTemplateCommit() {
 function main() {
   const args = withStage('args', () => parseArgs(process.argv.slice(2)));
 
+  // Design System Fase 2 — the resolved DesignSpec, or null in legacy mode.
+  // Filled in by the `validate` stage below.
+  let designSpec = null;
+  let explicitThemeCss = null;
+
   const input = withStage('validate', () => {
     if (!existsSync(args.content)) fail(`Content file not found: ${args.content}`);
     const parsed = JSON.parse(readFileSync(args.content, 'utf-8'));
@@ -381,6 +438,51 @@ function main() {
       if (err instanceof ContentContractError) fail(err.message, err.code);
       throw err;
     }
+
+    // Explicit design mode is validated HERE, inside the existing `validate`
+    // stage — deliberately NOT as a stage of its own. A separate stage would
+    // be emitted on EVERY run, including legacy ones, changing the observable
+    // event sequence for generations that pass no --design at all.
+    //
+    // Position matters: `validate` runs before `preflight` and before
+    // `copy-template`, so a rejected spec leaves outputs/{slug}/ untouched —
+    // no partial directory to clean up, nothing to mistake for a real landing.
+    //
+    // Fail-closed on BOTH contract outcomes. `invalid` means the document is
+    // malformed; `unsupported_design` means it asks for a capability the
+    // design system does not have (agents.MD §6.3). Neither may proceed and
+    // neither may be downgraded to a warning — a silently dropped section is
+    // exactly the failure this system exists to prevent.
+    if (args.design) {
+      if (!existsSync(args.design)) fail(`Design file not found: ${args.design}`);
+
+      let spec;
+      try {
+        spec = JSON.parse(readFileSync(args.design, 'utf-8'));
+      } catch (err) {
+        fail(`--design file is not valid JSON: ${err.message}`, 'design-unparseable');
+      }
+
+      const support = checkDesignSupport(spec);
+      if (support.status !== 'pass') {
+        const detail = (support.issues ?? [])
+          .map((i) => `${i.code}${i.path ? ` at "${i.path}"` : ''}: ${i.message}`)
+          .join('; ');
+        const missing = support.missingCapability
+          ? ` — missing capability "${support.missingCapability}"`
+          : '';
+        fail(`--design rejected (${support.status})${missing}: ${detail}`, support.status);
+      }
+      designSpec = spec;
+
+      // Strict token validation belongs to the read-only validation boundary,
+      // not to the later write stage. Resolve the final CSS against the
+      // canonical template now so an unpatchable, contract-valid token cannot
+      // leave a partially copied output behind.
+      const templateCss = readFileSync(path.join(TEMPLATE_DIR, 'src/styles/global.css'), 'utf-8');
+      explicitThemeCss = patchThemeBlock(templateCss, spec.theme ?? null, { strict: true });
+    }
+
     return parsed;
   });
 
@@ -410,6 +512,20 @@ function main() {
     }
     const existingManifestId =
       existingManifest && isProductId(existingManifest.productId) ? existingManifest.productId : null;
+
+    // Resolve product identity exactly once. Explicit design mode can supply
+    // the identity for legacy content without a productId, but it can never
+    // disagree with a higher-authority upstream artifact.
+    const canonicalProductId =
+      contentProductId ?? existingManifestId ?? args.productId ?? designSpec?.productId ?? null;
+
+    if (designSpec && designSpec.productId !== canonicalProductId) {
+      fail(
+        `DesignSpec productId ${designSpec.productId} does not match the canonical generation ` +
+          `productId ${canonicalProductId} — refusing to write mixed-product artifacts.`,
+        'generation-owner-mismatch',
+      );
+    }
 
     // Additive guard beyond design D5's literal 6-row matrix (documented,
     // not a silent deviation): when --product-id AND content.json's
@@ -459,18 +575,15 @@ function main() {
       fail(`outputs/${args.slug} already exists. Use --force to overwrite.`);
     }
 
+    resolvedProductId = canonicalProductId;
     if (contentProductId) {
-      resolvedProductId = contentProductId;
       resolvedLineage = 'scraped';
     } else if (existingManifestId) {
-      resolvedProductId = existingManifestId;
       resolvedLineage =
         existingManifest && typeof existingManifest.lineage === 'string' ? existingManifest.lineage : 'scraped';
-    } else if (args.productId) {
-      // No content.json id and no prior manifest — a human/admin-pinned
-      // lineage with nothing else to corroborate it yet (design schema's
-      // third lineage value, "manual").
-      resolvedProductId = args.productId;
+    } else if (args.productId || designSpec) {
+      // No content.json id and no prior manifest — a CLI/design-pinned
+      // lineage with nothing else to corroborate it yet.
       resolvedLineage = 'manual';
     }
   });
@@ -486,10 +599,29 @@ function main() {
     writeFileSync(path.join(outDir, 'src/data/testimonials.ts'), buildTestimonialsTs(input.testimonials));
   });
 
+  // Design System Fase 2. Emitted ONLY in explicit design mode — a legacy run
+  // passes no --design, writes no stage, and keeps the template's own default
+  // src/data/design.ts (which reproduces the legacy 11-section order exactly).
+  if (designSpec) {
+    withStage('write-design', () => {
+      writeFileSync(path.join(outDir, 'src/data/design.ts'), buildDesignTs(designSpec));
+    });
+  }
+
   withStage('patch-theme', () => {
     const cssPath = path.join(outDir, 'src/styles/global.css');
+    // DECISION 1 (owner, fixed): in explicit design mode the DesignSpec's
+    // `theme` is the ONLY source of tokens and content.json's legacy `design`
+    // key is ignored entirely — no merge, no fallback. The two documents
+    // otherwise compete for the same @theme block with no precedence rule.
+    if (designSpec) {
+      // Already resolved fail-closed in `validate`, before copy-template.
+      writeFileSync(cssPath, explicitThemeCss);
+      return;
+    }
+
     const css = readFileSync(cssPath, 'utf-8');
-    writeFileSync(cssPath, patchThemeBlock(css, input.design));
+    writeFileSync(cssPath, patchThemeBlock(css, input.design, { strict: false }));
   });
 
   console.log(`✓ outputs/${args.slug} created from content/landing-base`);

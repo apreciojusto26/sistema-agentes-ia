@@ -29,6 +29,7 @@ const GENERATE_LABELS: Record<GenerateStage, string> = {
   preflight: 'Verificando que se pueda crear la carpeta',
   'copy-template': 'Copiando la plantilla base',
   'write-data': 'Escribiendo los textos de tu landing',
+  'write-design': 'Guardando el diseño elegido',
   'patch-theme': 'Aplicando los colores y las tipografías',
   'copy-images': 'Copiando las imágenes a la landing',
   'write-manifest': 'Guardando el registro de la generación (.generation.json)',

@@ -1,0 +1,80 @@
+---
+// DESIGN SYSTEM building block — hero/ProductHero/split (Design System Fase 2).
+//
+// Derives visually from @/components/sections/03-hero.astro but is a SEPARATE
+// component with a NEW capability type: a generation without --design must keep
+// rendering 03-hero.astro byte-for-byte. This block never imports, wraps or
+// modifies the legacy section.
+//
+// Prop `align` is a DESIGN decision, never content. All copy still arrives
+// through @/data/product, exactly as the legacy hero does.
+//
+// Tailwind v4 (@tailwindcss/vite, CSS-first @theme) scans SOURCE TEXT for class
+// names. Every class below is therefore a complete literal string selected by
+// object lookup — never `class={`text-${align}`}`. An interpolated name is
+// invisible to the scanner and silently produces no CSS.
+import Container from '@/components/ui/Container.astro';
+import Media from '@/components/ui/Media.astro';
+import { product } from '@/data/product';
+
+interface Props {
+  align?: 'left' | 'center';
+}
+
+const { align = 'left' } = Astro.props;
+
+const TEXT_ALIGN = {
+  left: 'text-left',
+  center: 'text-center',
+} as const;
+
+const PILLS_JUSTIFY = {
+  left: 'justify-start',
+  center: 'justify-center',
+} as const;
+
+const SUBTAGLINE_WIDTH = {
+  left: 'max-w-prose',
+  center: 'mx-auto max-w-prose',
+} as const;
+
+const textAlign = TEXT_ALIGN[align];
+const pillsJustify = PILLS_JUSTIFY[align];
+const subtaglineWidth = SUBTAGLINE_WIDTH[align];
+
+const [primary] = product.gallery;
+---
+
+<section class="bg-bone pb-10 pt-6">
+  <Container>
+    <div class="lg:grid lg:grid-cols-2 lg:items-center lg:gap-10">
+      <div class={textAlign}>
+        <h1 class="text-hero md:text-5xl xl:text-6xl">
+          <span class="text-rust">{product.tagline}</span>
+        </h1>
+
+        <p class:list={['mt-3 text-base text-steel', subtaglineWidth]}>{product.subtagline}</p>
+
+        <div class:list={['mt-6 flex flex-wrap gap-2', pillsJustify]}>
+          {
+            product.heroPills.map((pill) => (
+              <span class="flex items-center gap-1.5 rounded-pill bg-white px-3 py-2 text-xs font-semibold text-graphite shadow-card">
+                {pill}
+              </span>
+            ))
+          }
+        </div>
+      </div>
+
+      <div class="mt-8 lg:mt-0">
+        {
+          primary && (
+            <div class="mx-auto w-full max-w-[26rem] rounded-card shadow-lift lg:max-w-none">
+              <Media media={primary} rounded="rounded-card" />
+            </div>
+          )
+        }
+      </div>
+    </div>
+  </Container>
+</section>

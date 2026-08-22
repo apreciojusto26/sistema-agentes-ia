@@ -30,7 +30,16 @@
 
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, rmSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -56,6 +65,16 @@ const OUT_DIR_EVENTS_IMAGES = path.join(REPO_ROOT, 'outputs', SLUG_EVENTS_IMAGES
 // the time Group B runs) so this can run fresh with no --force needed.
 const SLUG_EVENTS_LEGACY = 'zz-contract-test-fixture-events-legacy';
 const OUT_DIR_EVENTS_LEGACY = path.join(REPO_ROOT, 'outputs', SLUG_EVENTS_LEGACY);
+// Design System Fase 2 — explicit design mode (--design). Separate slugs so
+// the legacy-mode assertions above are never contaminated by a design run.
+const SLUG_DESIGN = 'zz-contract-test-fixture-design';
+const OUT_DIR_DESIGN = path.join(REPO_ROOT, 'outputs', SLUG_DESIGN);
+const SLUG_DESIGN_INVALID = 'zz-contract-test-fixture-design-invalid';
+const OUT_DIR_DESIGN_INVALID = path.join(REPO_ROOT, 'outputs', SLUG_DESIGN_INVALID);
+const SLUG_DESIGN_MISSING_VALUE = 'zz-contract-test-fixture-design-missing-value';
+const OUT_DIR_DESIGN_MISSING_VALUE = path.join(REPO_ROOT, 'outputs', SLUG_DESIGN_MISSING_VALUE);
+const SLUG_DESIGN_ID_MISMATCH = 'zz-contract-test-fixture-design-id-mismatch';
+const OUT_DIR_DESIGN_ID_MISMATCH = path.join(REPO_ROOT, 'outputs', SLUG_DESIGN_ID_MISMATCH);
 
 const MINIMAL_CONTENT_PATH = path.join(__dirname, 'fixtures/minimal-content.json');
 const INVALID_CONTENT_PATH = path.join(__dirname, 'fixtures/invalid-content.json');
@@ -69,6 +88,10 @@ function cleanOutDir() {
   rmSync(OUT_DIR_EVENTS, { recursive: true, force: true });
   rmSync(OUT_DIR_EVENTS_IMAGES, { recursive: true, force: true });
   rmSync(OUT_DIR_EVENTS_LEGACY, { recursive: true, force: true });
+  rmSync(OUT_DIR_DESIGN, { recursive: true, force: true });
+  rmSync(OUT_DIR_DESIGN_INVALID, { recursive: true, force: true });
+  rmSync(OUT_DIR_DESIGN_MISSING_VALUE, { recursive: true, force: true });
+  rmSync(OUT_DIR_DESIGN_ID_MISMATCH, { recursive: true, force: true });
 }
 
 beforeAll(cleanOutDir);
@@ -197,6 +220,12 @@ describe('Group B — event schema (LG_EVENTS=1, Batch C)', () => {
     // apply 4-step deviation process (design's data-flow diagram + task
     // 5.4 explicitly require this stage; see
     // sdd/product-identity-generation-isolation/apply-progress, Batch 5).
+    //
+    // Design System Fase 2 (OQ-1, owner-authorized): a `write-design` stage
+    // exists between `write-data` and `patch-theme`, but is emitted ONLY when
+    // --design is passed. This run passes none, so the legacy sequence below
+    // is UNCHANGED — that is the point of the decision, not an oversight. The
+    // explicit-mode sequence is pinned separately in Group D.
     expect(events.filter((e) => e.type === 'stage.start').map((e) => e.stage)).toEqual([
       'args',
       'validate',
@@ -380,5 +409,185 @@ describe('Group D — scripts/lib/content-contract.mjs unit tests (no spawn)', (
     const { ALLOWED_PRODUCT_FIELDS } = await loadContract();
     expect(ALLOWED_PRODUCT_FIELDS).toContain('ratingBreakdown');
     expect(ALLOWED_PRODUCT_FIELDS.length).toBe(23);
+  });
+});
+
+// --- Group D — explicit design mode (--design, Design System Fase 2) --------
+//
+// OQ-1 (owner-authorized): `write-design` ships as its OWN stage rather than
+// being folded into `write-data`, for observability and separation of
+// responsibilities. These pins are the contract for that decision.
+
+describe('Group D — --design explicit generation mode', () => {
+  const DESIGN_DIR = path.join(REPO_ROOT, 'admin/test/fixtures/design-spec');
+  const VALID_DESIGN = path.join(DESIGN_DIR, 'valid.json');
+  const UNSUPPORTED_DESIGN = path.join(DESIGN_DIR, 'unsupported-capability.json');
+
+  test('emits write-design between write-data and patch-theme', () => {
+    const r = runGenerateWithEvents(SLUG_DESIGN, MINIMAL_CONTENT_PATH, ['--design', VALID_DESIGN]);
+
+    expect(r.status).toBe(0);
+    const events = parseEvents(r.stderr);
+    expect(events.filter((e) => e.type === 'stage.start').map((e) => e.stage)).toEqual([
+      'args',
+      'validate',
+      'preflight',
+      'copy-template',
+      'write-data',
+      'write-design',
+      'patch-theme',
+      'write-manifest',
+      'todos',
+    ]);
+  });
+
+  test('writes the resolved DesignSpec into the generated src/data/design.ts', () => {
+    expect(existsSync(path.join(OUT_DIR_DESIGN, 'src/data/design.ts'))).toBe(true);
+    const written = readFileSync(path.join(OUT_DIR_DESIGN, 'src/data/design.ts'), 'utf-8');
+    const spec = JSON.parse(readFileSync(VALID_DESIGN, 'utf-8'));
+
+    expect(written).toContain("import type { DesignSpec } from '@/types/design'");
+    expect(written).toContain('export const design: DesignSpec =');
+    // The spec's identity and its sections really landed, not a default.
+    expect(written).toContain(spec.productId);
+    for (const section of spec.sections) {
+      expect(written).toContain(`"${section.type}"`);
+    }
+
+    // minimal-content.json is intentionally legacy and has no productId. In
+    // explicit mode the required DesignSpec id becomes the single canonical
+    // identity and must propagate to the manifest rather than leaving it null.
+    const manifest = JSON.parse(readFileSync(path.join(OUT_DIR_DESIGN, '.generation.json'), 'utf-8'));
+    expect(manifest.productId).toBe(spec.productId);
+  });
+
+  test('DECISION 1 — DesignSpec.theme patches the @theme block', () => {
+    const css = readFileSync(path.join(OUT_DIR_DESIGN, 'src/styles/global.css'), 'utf-8');
+    const spec = JSON.parse(readFileSync(VALID_DESIGN, 'utf-8'));
+
+    // patchThemeBlock preserves the template's original whitespace (the regex
+    // captures `name:\s*` as $1), so the declarations stay column-aligned —
+    // match on that rather than assuming a single space.
+    for (const [key, value] of Object.entries(spec.theme.colors ?? {})) {
+      expect(css).toMatch(new RegExp(`--color-${key}:\\s*${value};`));
+    }
+  });
+
+  test('an unsupported DesignSpec fails closed and writes NOTHING', () => {
+    expect(existsSync(OUT_DIR_DESIGN_INVALID)).toBe(false);
+
+    const r = runGenerateWithEvents(SLUG_DESIGN_INVALID, MINIMAL_CONTENT_PATH, [
+      '--design',
+      UNSUPPORTED_DESIGN,
+    ]);
+
+    expect(r.status).not.toBe(0);
+    // The whole point of validating inside `validate`, before copy-template:
+    // a rejected spec leaves no partial directory behind.
+    expect(existsSync(OUT_DIR_DESIGN_INVALID)).toBe(false);
+
+    // Failure path: stderr MIXES events with the legacy human `✗ …` line, so
+    // this must use extractEvents (tolerant) rather than parseEvents (which
+    // asserts every line is an event).
+    const events = extractEvents(r.stderr);
+    const stages = events.filter((e) => e.type === 'stage.start').map((e) => e.stage);
+    expect(stages).not.toContain('copy-template');
+    expect(stages).not.toContain('write-design');
+    expect(r.stderr + r.stdout).toContain('unsupported_design');
+  });
+
+  test('a nonexistent --design path fails closed', () => {
+    const r = runGenerateWithEvents(SLUG_DESIGN_INVALID, MINIMAL_CONTENT_PATH, [
+      '--design',
+      path.join(DESIGN_DIR, 'does-not-exist.json'),
+    ]);
+
+    expect(r.status).not.toBe(0);
+    expect(existsSync(OUT_DIR_DESIGN_INVALID)).toBe(false);
+    expect(r.stderr + r.stdout).toContain('Design file not found');
+  });
+
+  test('--design present without a value is an argument error before copy-template', () => {
+    const r = runGenerateWithEvents(SLUG_DESIGN_MISSING_VALUE, MINIMAL_CONTENT_PATH, ['--design']);
+
+    expect(r.status).not.toBe(0);
+    expect(existsSync(OUT_DIR_DESIGN_MISSING_VALUE)).toBe(false);
+    expect(r.stderr + r.stdout).toContain('Missing --design <path-to-json>');
+
+    const stages = extractEvents(r.stderr)
+      .filter((event) => event.type === 'stage.start')
+      .map((event) => event.stage);
+    expect(stages).toEqual(['args']);
+  });
+
+  test('a DesignSpec productId that diverges from content fails before any output is written', () => {
+    const tempDir = mkdtempSync(path.join(tmpdir(), 'lg-design-product-id-'));
+    const contentPath = path.join(tempDir, 'content.json');
+
+    try {
+      writeFileSync(
+        contentPath,
+        JSON.stringify({ ...minimalContent, productId: 'prd_verify01-aabbccdd' }),
+      );
+
+      const r = runGenerateWithEvents(SLUG_DESIGN_ID_MISMATCH, contentPath, ['--design', VALID_DESIGN]);
+
+      expect(r.status).not.toBe(0);
+      expect(existsSync(OUT_DIR_DESIGN_ID_MISMATCH)).toBe(false);
+      expect(r.stderr + r.stdout).toContain('generation-owner-mismatch');
+      expect(r.stderr + r.stdout).toContain('mixed-product artifacts');
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('a contract-valid but unpatchable strict token leaves no final output', () => {
+    const tempRoot = mkdtempSync(path.join(tmpdir(), 'lg-strict-theme-'));
+    const isolatedGenerator = path.join(tempRoot, 'scripts/generate-landing.mjs');
+    const isolatedCssDir = path.join(tempRoot, 'content/landing-base/src/styles');
+    const isolatedDataDir = path.join(tempRoot, 'content/landing-base/src/data');
+    const isolatedOut = path.join(tempRoot, 'outputs/strict-token-drift');
+
+    try {
+      // Isolated mutation control: simulate drift where THEME_TOKENS still
+      // permits colors.rust but the copied template no longer declares it.
+      // The real working tree is never modified.
+      cpSync(path.join(REPO_ROOT, 'scripts'), path.join(tempRoot, 'scripts'), { recursive: true });
+      mkdirSync(isolatedCssDir, { recursive: true });
+      mkdirSync(isolatedDataDir, { recursive: true });
+      const css = readFileSync(
+        path.join(REPO_ROOT, 'content/landing-base/src/styles/global.css'),
+        'utf-8',
+      );
+      writeFileSync(
+        path.join(isolatedCssDir, 'global.css'),
+        css.replace(/^\s*--color-rust:\s*[^;]+;\s*$/m, ''),
+      );
+
+      const r = spawnSync(
+        process.execPath,
+        [
+          isolatedGenerator,
+          '--slug',
+          'strict-token-drift',
+          '--content',
+          MINIMAL_CONTENT_PATH,
+          '--design',
+          VALID_DESIGN,
+        ],
+        { cwd: tempRoot, encoding: 'utf8', env: { ...process.env, LG_EVENTS: '1' } },
+      );
+
+      expect(r.status).not.toBe(0);
+      expect(r.stderr + r.stdout).toContain('design-token-unknown');
+      expect(existsSync(isolatedOut)).toBe(false);
+      const stages = extractEvents(r.stderr)
+        .filter((event) => event.type === 'stage.start')
+        .map((event) => event.stage);
+      expect(stages).not.toContain('copy-template');
+      expect(stages).not.toContain('write-design');
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
   });
 });

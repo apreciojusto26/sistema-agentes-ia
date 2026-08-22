@@ -188,7 +188,11 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
   describe('no silent fallback (the core guarantee)', () => {
     test('an unknown variant never resolves to another registered variant', () => {
       expect(registryModule.resolveCapability('hero', 'Hero', 'split')).toBeNull();
-      expect(registryModule.resolveCapability('hero', 'ProductHero', 'default')).toBeNull();
+      // A genuinely unregistered type. This used to name 'ProductHero', which
+      // Fase 2 turned into a REAL capability — the assertion kept passing but
+      // stopped testing what it was written to test. The ProductHero
+      // variant-isolation case now has its own dedicated test below.
+      expect(registryModule.resolveCapability('hero', 'NeverRegisteredHero', 'default')).toBeNull();
       expect(registryModule.resolveCapability('nope', 'Hero', 'default')).toBeNull();
     });
 
@@ -349,8 +353,52 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
 
   // --- production registry honesty ----------------------------------------
   describe('production registry declares only real capabilities', () => {
-    test('registers exactly the 11 flexible-content-area sections', () => {
-      expect(registryModule.REGISTRY).toHaveLength(11);
+    // Fase 2 raised the count from 11 to 14 by ADDING three building blocks.
+    // Asserted by identity, not just by length: a bare length check would go
+    // green if a legacy capability were swapped for a block.
+    const LEGACY_KEYS = [
+      'hero/Hero/default',
+      'media/GalleryStrip/default',
+      'conversion/BuyBox/default',
+      'product/HowItWorks/default',
+      'socialProof/FeaturedTestimonial/default',
+      'conversion/Faq/default',
+      'socialProof/UgcStrip/default',
+      'socialProof/ReviewsReel/default',
+      'product/Comparison/default',
+      'conversion/Guarantee/default',
+      'socialProof/RealResults/default',
+    ];
+    const BLOCK_KEYS = [
+      'hero/ProductHero/split',
+      'socialProof/FeaturedQuote/default',
+      'conversion/ProductGuarantee/default',
+    ];
+    const keyOf = (e: { category: string; type: string; variant: string }) =>
+      `${e.category}/${e.type}/${e.variant}`;
+
+    test('registers exactly the 11 legacy sections plus the 3 Fase 2 building blocks', () => {
+      expect(registryModule.REGISTRY).toHaveLength(14);
+      expect(registryModule.REGISTRY.map(keyOf)).toEqual([...LEGACY_KEYS, ...BLOCK_KEYS]);
+    });
+
+    test('the 11 legacy capabilities still point at their original section files', () => {
+      for (const key of LEGACY_KEYS) {
+        const entry = registryModule.REGISTRY.find((e) => keyOf(e) === key);
+        expect(entry, `${key} missing`).toBeDefined();
+        expect(entry!.component, `${key} re-pointed`).toMatch(/^@\/components\/sections\//);
+      }
+    });
+
+    // ProductGuarantee is an ADDITIONAL capability, never a replacement:
+    // a generation without --design must keep rendering 12-guarantee.astro.
+    test('conversion/Guarantee/default coexists with conversion/ProductGuarantee/default', () => {
+      expect(registryModule.resolveCapability('conversion', 'Guarantee', 'default')?.component).toBe(
+        '@/components/sections/12-guarantee.astro',
+      );
+      expect(
+        registryModule.resolveCapability('conversion', 'ProductGuarantee', 'default')?.component,
+      ).toBe('@/design-system/blocks/conversion/ProductGuarantee/Default.astro');
     });
 
     test('no shell component is addressable as a building block (agents.MD §5.3)', () => {
@@ -362,12 +410,34 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
       }
     });
 
-    test('declares NO fictional constraints — v1 has no props, no family/density limits, no incompatibilities', () => {
+    // The Fase 1 guardrail is UNCHANGED in substance: no family limit, no
+    // density limit, no incompatibility may be invented. Only the props rule
+    // splits, because building blocks now back a real rendering difference.
+    test('declares NO fictional constraints — no family/density limits, no incompatibilities, on any capability', () => {
       for (const entry of registryModule.REGISTRY) {
-        expect(entry.propsSchema, `${entry.type} propsSchema`).toEqual({});
         expect(entry.familiesAllowed, `${entry.type} familiesAllowed`).toBe('*');
         expect(entry.densityAllowed, `${entry.type} densityAllowed`).toBe('*');
         expect(entry.incompatibleWith, `${entry.type} incompatibleWith`).toEqual([]);
+      }
+    });
+
+    test('legacy sections still declare zero props — none of them accepts one', () => {
+      for (const entry of registryModule.REGISTRY.filter((e) => !registryModule.isBuildingBlock(e))) {
+        expect(entry.propsSchema, `${entry.type} propsSchema`).toEqual({});
+      }
+    });
+
+    // The inverse guard: a block declaring {} would be a capability pretending
+    // to be configurable, which is the same fiction from the other direction.
+    test('every building block declares a REAL, non-empty propsSchema', () => {
+      const blocks = registryModule.REGISTRY.filter(registryModule.isBuildingBlock);
+      expect(blocks.map(keyOf)).toEqual(BLOCK_KEYS);
+      for (const entry of blocks) {
+        expect(Object.keys(entry.propsSchema).length, `${entry.type} propsSchema`).toBeGreaterThan(0);
+        for (const [prop, rule] of Object.entries(entry.propsSchema)) {
+          expect(rule.type, `${entry.type}.${prop} type`).toBe('string');
+          expect(rule.enum?.length, `${entry.type}.${prop} enum`).toBeGreaterThan(1);
+        }
       }
     });
 
@@ -381,10 +451,18 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
       }
     });
 
-    test('every entry uses variant "default" (no variant system exists yet)', () => {
-      for (const entry of registryModule.REGISTRY) {
-        expect(entry.variant).toBe('default');
+    // Fase 2 introduces the FIRST non-default variant. The guardrail is not
+    // "everything is default" any more, it is "only a declared variant is
+    // registered" — no capability may quietly gain an alias.
+    test('legacy sections all use variant "default"', () => {
+      for (const entry of registryModule.REGISTRY.filter((e) => !registryModule.isBuildingBlock(e))) {
+        expect(entry.variant, `${entry.type} variant`).toBe('default');
       }
+    });
+
+    test('ProductHero is registered under "split" ONLY — "default" must not resolve', () => {
+      expect(registryModule.resolveCapability('hero', 'ProductHero', 'split')).not.toBeNull();
+      expect(registryModule.resolveCapability('hero', 'ProductHero', 'default')).toBeNull();
     });
   });
 
