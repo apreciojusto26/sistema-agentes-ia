@@ -21,6 +21,7 @@ import { registerJobsRoutes } from './routes/jobs';
 import { registerEventsRoutes } from './routes/events';
 import { registerArtifactsRoutes } from './routes/artifacts';
 import { registerPreviewRoutes } from './routes/preview';
+import { registerPipelineRoutes } from './routes/pipeline';
 import { ADMIN_ROOT, PORT } from './config';
 
 export type BuildAppOptions = {
@@ -48,6 +49,7 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
   registerEventsRoutes(app, registry);
   registerArtifactsRoutes(app, registry);
   registerPreviewRoutes(app);
+  registerPipelineRoutes(app, registry);
 
   const distClientDir = opts.distClientDir ?? path.join(ADMIN_ROOT, 'dist', 'client');
   const indexHtmlPath = path.join(distClientDir, 'index.html');
