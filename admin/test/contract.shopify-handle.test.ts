@@ -102,15 +102,32 @@ describe('generator — commerce mode is fail-closed', () => {
     expect(a).not.toEqual(b);
   });
 
-  it('preview mode writes no .env and marks the landing unbuyable', () => {
+  it('preview mode writes an .env carrying ONLY the mode, and marks the landing unbuyable', () => {
+    // Contract change: preview used to write no .env at all, which left the
+    // landing unable to render — catalog.ts fails closed on a missing handle,
+    // correct for a commerce landing and wrong for one never meant to sell.
+    // It now declares its mode EXPLICITLY, so "credentials are broken" stays
+    // distinguishable from "this landing has no commerce".
     rmSync(OUT_DIR, { recursive: true, force: true });
     const r = runGenerator([]);
     expect(r.status).toBe(0);
-    expect(existsSync(path.join(OUT_DIR, '.env'))).toBe(false);
     expect(r.out).toContain('PREVIEW MODE');
+
+    const env = readFileSync(path.join(OUT_DIR, '.env'), 'utf-8');
+    expect(env).toContain('PUBLIC_COMMERCE_MODE=preview');
+    // No handle, and no credential assignment of any kind.
+    expect(env).not.toMatch(/^PUBLIC_SHOPIFY_PRODUCT_HANDLE=/m);
+    expect(env).not.toMatch(/^PUBLIC_SHOPIFY_STOREFRONT_TOKEN=.+$/m);
 
     const manifest = JSON.parse(readFileSync(path.join(OUT_DIR, '.generation.json'), 'utf-8'));
     expect(manifest.commerce).toEqual({ mode: 'preview', shopifyHandle: null });
+  });
+
+  it('commerce mode declares PUBLIC_COMMERCE_MODE=shopify, never preview', () => {
+    runGenerator(['--shopify-handle', 'real-product-handle']);
+    const env = readFileSync(path.join(OUT_DIR, '.env'), 'utf-8');
+    expect(env).toContain('PUBLIC_COMMERCE_MODE=shopify');
+    expect(env).not.toContain('PUBLIC_COMMERCE_MODE=preview');
   });
 });
 

@@ -35,7 +35,33 @@ export function BundleSelector({
   const groupName = useId();
   const cartStatus = useStore($cartStatus);
   const cartError = useStore($cartError);
-  const { variant, pack, projection, cart } = useSelection({ commerce, packs, bundleOfferActive });
+  const selection = useSelection({ commerce, packs, bundleOfferActive });
+
+  // PREVIEW MODE: the landing was generated without commerce, so there is no
+  // variant, no price and nothing to add to a cart. The buy box keeps its
+  // place in the layout — the point of a preview is evaluating the whole page
+  // — but renders a disabled control and NO monetary value. A 0, a struck-out
+  // "was" price or a synthetic variant would all put a number on screen that
+  // nobody set. `useSelection` returns null only in preview; in Shopify mode
+  // an empty variant list still throws.
+  if (!selection) {
+    return (
+      <div className="space-y-4">
+        <p className="text-sm text-steel">Vista previa — esta landing todavía no tiene producto conectado.</p>
+        <button
+          type="button"
+          disabled
+          aria-disabled="true"
+          data-preview-cta="true"
+          className="flex h-14 w-full items-center justify-center gap-2 rounded-pill bg-rust px-6 font-display text-base font-bold tracking-wide text-white shadow-lift disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          Vista previa — compra no disponible
+        </button>
+      </div>
+    );
+  }
+
+  const { variant, pack, projection, cart } = selection;
 
   const isPending = cartStatus === 'creating' || cartStatus === 'updating' || cartStatus === 'restoring';
   const soldOut = !variant.availableForSale;

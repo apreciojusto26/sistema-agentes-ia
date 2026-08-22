@@ -1,4 +1,7 @@
 import { storefront, ShopifyError } from '@/lib/shopify/client';
+// Aliased: fetchProductCommerce() destructures its own local `product` from
+// the Shopify response, which would shadow this import inside that function.
+import { product as generatedProduct } from '@/data/product';
 import { moneyToCents } from '@/lib/shopify/money';
 import { PRODUCT_QUERY } from '@/lib/shopify/queries';
 import type { ProductCommerce, VariantOption } from '@/lib/shopify/types';
@@ -82,7 +85,52 @@ export function resolveProductHandle(
   );
 }
 
+/**
+ * Which commerce posture this landing was GENERATED with.
+ *
+ * Read from an explicit `PUBLIC_COMMERCE_MODE`, never inferred from a missing
+ * token. Inference would make "the credentials are broken" and "this landing
+ * was never meant to sell" indistinguishable, and the first of those must be
+ * a hard error.
+ *
+ * Defaults to `shopify`, so anything generated before this existed keeps its
+ * current fail-closed behaviour rather than silently becoming a preview.
+ */
+export function resolveCommerceMode(
+  env: Record<string, string | undefined> = import.meta.env as unknown as Record<string, string | undefined>,
+): 'preview' | 'shopify' {
+  return env.PUBLIC_COMMERCE_MODE?.trim() === 'preview' ? 'preview' : 'shopify';
+}
+
+/**
+ * The commerce shape for a landing generated WITHOUT commerce.
+ *
+ * Carries the product's real name — which the Content Agent already produced —
+ * and NOTHING else. `variants` is empty on purpose: the system has no
+ * trustworthy price for a product that was never linked to Shopify, and
+ * emitting a 0 would render "0,00 €", a fabricated price. An empty variant
+ * list makes every purchase control resolve to its unavailable state instead.
+ */
+function previewCommerce(): ProductCommerce {
+  return {
+    handle: '',
+    title: generatedProduct.name,
+    currencyCode: 'EUR',
+    optionName: generatedProduct.variantGroupLabel ?? '',
+    variants: [],
+    defaultVariantId: '',
+    anyAvailable: false,
+    images: [],
+  };
+}
+
 async function fetchProductCommerce(): Promise<ProductCommerce> {
+  // PREVIEW MODE: no handle, no token, no network. This is NOT a fallback —
+  // it is only reachable when the landing was explicitly generated this way.
+  // A commerce landing whose Shopify call fails still throws, and must: the
+  // forbidden path is "commerce requested -> Shopify fails -> show preview".
+  if (resolveCommerceMode() === 'preview') return previewCommerce();
+
   const handle = resolveProductHandle();
 
   const data = await storefront<ProductQueryResponse>(PRODUCT_QUERY, { handle });

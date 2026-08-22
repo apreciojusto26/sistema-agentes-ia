@@ -39,7 +39,7 @@ export function StickyAddToCart({
   const [dismissed, setDismissed] = useState(false);
   const isLightboxOpen = useStore($isLightboxOpen);
   const cartStatus = useStore($cartStatus);
-  const { variant, pack, projection, totalCents, cart } = useSelection({ commerce, packs, bundleOfferActive });
+  const selection = useSelection({ commerce, packs, bundleOfferActive });
 
   useEffect(() => {
     const sentinel = document.getElementById(sentinelId);
@@ -59,6 +59,37 @@ export function StickyAddToCart({
   }, [sentinelId]);
 
   const visible = pastSentinel && !isLightboxOpen && !dismissed;
+
+  // PREVIEW MODE — placed AFTER every hook so the hook order stays stable
+  // across renders. The bar keeps its position in the layout so the page can
+  // be evaluated as a whole, but carries no price and no cart action.
+  // `useSelection` returns null only in preview; Shopify mode still throws on
+  // an empty variant list, so this can never mask a real commerce failure.
+  if (!selection) {
+    return (
+      <div
+        data-show={visible}
+        aria-hidden={!visible}
+        inert={!visible ? true : undefined}
+        className="fixed inset-x-0 bottom-0 z-40 translate-y-full border-t border-graphite/10 bg-surface/95 pb-[env(safe-area-inset-bottom)] shadow-sticky backdrop-blur transition-transform duration-300 motion-reduce:transition-none data-[show=true]:translate-y-0"
+      >
+        <div className="flex items-center gap-3 px-5 py-3">
+          <p className="min-w-0 flex-1 truncate text-sm text-steel">Vista previa — compra no disponible</p>
+          <button
+            type="button"
+            disabled
+            aria-disabled="true"
+            data-preview-cta="true"
+            className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-pill bg-rust px-4 font-display text-sm font-bold tracking-wide text-white shadow-lift disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            No disponible
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const { variant, pack, projection, totalCents, cart } = selection;
   const isPending = cartStatus === 'creating' || cartStatus === 'updating' || cartStatus === 'restoring';
   const soldOut = !variant.availableForSale;
   // Mirror BundleSelector's decision logic so the sticky bar and buy box can
