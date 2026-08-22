@@ -1,6 +1,13 @@
 ---
 import '@/styles/global.css';
+// Imported AFTER global.css so the family/density scopes land later in the
+// cascade. Kept out of global.css on purpose — see that file's header: the
+// generator's patchThemeBlock() regex-matches token declarations across the
+// whole of global.css, so redeclaring them there would weaken its
+// fail-closed check.
+import '@/styles/design-system.css';
 import { getSecret } from 'astro:env/server';
+import { design } from '@/data/design';
 
 interface Props {
   title: string;
@@ -68,7 +75,13 @@ const clarityId = import.meta.env.PROD ? getSecret('PUBLIC_CLARITY_PROJECT_ID') 
       </script>
     )}
   </head>
-  <body>
+  <!-- Design System Fase 3: the DesignSpec's `design.family` / `design.density`
+       become real CSS scopes here. global.css redefines @theme tokens under
+       [data-design-family] and the Tailwind v4 `--spacing` base under
+       [data-density], so every downstream utility shifts without a single
+       component edit. Attributes are emitted ALWAYS (never conditionally) so
+       the rendered markup is a pure function of the spec. -->
+  <body data-design-family={design.design.family} data-density={design.design.density}>
     <slot />
   </body>
 </html>

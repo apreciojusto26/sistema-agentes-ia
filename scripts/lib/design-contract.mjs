@@ -225,11 +225,75 @@ function collectThemeIssues(theme) {
           path: `theme.${group}.${key}`,
           message: `theme.${group}.${key} must be a non-empty string value, got ${JSON.stringify(value)}`,
         });
+        continue;
       }
+
+      issues.push(...collectTokenFormatIssues(group, key, value));
     }
   }
 
   return issues;
+}
+
+/**
+ * Value-FORMAT rules for the non-`text` theme groups.
+ *
+ * WHY THIS EXISTS (a real defect, not a hypothetical): the group/key checks
+ * above accepted `theme.radius.card = "pill"` and `theme.shadow.card = "lift"`
+ * — the model used TOKEN NAMES as VALUES. Both passed the contract, and
+ * `patchThemeBlock()` wrote `--radius-card: pill;` into global.css. That is an
+ * invalid declaration: the browser drops it and every card renders with no
+ * radius at all, with no error anywhere. A validated document producing a
+ * silently degraded page is exactly the failure mode this contract exists to
+ * prevent, so the check is fail-closed like every other one here.
+ *
+ * DELIBERATELY NARROW. These patterns cover the formats the system ALREADY
+ * admits — the shapes actually present in the template's `@theme` block — and
+ * nothing more. This is not a CSS parser and must not grow into one; a value
+ * that is well-formed but ugly is a taste question, judged elsewhere.
+ */
+const CSS_LENGTH = String.raw`(?:0|[+-]?\d*\.?\d+(?:px|rem|em|%|vh|vw|ch|ex|pt))`;
+
+const TOKEN_VALUE_RULES = {
+  // Hex (the only form the template uses) plus the standard colour functions,
+  // so a legitimate `rgb()/oklch()/color-mix()` is never rejected.
+  colors: {
+    test: (v) => /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(v) ||
+      /^(?:rgba?|hsla?|oklch|oklab|lab|lch|color-mix|color)\(.+\)$/i.test(v),
+    expected: 'a hex colour (#RGB, #RRGGBB, #RRGGBBAA) or a CSS colour function such as rgb()/oklch()/color-mix()',
+  },
+  // A font stack: either quoted family names / a comma-separated list, or a
+  // bare generic family. Rejects a lone bare word like "display".
+  fonts: {
+    test: (v) => /[",]/.test(v) ||
+      /^(?:ui-)?(?:serif|sans-serif|monospace|system-ui|cursive|fantasy|ui-sans-serif|ui-monospace|ui-rounded)$/i.test(v.trim()),
+    expected: 'a font stack (e.g. \'"Inter Variable", ui-sans-serif, system-ui, sans-serif\') or a generic family keyword',
+  },
+  radius: {
+    test: (v) => new RegExp(`^${CSS_LENGTH}$`, 'i').test(v.trim()) || /^calc\(.+\)$/i.test(v.trim()),
+    expected: 'a CSS length such as 0, 0.5rem, 12px, 50% or 999px',
+  },
+  // `none` or something carrying at least one real offset length. Catches
+  // "lift"/"card" without pretending to parse the full box-shadow grammar.
+  shadow: {
+    test: (v) => /^none$/i.test(v.trim()) || new RegExp(CSS_LENGTH, 'i').test(v),
+    expected: 'a CSS box-shadow such as "0 2px 10px -3px rgb(30 33 36 / 0.10)", or "none"',
+  },
+};
+
+function collectTokenFormatIssues(group, key, value) {
+  const rule = TOKEN_VALUE_RULES[group];
+  if (!rule || rule.test(value)) return [];
+
+  return [
+    {
+      code: 'theme-token-format',
+      path: `theme.${group}.${key}`,
+      message:
+        `theme.${group}.${key} = ${JSON.stringify(value)} is not a valid CSS value for --${group === 'colors' ? 'color' : group}-${key}. ` +
+        `Expected ${rule.expected}. A token NAME is not a value — writing it would emit an invalid declaration the browser silently drops.`,
+    },
+  ];
 }
 
 /** A `text` token is a {size, lineHeight, letterSpacing} triple — exactly what patchThemeBlock() consumes. */
@@ -262,6 +326,28 @@ function collectTextTokenIssues(key, value) {
         code: 'theme-text-invalid',
         path: `theme.text.${key}.${field}`,
         message: `theme.text.${key}.${field} must be a non-empty string, got ${JSON.stringify(value[field])}`,
+      });
+      continue;
+    }
+
+    // Same defect class as the radius/shadow gap above: a non-empty string is
+    // not necessarily a valid CSS value. `lineHeight` is the one field that is
+    // legitimately unitless ("1.05"), so it is checked separately.
+    const raw = value[field].trim();
+    const ok =
+      field === 'lineHeight'
+        ? /^[+-]?\d*\.?\d+$/.test(raw) || new RegExp(`^${CSS_LENGTH}$`, 'i').test(raw)
+        : new RegExp(`^${CSS_LENGTH}$`, 'i').test(raw) || /^calc\(.+\)$/i.test(raw) || /^normal$/i.test(raw);
+
+    if (!ok) {
+      issues.push({
+        code: 'theme-token-format',
+        path: `theme.text.${key}.${field}`,
+        message:
+          `theme.text.${key}.${field} = ${JSON.stringify(value[field])} is not a valid CSS value. ` +
+          (field === 'lineHeight'
+            ? 'Expected a unitless number (1.05) or a length (1.5rem).'
+            : 'Expected a length such as 2.5rem, 16px or -0.02em.'),
       });
     }
   }

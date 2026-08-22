@@ -54,6 +54,10 @@ export type DesignIssueCode =
   | 'theme-group-not-object'
   | 'theme-unknown-token'
   | 'theme-token-invalid'
+  /** The value is a non-empty string but not a valid CSS value for that token
+   * (e.g. `radius.card: "pill"` — a token NAME used as a value, which would
+   * emit a declaration the browser silently drops). */
+  | 'theme-token-format'
   | 'theme-text-invalid'
   | 'sections-not-array'
   | 'section-not-object'

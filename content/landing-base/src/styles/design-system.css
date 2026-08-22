@@ -1,0 +1,178 @@
+/* Design System Fase 3 — `design.family` and `design.density` become visual.
+ *
+ * Until Fase 3 both fields validated against the contract and were read by
+ * NOTHING: a spec with family:'luxury' rendered byte-identically to one with
+ * family:'minimal'. Base.astro now emits them as attributes on <body> and
+ * these rules give them consequence.
+ *
+ * WHY THIS IS A SEPARATE FILE AND NOT PART OF global.css — LOAD-BEARING:
+ * `patchThemeBlock()` in scripts/generate-landing.mjs tests each token with
+ * `new RegExp('--color-rust:\\s*[^;]+;')` against the WHOLE text of
+ * global.css, not just its `@theme` block, and rewrites the FIRST match.
+ * Declaring the same custom properties anywhere in that file would make a
+ * token look "patchable" even after it was removed from `@theme`, silently
+ * weakening the strict-mode fail-closed guarantee — the regression is real
+ * and was caught by `contract.generate-landing.test.ts`'s
+ * "unpatchable strict token leaves no final output". Keeping every family
+ * override in a separate stylesheet leaves global.css exactly as the patcher
+ * assumes it to be.
+ *
+ * HOW IT WORKS — two levers, zero component edits:
+ *
+ * 1. FAMILY re-declares @theme tokens. Tailwind v4 compiles every utility as
+ *    a var reference (`.bg-bone{background-color:var(--color-bone)}`), so
+ *    redefining the var under a scope re-skins every existing utility.
+ *
+ * 2. DENSITY re-declares Tailwind v4's `--spacing` base. EVERY spacing
+ *    utility compiles to `calc(var(--spacing) * N)` — verified in the built
+ *    stylesheet: `.py-12{padding-block:calc(var(--spacing) * 12)}`. Scaling
+ *    the base scales padding, margin AND gap proportionally, so the sections'
+ *    deliberate relative rhythm survives instead of being flattened by a
+ *    blunt per-section override.
+ *
+ * Selectors are `body[...]` (specificity 0,1,1) so they beat `@theme`'s
+ * `:root` (0,1,0) regardless of source order after Tailwind hoisting.
+ *
+ * `premium` / `balanced` declare NOTHING on purpose: they are the template's
+ * own baseline, so the default DesignSpec keeps rendering exactly as before.
+ *
+ * Every value the contract accepts is implemented here — all 9 families and
+ * all 3 densities. A family that validated but produced no visual change
+ * would be precisely the silent fallback this system forbids.
+ */
+
+/* --- density: scales the whole spacing system ---------------------------- */
+body[data-density="compact"] { --spacing: 0.205rem; }
+body[data-density="airy"]    { --spacing: 0.305rem; }
+/* balanced: baseline 0.25rem — deliberately not redeclared. */
+
+/* --- families ------------------------------------------------------------ */
+/* premium: the template baseline — deliberately not redeclared. */
+
+/* minimal — ink on paper: no ornament, square edges, shadows removed. */
+body[data-design-family="minimal"] {
+  --color-rust:       #2A2E33;
+  --color-rust-dark:  #1E2124;
+  --color-rust-tint:  #F2F0EC;
+  --color-gold:       #8A9096;
+  --color-gold-tint:  #F2F0EC;
+  --color-bone:       #FCFBF9;
+  --color-bone-dim:   #F2F0EC;
+  --radius-card:      0.25rem;
+  --radius-tile:      0.125rem;
+  --radius-pill:      0.25rem;
+  --shadow-card:      none;
+  --shadow-lift:      0 1px 2px 0 rgb(30 33 36 / 0.08);
+  --shadow-sticky:    0 -1px 2px 0 rgb(30 33 36 / 0.08);
+}
+
+/* editorial — magazine: serif display, tall headlines, hairline edges. */
+body[data-design-family="editorial"] {
+  --font-display:     ui-serif, Georgia, Cambria, "Times New Roman", serif;
+  --color-rust:       #7A2E2E;
+  --color-rust-dark:  #591F1F;
+  --color-rust-tint:  #F6EDEA;
+  --color-bone:       #FBF8F2;
+  --color-bone-dim:   #F0E9DC;
+  --text-hero:        3rem;
+  --text-display:     2.25rem;
+  --radius-card:      0.375rem;
+  --radius-tile:      0.25rem;
+  --shadow-card:      none;
+}
+
+/* ecommerce — bright, high-contrast, conversion-first. */
+body[data-design-family="ecommerce"] {
+  --color-rust:       #E03E1A;
+  --color-rust-dark:  #B62F10;
+  --color-rust-tint:  #FFEDE7;
+  --color-gold:       #1B8F5A;
+  --color-gold-tint:  #E4F5EC;
+  --color-bone:       #FFFFFF;
+  --color-bone-dim:   #F3F5F7;
+  --radius-card:      0.75rem;
+  --radius-tile:      0.5rem;
+  --shadow-card:      0 1px 4px -1px rgb(30 33 36 / 0.14);
+  --shadow-lift:      0 10px 24px -10px rgb(30 33 36 / 0.30);
+}
+
+/* bold — maximum contrast, heavy geometry. */
+body[data-design-family="bold"] {
+  --color-rust:       #1E2124;
+  --color-rust-dark:  #000000;
+  --color-rust-tint:  #FFE94A;
+  --color-gold:       #FFD400;
+  --color-gold-tint:  #FFF6BF;
+  --color-bone:       #FFFFFF;
+  --color-bone-dim:   #FFE94A;
+  --radius-card:      2.25rem;
+  --radius-tile:      1.5rem;
+  --text-hero:        3.25rem;
+  --shadow-card:      0 3px 0 0 #1E2124;
+  --shadow-lift:      0 10px 0 -2px #1E2124;
+}
+
+/* tech — cool, precise, monospaced accents. */
+body[data-design-family="tech"] {
+  --font-display:     ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  --color-rust:       #2563EB;
+  --color-rust-dark:  #1D4ED8;
+  --color-rust-tint:  #E7EEFE;
+  --color-gold:       #06B6D4;
+  --color-gold-tint:  #E0F7FB;
+  --color-bone:       #F8FAFC;
+  --color-bone-dim:   #EDF1F6;
+  --color-graphite:   #0F172A;
+  --radius-card:      0.5rem;
+  --radius-tile:      0.375rem;
+  --shadow-card:      0 1px 3px 0 rgb(15 23 42 / 0.12);
+}
+
+/* soft — pastel, rounded, low contrast. */
+body[data-design-family="soft"] {
+  --color-rust:       #C77D9B;
+  --color-rust-dark:  #A65E7C;
+  --color-rust-tint:  #FBEFF4;
+  --color-gold:       #8FBFA8;
+  --color-gold-tint:  #EAF5EF;
+  --color-bone:       #FDF9F7;
+  --color-bone-dim:   #F6EEF1;
+  --color-graphite:   #3A3338;
+  --radius-card:      2rem;
+  --radius-tile:      1.5rem;
+  --shadow-card:      0 4px 16px -6px rgb(58 51 56 / 0.14);
+  --shadow-lift:      0 18px 40px -18px rgb(58 51 56 / 0.22);
+}
+
+/* energetic — vivid, warm, fast. */
+body[data-design-family="energetic"] {
+  --color-rust:       #F4511E;
+  --color-rust-dark:  #C93C10;
+  --color-rust-tint:  #FFEDE4;
+  --color-gold:       #FFB300;
+  --color-gold-tint:  #FFF3D6;
+  --color-bone:       #FFFCF7;
+  --color-bone-dim:   #FFF0E2;
+  --radius-card:      1.75rem;
+  --radius-tile:      1.25rem;
+  --text-hero:        2.875rem;
+  --shadow-lift:      0 16px 36px -14px rgb(244 81 30 / 0.38);
+}
+
+/* luxury — dark, gold, generous. */
+body[data-design-family="luxury"] {
+  --font-display:     ui-serif, Georgia, Cambria, "Times New Roman", serif;
+  --color-rust:       #B08D3F;
+  --color-rust-dark:  #8A6E2F;
+  --color-rust-tint:  #F7F1E2;
+  --color-gold:       #C9A227;
+  --color-gold-tint:  #F7EFD6;
+  --color-bone:       #F5F2EC;
+  --color-bone-dim:   #EAE4D8;
+  --color-graphite:   #14161A;
+  --color-graphite-soft: #1F2228;
+  --radius-card:      0.5rem;
+  --radius-tile:      0.25rem;
+  --shadow-card:      0 2px 14px -6px rgb(20 22 26 / 0.20);
+  --shadow-lift:      0 20px 44px -18px rgb(20 22 26 / 0.34);
+}
