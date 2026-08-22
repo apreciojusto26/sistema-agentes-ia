@@ -17,6 +17,7 @@ import { DEFAULT_ERRORS, ContentContractError, validateContent } from './lib/con
 import { checkDesignSupport } from './lib/design-contract.mjs';
 import { isProductId } from './lib/product-id.cjs';
 import { isShopifyHandle } from './lib/shopify-handle.mjs';
+import { writeLandingGitignore, initLandingRepo } from './lib/landing-scaffold.mjs';
 import { planAssets, materializeAssets, buildImagesModule, describeRejections, TEMPLATE_SLOT_KEYS } from './lib/asset-pipeline.mjs';
 import events from './lib/events.cjs';
 
@@ -365,6 +366,14 @@ function copyTemplate(dest) {
       const base = path.basename(src);
       if (EXCLUDE_DIRS.has(base) && statSync(src).isDirectory()) return false;
       if (EXCLUDE_FILES.has(base)) return false;
+      // The template's own contract tests are DEVELOPMENT artefacts of the
+      // generator, not part of a shipped landing. Copying them also broke
+      // portability outright: renderer.integration.test.ts imports a fixture
+      // from admin/test/fixtures/, a path that does not exist inside a
+      // landing, so `pnpm test` in a copied-out project failed on a file the
+      // operator never wrote.
+      if (/\.test\.(ts|tsx|mjs|js)$/.test(base)) return false;
+      if (base === 'test-fixtures' && statSync(src).isDirectory()) return false;
       return true;
     },
   });
@@ -633,10 +642,30 @@ function main() {
     }
   });
 
+  let repoResult = null;
+
   withStage('copy-template', () => {
     mkdirSync(outDir, { recursive: true });
     copyTemplate(outDir);
+
+    // Isolation & portability. Done INSIDE copy-template rather than as a new
+    // stage: materialising the project skeleton is exactly what this stage is,
+    // and a new stage would break the sequence pins in
+    // contract.generate-landing.test.ts for every existing caller.
+    //
+    // Without these two steps the landing sits inside the GENERATOR's working
+    // tree — `git rev-parse --show-toplevel` returns the generator's root, so
+    // `git add .` stages against the parent index and the folder cannot be
+    // pushed to its own repo or imported by Vercel on its own.
+    writeLandingGitignore(outDir);
+    repoResult = initLandingRepo(outDir);
   });
+
+  if (repoResult?.initialized) {
+    console.log('✓ landing initialised as its own git repository (branch main, no commit made)');
+  } else if (repoResult?.reason === 'already-a-repo') {
+    console.log('✓ landing already has its own .git — existing history left untouched');
+  }
 
   withStage('write-data', () => {
     writeFileSync(path.join(outDir, 'src/data/product.ts'), buildProductTs(input.product, args.shopifyHandle));
@@ -672,6 +701,17 @@ function main() {
   console.log(`✓ outputs/${args.slug} created from content/landing-base`);
 
   const todos = [];
+
+  // Reported, never swallowed: the landing still builds without its own repo,
+  // but it is NOT isolated — it resolves the parent's git root — and the
+  // operator has to know that before pushing it anywhere.
+  if (repoResult && !repoResult.initialized && repoResult.reason !== 'already-a-repo') {
+    console.warn(`  ! could not initialise the landing's own git repo — ${repoResult.reason}`);
+    todos.push(
+      `This landing has NO .git of its own (${repoResult.reason}). It currently resolves the PARENT repository, so ` +
+        `\`git add .\` inside it stages against the generator. Run \`git init -b main\` in outputs/${args.slug} before pushing it anywhere.`,
+    );
+  }
   let imagesAssets = [];
   let imagesUnmatched = [];
   let imagesSourceDir = null;
