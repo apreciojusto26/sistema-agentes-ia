@@ -10,6 +10,7 @@
 // without it there was no way to finish a run at all.
 import { useEffect, useState } from 'react';
 import AgentTimeline from './components/AgentTimeline';
+import PipelinePanel from './components/PipelinePanel';
 import GeneratorHero from './components/GeneratorHero';
 import GenerateSlugForm from './components/GenerateSlugForm';
 import { useJobs } from './http/useJobs';
@@ -200,6 +201,10 @@ export default function App() {
   return (
     <div className="flex min-h-screen flex-col">
       <GeneratorHero onRun={(url) => void runScrape(url)} running={scrapeRunning} submitError={scrapeError} />
+
+      {/* One-shot pipeline: form -> 8 real stages -> result -> preview. The
+          per-agent flow below stays for step-by-step operation. */}
+      <PipelinePanel />
 
       {contentDrift && (
         <p className="mx-auto mb-2 max-w-3xl px-4 text-center text-xs text-amber-600">{contentDrift}</p>
