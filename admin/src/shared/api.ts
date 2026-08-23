@@ -171,3 +171,9 @@ export type LastAttemptResponse = { present: false } | { present: true; attempt:
 export type StartPreviewRequest = { slug: string };
 
 export type StartPreviewResponse = { ok: true; url: string } | { ok: false; message: string };
+
+// ---------------------------------------------------------------------------
+// DELETE /api/preview — stop whatever preview server is currently running
+// ---------------------------------------------------------------------------
+
+export type StopPreviewResponse = { ok: true };

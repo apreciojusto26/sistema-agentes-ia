@@ -55,4 +55,13 @@
   --color-sidebar-ink: #f5f7fb; /* ~15.7:1 on surface */
   --color-sidebar-ink-soft: #9aa9bc; /* ~6.9:1 on surface */
   --color-sidebar-heading: #6b7aa8; /* ~5.5:1 on surface — small uppercase label */
+
+  /* --- Brand accent (NEW — generator hero icon/CTA). Deliberately its own
+     token, not a reuse of agent-content — it labels the app's single
+     top-level action (start a run), not any one agent, so naming it "brand"
+     avoids a future reader assuming the hero button is somehow the content
+     agent's. Same violet hue/contrast as agent-content (7.10:1 on white),
+     reused rather than re-derived since it's already AA-verified. --------- */
+  --color-brand: #6d28d9;
+  --color-brand-tint: #f3eeff;
 }

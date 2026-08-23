@@ -1,24 +1,24 @@
-// Batch F wiring (design §1 tree: App.tsx assembles sidebar + detail panels
-// + OverwriteConfirmDialog). Consumes useJobs/useJobStream against Batch E's
-// real API surface — no mocked backend. REPLACES Batch A's scaffolding
-// placeholder.
-import { useEffect, useMemo, useState } from 'react';
-import AgentSidebar from './components/AgentSidebar';
-import type { SidebarItem } from './components/AgentSidebarItem';
-import ScrapeAgentPanel from './components/detail/ScrapeAgentPanel';
-import CodeAgentPanel from './components/detail/CodeAgentPanel';
-import ContentAgentPanel from './components/detail/ContentAgentPanel';
-import OverwriteConfirmDialog from './components/OverwriteConfirmDialog';
-import JobHistory from './components/JobHistory';
+// Hero + AgentTimeline layout (mockup-driven redesign — replaces the earlier
+// sidebar + per-agent detail-panel shell from Batch F). Consumes the same
+// useJobs/useJobStream real API surface as before; nothing about the data
+// flow changed, only which components render it. ScrapeAgentPanel/
+// CodeAgentPanel/ContentAgentPanel/AgentSidebar/JobHistory still exist as
+// files but are no longer wired in here — "cancelar" and the manual
+// content.json paste flow (ContentAgentPanel's onSubmitRaw/onDeleteStaged/
+// onCopyLastAttempt) have no reachable UI after this change; only the
+// 'generate' trigger got a minimal replacement (GenerateSlugForm), since
+// without it there was no way to finish a run at all.
+import { useEffect, useState } from 'react';
+import AgentTimeline from './components/AgentTimeline';
+import GeneratorHero from './components/GeneratorHero';
+import GenerateSlugForm from './components/GenerateSlugForm';
 import { useJobs } from './http/useJobs';
 import { useJobStream } from './http/useJobStream';
 import * as api from './http/client';
 import type { ContentStageState } from '../shared/content-stage';
 import type { OverwriteConfirmationRequired } from '../shared/api';
 import type { JobRecord } from '../shared/jobs';
-import { assertNever } from '../shared/assert-never';
-
-type PanelId = 'scrape' | 'content' | 'generate';
+import OverwriteConfirmDialog from './components/OverwriteConfirmDialog';
 
 function latestJobOfKind(jobs: JobRecord[], kind: JobRecord['kind']): JobRecord | null {
   // registry.list() is already sorted newest-first (per Batch E's
@@ -28,14 +28,12 @@ function latestJobOfKind(jobs: JobRecord[], kind: JobRecord['kind']): JobRecord 
 
 export default function App() {
   const { jobs, refresh: refreshJobs } = useJobs();
-  const [selected, setSelected] = useState<PanelId>('scrape');
 
   const [scrapeJobId, setScrapeJobId] = useState<string | null>(null);
   const [generateJobId, setGenerateJobId] = useState<string | null>(null);
   const [contentJobId, setContentJobId] = useState<string | null>(null);
   const [scrapeError, setScrapeError] = useState<string | null>(null);
   const [generateError, setGenerateError] = useState<string | null>(null);
-  const [contentError, setContentError] = useState<string | null>(null);
   const [pendingOverwrite, setPendingOverwrite] = useState<{
     slug: string;
     details: OverwriteConfirmationRequired;
@@ -140,16 +138,6 @@ export default function App() {
 
   const scrapeRunning = scrapeJob?.status === 'running' || scrapeJob?.status === 'queued';
   const generateRunning = generateJob?.status === 'running' || generateJob?.status === 'queued';
-  const contentRunning = contentJob?.status === 'running' || contentJob?.status === 'queued';
-
-  const sidebarItems: SidebarItem[] = useMemo(
-    () => [
-      { id: 'scrape', kind: 'agent', identity: 'scrape', job: scrapeJob ?? null },
-      { id: 'content', kind: 'assisted', identity: 'content', job: contentJob ?? null, state: contentState },
-      { id: 'generate', kind: 'agent', identity: 'generate', job: generateJob ?? null },
-    ],
-    [scrapeJob, generateJob, contentJob, contentState],
-  );
 
   async function runScrape(url: string) {
     setScrapeError(null);
@@ -192,7 +180,6 @@ export default function App() {
   }
 
   async function runContent(scrapeJobIdArg: string, instructions: string) {
-    setContentError(null);
     const res = await api.createJob({
       kind: 'content',
       scrapeJobId: scrapeJobIdArg,
@@ -201,148 +188,52 @@ export default function App() {
     if (res.ok) {
       setContentJobId(res.job.jobId);
       void refreshJobs();
-      return;
     }
-    setContentError('message' in res.error ? res.error.message : JSON.stringify(res.error));
-  }
-
-  async function copyLastContentAttempt() {
-    if (!contentJob) return;
-    const res = await api.getLastContentAttempt(contentJob.jobId);
-    if (res.present) void submitContentRaw(res.text);
-  }
-
-  async function submitContentRaw(raw: string) {
-    setContentState({ kind: 'received', raw });
-    const validation = await api.validateContent({ raw });
-
-    if (!validation.ok) {
-      if ('parseError' in validation) {
-        setContentState({ kind: 'unparseable', raw, parseError: validation.parseError });
-      } else {
-        setContentState({ kind: 'invalid', raw, issues: validation.issues });
-      }
-      return;
-    }
-
-    const staged = await api.putStagedContent({ raw });
-    if ('ok' in staged && staged.ok) {
-      setContentState({
-        kind: 'validated',
-        path: staged.path,
-        sha256: staged.sha256,
-        bytes: staged.bytes,
-        savedAt: staged.savedAt,
-        summary: validation.summary,
-      });
-      setContentDrift(null);
-    } else if ('parseError' in staged) {
-      setContentState({ kind: 'unparseable', raw, parseError: staged.parseError });
-    } else if ('issues' in staged) {
-      setContentState({ kind: 'invalid', raw, issues: staged.issues });
-    }
-  }
-
-  async function cancelRun(jobId: string) {
-    await api.cancelJob(jobId);
-    void refreshJobs();
-  }
-
-  async function deleteContent() {
-    await api.deleteStagedContent();
-    setContentState({ kind: 'idle' });
-    setContentDrift(null);
+    // A failure here (the createJob call itself, not the job later failing)
+    // has no reachable display since ContentAgentPanel was removed — content
+    // generation is now fully automatic, with no manual retry UI. Rare in
+    // practice (would mean a network/500 at the moment of auto-chaining
+    // right after a scrape succeeds), left as a known gap rather than adding
+    // a new error surface beyond what this batch's scope asked for.
   }
 
   return (
-    <div className="flex h-screen flex-col">
-      <header className="flex items-center justify-between border-b border-hairline px-4 py-2">
-        <h1 className="text-lg font-semibold text-ink">Generador de landings</h1>
-      </header>
+    <div className="flex min-h-screen flex-col">
+      <GeneratorHero onRun={(url) => void runScrape(url)} running={scrapeRunning} submitError={scrapeError} />
 
-      <div className="flex flex-1 overflow-hidden">
-        <AgentSidebar items={sidebarItems} selectedId={selected} onSelect={(id) => setSelected(id as PanelId)} />
+      {contentDrift && (
+        <p className="mx-auto mb-2 max-w-3xl px-4 text-center text-xs text-amber-600">{contentDrift}</p>
+      )}
 
-        <main className="flex-1 overflow-y-auto p-4">
-          {contentDrift && <p className="mb-3 text-xs text-amber-600">{contentDrift}</p>}
-
-          {pendingOverwrite && (
-            <div className="mb-4">
-              <OverwriteConfirmDialog
-                details={pendingOverwrite.details}
-                onCancel={() => setPendingOverwrite(null)}
-                onConfirm={(token) => void runGenerate(pendingOverwrite.slug, token)}
+      <AgentTimeline
+        steps={[
+          { identity: 'scrape', job: scrapeJob ?? null },
+          { identity: 'content', job: contentJob ?? null },
+          {
+            identity: 'generate',
+            job: generateJob ?? null,
+            extra: (
+              <GenerateSlugForm
+                job={generateJob ?? null}
+                onRun={(slug) => void runGenerate(slug)}
+                running={!!generateRunning}
+                contentReady={contentState.kind === 'validated'}
+                submitError={generateError}
               />
-            </div>
-          )}
+            ),
+          },
+        ]}
+      />
 
-          {selected === 'content' && (
-            <ContentAgentPanel
-              job={contentJob ?? null}
-              logs={contentStream.logs}
-              scrapeJobId={scrapeJob?.status === 'succeeded' ? scrapeJob.jobId : null}
-              onRun={(scrapeJobIdArg, instructions) => void runContent(scrapeJobIdArg, instructions)}
-              onCancel={() => contentJob && void cancelRun(contentJob.jobId)}
-              running={!!contentRunning}
-              submitError={contentError}
-              contentState={contentState}
-              onSubmitRaw={(raw) => void submitContentRaw(raw)}
-              onDeleteStaged={() => void deleteContent()}
-              onCopyLastAttempt={() => void copyLastContentAttempt()}
-            />
-          )}
-
-          {selected === 'scrape' && (
-            <ScrapeAgentPanel
-              job={scrapeJob ?? null}
-              logs={scrapeStream.logs}
-              onRun={(url) => void runScrape(url)}
-              onCancel={() => scrapeJob && void cancelRun(scrapeJob.jobId)}
-              running={!!scrapeRunning}
-              submitError={scrapeError}
-            />
-          )}
-
-          {selected === 'generate' && (
-            <CodeAgentPanel
-              job={generateJob ?? null}
-              logs={generateStream.logs}
-              onRun={(slug) => void runGenerate(slug)}
-              onCancel={() => generateJob && void cancelRun(generateJob.jobId)}
-              running={!!generateRunning}
-              contentReady={contentState.kind === 'validated'}
-              submitError={generateError}
-            />
-          )}
-
-          <div className="mt-8">
-            <h3 className="mb-2 text-sm font-semibold text-ink-soft">Historial de ejecuciones</h3>
-            <JobHistory
-              jobs={jobs}
-              onSelect={(jobId) => {
-                const job = jobs.find((j) => j.jobId === jobId);
-                if (!job) return;
-                switch (job.kind) {
-                  case 'scrape':
-                    setScrapeJobId(jobId);
-                    setSelected('scrape');
-                    break;
-                  case 'generate':
-                    setGenerateJobId(jobId);
-                    setSelected('generate');
-                    break;
-                  case 'content':
-                    setContentJobId(jobId);
-                    setSelected('content');
-                    break;
-                  default:
-                    assertNever(job.kind);
-                }
-              }}
-            />
-          </div>
-        </main>
-      </div>
+      {pendingOverwrite && (
+        <div className="mx-auto mb-8 w-full max-w-3xl px-4">
+          <OverwriteConfirmDialog
+            details={pendingOverwrite.details}
+            onCancel={() => setPendingOverwrite(null)}
+            onConfirm={(token) => void runGenerate(pendingOverwrite.slug, token)}
+          />
+        </div>
+      )}
     </div>
   );
 }

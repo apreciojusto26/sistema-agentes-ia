@@ -23,6 +23,7 @@ import type {
   LastAttemptResponse,
   StartPreviewRequest,
   StartPreviewResponse,
+  StopPreviewResponse,
 } from '../../shared/api';
 
 /** Thrown for a network-level failure (fetch itself rejected) or a response body that failed to parse as JSON. */
@@ -174,4 +175,8 @@ export function getLastContentAttempt(jobId: string): Promise<LastAttemptRespons
 
 export function startPreview(slug: string): Promise<StartPreviewResponse> {
   return requestJson('/api/preview', { method: 'POST', body: JSON.stringify({ slug } satisfies StartPreviewRequest) });
+}
+
+export function stopPreview(): Promise<StopPreviewResponse> {
+  return requestJson('/api/preview', { method: 'DELETE' });
 }

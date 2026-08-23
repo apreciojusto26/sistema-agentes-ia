@@ -2,8 +2,8 @@
 // routes/jobs.ts's generate validation (SLUG_RE) — slug becomes a real
 // filesystem path + spawn cwd here too, so it gets the identical check.
 import type { FastifyInstance } from 'fastify';
-import { startPreview } from '../preview';
-import type { StartPreviewRequest, StartPreviewResponse } from '../../shared/api';
+import { startPreview, stopPreview } from '../preview';
+import type { StartPreviewRequest, StartPreviewResponse, StopPreviewResponse } from '../../shared/api';
 
 const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
@@ -23,5 +23,13 @@ export function registerPreviewRoutes(app: FastifyInstance): void {
       reply.code(500);
       return { ok: false, message: err instanceof Error ? err.message : String(err) };
     }
+  });
+
+  // Client-driven: fired when the tab showing the preview closes (see
+  // GenerateSlugForm's window.closed polling). Idempotent — stopPreview()
+  // already no-ops when nothing is running.
+  app.delete('/api/preview', async (): Promise<StopPreviewResponse> => {
+    stopPreview();
+    return { ok: true };
   });
 }
