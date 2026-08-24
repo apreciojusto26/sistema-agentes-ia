@@ -18,6 +18,14 @@
 // state — those components take no props and no compatibility rules have been
 // established yet. They are not placeholders to be filled with guesses; they
 // get narrowed only when a real capability is built.
+//
+// `requiresData` (Design Integrity fase) obeys the SAME honesty rule: every
+// requirement below was read off the component's own source. A capability
+// declares a requirement only where a real selector would come back empty.
+// `10-reviews-reel.astro` does `.filter(t => t.variant === 'reel')`, so it
+// declares `testimonials:reel`; `12-guarantee.astro` reads nothing
+// collection-shaped, so it declares nothing. Do not add a requirement to look
+// thorough — an unfounded one rejects a landing that would have rendered.
 
 /** agents.MD §5.1. Semantic dimension only in v1 — no family-specific visual system exists yet. */
 export const DESIGN_FAMILIES = [
@@ -87,17 +95,17 @@ export const REGISTRY = [
   // The 11 original sections, unchanged and still registered. They take no
   // props and live under src/components/sections/ (a path the scope-boundaries
   // guardrail protects — they are read and rendered, never modified).
-  legacy('hero', 'Hero', '@/components/sections/03-hero.astro'),
-  legacy('media', 'GalleryStrip', '@/components/sections/04-gallery-strip.astro'),
+  legacy('hero', 'Hero', '@/components/sections/03-hero.astro', ['product.gallery']),
+  legacy('media', 'GalleryStrip', '@/components/sections/04-gallery-strip.astro', ['product.gallery']),
   legacy('conversion', 'BuyBox', '@/components/sections/05-buy-box.astro'),
-  legacy('product', 'HowItWorks', '@/components/sections/06-how-it-works.astro'),
-  legacy('socialProof', 'FeaturedTestimonial', '@/components/sections/07-featured-testimonial.astro'),
-  legacy('conversion', 'Faq', '@/components/sections/08-faq.astro'),
-  legacy('socialProof', 'UgcStrip', '@/components/sections/09-ugc-strip.astro'),
-  legacy('socialProof', 'ReviewsReel', '@/components/sections/10-reviews-reel.astro'),
-  legacy('product', 'Comparison', '@/components/sections/11-comparison.astro'),
+  legacy('product', 'HowItWorks', '@/components/sections/06-how-it-works.astro', ['product.steps']),
+  legacy('socialProof', 'FeaturedTestimonial', '@/components/sections/07-featured-testimonial.astro', ['testimonials:quote']),
+  legacy('conversion', 'Faq', '@/components/sections/08-faq.astro', ['faq']),
+  legacy('socialProof', 'UgcStrip', '@/components/sections/09-ugc-strip.astro', ['product.ugc']),
+  legacy('socialProof', 'ReviewsReel', '@/components/sections/10-reviews-reel.astro', ['testimonials:reel']),
+  legacy('product', 'Comparison', '@/components/sections/11-comparison.astro', ['product.comparison']),
   legacy('conversion', 'Guarantee', '@/components/sections/12-guarantee.astro'),
-  legacy('socialProof', 'RealResults', '@/components/sections/13-real-results.astro'),
+  legacy('socialProof', 'RealResults', '@/components/sections/13-real-results.astro', ['product.ugc']),
 
   // --- DESIGN SYSTEM building blocks (Fase 2 vertical slice) ---------------
   // Props-driven derivations living under src/design-system/blocks/. Each one
@@ -111,13 +119,14 @@ export const REGISTRY = [
   // Content Agent owns what is said, the Design Agent owns how it is composed.
   block('hero', 'ProductHero', 'split', '@/design-system/blocks/hero/ProductHero/Split.astro', {
     align: { type: 'string', enum: ['left', 'center'] },
-  }),
+  }, ['product.gallery']),
   block('socialProof', 'FeaturedQuote', 'default', '@/design-system/blocks/social-proof/FeaturedQuote/Default.astro', {
     tone: { type: 'string', enum: ['light', 'muted'] },
-  }),
+  }, ['testimonials:quote']),
   block('conversion', 'ProductGuarantee', 'default', '@/design-system/blocks/conversion/ProductGuarantee/Default.astro', {
     tone: { type: 'string', enum: ['gold', 'plain'] },
   }),
+
 ];
 
 /**
@@ -126,7 +135,7 @@ export const REGISTRY = [
  * invariant is structural — there is exactly one place a constraint could be
  * introduced for these, and it would be a deliberate edit.
  */
-function legacy(category, type, component) {
+function legacy(category, type, component, requiresData = []) {
   return {
     category,
     type,
@@ -136,6 +145,7 @@ function legacy(category, type, component) {
     familiesAllowed: '*',
     densityAllowed: '*',
     incompatibleWith: [],
+    requiresData,
   };
 }
 
@@ -146,7 +156,7 @@ function legacy(category, type, component) {
  * only thing these add over `legacy()` is a REAL props contract backed by a
  * real rendering difference in the component.
  */
-function block(category, type, variant, component, propsSchema) {
+function block(category, type, variant, component, propsSchema, requiresData = []) {
   return {
     category,
     type,
@@ -156,6 +166,7 @@ function block(category, type, variant, component, propsSchema) {
     familiesAllowed: '*',
     densityAllowed: '*',
     incompatibleWith: [],
+    requiresData,
   };
 }
 
@@ -193,4 +204,55 @@ export function resolveCapability(category, type, variant, registry = REGISTRY) 
 /** Canonical `category/type/variant` string used in errors and missingCapability. */
 export function capabilityKey(category, type, variant) {
   return `${category}/${type}/${variant}`;
+}
+
+// --- data-aware capability resolution -------------------------------------
+//
+// A capability may only be composed into a landing when the CONTENT can
+// actually feed it. Before this existed the chain failed in the worst possible
+// place: the DesignSpec validated, generation succeeded, `astro build`
+// succeeded, `validate` passed on six existsSync() calls, and the operator
+// discovered the hole by LOOKING at the page — a dark band with carousel
+// arrows around an empty track.
+//
+// The grammar is deliberately tiny and fully general, so no capability is ever
+// special-cased in an agent:
+//
+//   "faq"                -> content.faq            must be a non-empty array
+//   "product.ugc"        -> content.product.ugc    must be a non-empty array
+//   "testimonials:reel"  -> content.testimonials   must contain >= 1 entry
+//                                                  whose `variant` is "reel"
+//
+// `<dot.path>` selects; the optional `:<variant>` filters by the `variant`
+// discriminator. Adding a requirement is a one-token registry edit; it needs
+// no change here, in design-contract.mjs, or in generate-design.mjs.
+
+/** Walks a dot-path. Returns undefined for any missing link — never throws. */
+function readPath(root, dotPath) {
+  return dotPath.split('.').reduce((node, key) => (node == null ? undefined : node[key]), root);
+}
+
+/**
+ * Is one requirement satisfied by this content.json?
+ *
+ * NON-EMPTY is the bar, not "present". Every `product.*` path used here is
+ * already in REQUIRED_PRODUCT_FIELDS, so presence proves nothing: an empty
+ * array passes the content contract and still renders an empty section.
+ */
+export function isRequirementMet(requirement, content) {
+  if (!content) return true; // nothing to judge against — see checkDesignSupport
+  const [dotPath, variant] = String(requirement).split(':');
+  const value = readPath(content, dotPath);
+  if (!Array.isArray(value)) return false;
+  if (variant === undefined) return value.length > 0;
+  return value.some((item) => item && item.variant === variant);
+}
+
+/**
+ * The requirements this capability declares that the content does NOT meet.
+ * Empty array = composable. Never throws on a malformed entry or content.
+ */
+export function unmetRequirements(entry, content) {
+  if (!entry || !Array.isArray(entry.requiresData)) return [];
+  return entry.requiresData.filter((req) => !isRequirementMet(req, content));
 }

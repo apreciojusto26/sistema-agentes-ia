@@ -107,7 +107,11 @@ export interface Testimonial {
   body: string;
   verified: boolean;
   media?: MediaRef;
-  variant: 'quote' | 'card' | 'reel'; // featured | ugc grid | dark carousel
+  // Only variants a component actually SELECTS live here. 'card' was removed:
+  // nothing in this template ever read it. Mirrors TESTIMONIAL_VARIANTS in
+  // scripts/lib/content-contract.mjs (contract.testimonial-variants.test.ts
+  // keeps the two honest).
+  variant: 'quote' | 'reel'; // featured block | dark carousel
 }
 
 export interface FaqItem {

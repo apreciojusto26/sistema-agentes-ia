@@ -37,6 +37,7 @@ import {
   listCategories,
   listTypes,
   listVariants,
+  unmetRequirements,
 } from './design-registry.mjs';
 
 /** The only schema version this contract understands. Bump = a new, reviewed migration. */
@@ -56,6 +57,16 @@ export const UNSUPPORTED_CAPABILITY_CODES = [
   'section-unknown-type',
   'section-unknown-variant',
 ];
+
+/**
+ * Deliberately NOT in UNSUPPORTED_CAPABILITY_CODES. An unsupported capability
+ * means the design system cannot express the request at all — the fix is to
+ * choose a different capability, forever. `section-unsatisfied-data` means the
+ * capability is real and registered but THIS content cannot feed it: the same
+ * spec against richer content would be perfectly valid. Collapsing the two
+ * would tell the Design Agent to stop using a section that is not broken.
+ */
+export const UNSATISFIED_DATA_CODE = 'section-unsatisfied-data';
 
 export class DesignContractError extends Error {
   constructor(message, { code, path } = {}) {
@@ -635,7 +646,7 @@ function collectStructuralIssues(sections, registry) {
  * registry truthfully does not declare yet — the fixture never leaks into
  * production capabilities.
  */
-export function collectDesignErrors(input, registry = REGISTRY) {
+export function collectDesignErrors(input, registry = REGISTRY, content = null) {
   const issues = [...collectTopLevelIssues(input)];
 
   if (!isPlainObject(input)) return issues;
@@ -644,6 +655,46 @@ export function collectDesignErrors(input, registry = REGISTRY) {
   if ('theme' in input) issues.push(...collectThemeIssues(input.theme));
   if ('sections' in input) issues.push(...collectSectionsIssues(input.sections, input.design, registry));
 
+  // Data-aware resolution. Runs LAST and only when content was supplied, so a
+  // caller with no content.json in hand (the template's own default spec, the
+  // shape-only contract tests) keeps the exact verdict it had before.
+  //
+  // Skipped entirely when the spec is already malformed: reporting "your
+  // ReviewsReel has no reel testimonials" on top of "sections is not an array"
+  // buries the real problem under a derived one.
+  if (content && issues.length === 0 && Array.isArray(input.sections)) {
+    issues.push(...collectDataRequirementIssues(input.sections, registry, content));
+  }
+
+  return issues;
+}
+
+/**
+ * One issue per (section, unmet requirement). The message names the capability
+ * AND the missing data, because it is fed verbatim back to the Design Agent as
+ * a correction turn — "it does not fit" is not actionable, "there are no
+ * testimonials with variant reel, pick another socialProof capability" is.
+ */
+function collectDataRequirementIssues(sections, registry, content) {
+  const issues = [];
+  sections.forEach((section, i) => {
+    if (!isPlainObject(section)) return;
+    const entry = resolveCapability(section.category, section.type, section.variant, registry);
+    if (!entry) return; // already reported as an unknown capability
+    const key = capabilityKey(section.category, section.type, section.variant);
+    for (const requirement of unmetRequirements(entry, content)) {
+      issues.push({
+        code: UNSATISFIED_DATA_CODE,
+        path: `sections[${i}]`,
+        capability: key,
+        requirement,
+        message:
+          `sections[${i}] uses "${key}", which requires content "${requirement}", ` +
+          `and this content.json does not provide it. The section would render visibly empty. ` +
+          `Choose a capability the content can feed, or drop this section.`,
+      });
+    }
+  });
   return issues;
 }
 
@@ -671,13 +722,25 @@ export function validateDesignSpec(input, registry = REGISTRY) {
  * There is NO fourth outcome. No fallback component, no nearest-variant
  * substitution, no best-effort render.
  */
-export function checkDesignSupport(input, registry = REGISTRY) {
-  const issues = collectDesignErrors(input, registry);
+export function checkDesignSupport(input, registry = REGISTRY, content = null) {
+  const issues = collectDesignErrors(input, registry, content);
   if (issues.length === 0) return { status: 'pass' };
 
   const missing = issues.find((issue) => UNSUPPORTED_CAPABILITY_CODES.includes(issue.code));
   if (missing) {
     return { status: 'unsupported_design', missingCapability: missing.capability, issues };
+  }
+
+  // Checked AFTER unsupported_design: a spec naming a capability that does not
+  // exist is the more fundamental problem, and its entry cannot be resolved to
+  // read requirements from anyway.
+  const unsatisfied = issues.filter((issue) => issue.code === UNSATISFIED_DATA_CODE);
+  if (unsatisfied.length > 0 && unsatisfied.length === issues.length) {
+    return {
+      status: 'unsatisfied_data',
+      unsatisfied: unsatisfied.map((i) => ({ capability: i.capability, requirement: i.requirement })),
+      issues,
+    };
   }
 
   return { status: 'invalid', issues };

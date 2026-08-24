@@ -34,6 +34,26 @@ export const REQUIRED_PRODUCT_FIELDS = ALLOWED_PRODUCT_FIELDS.filter((f) => f !=
 
 export const FAQ_FIELDS = ['id', 'question', 'answer'];
 export const TESTIMONIAL_REQUIRED_FIELDS = ['id', 'author', 'rating', 'date', 'body', 'verified', 'variant'];
+
+/**
+ * The testimonial variants the RENDERER actually consumes. Every entry here is
+ * backed by a real selector in a real component — verified repo-wide:
+ *
+ *   'quote' -> 07-featured-testimonial.astro          `.find(t => t.variant === 'quote')`
+ *              social-proof/FeaturedQuote/Default.astro  (same selector)
+ *   'reel'  -> 10-reviews-reel.astro                  `.filter(t => t.variant === 'reel')`
+ *
+ * `'card'` USED TO BE HERE and was removed: no component in the template or in
+ * any generated landing ever selected it. Three of the four testimonials the
+ * first live generation produced were `card` — perfectly contract-valid, and
+ * rendered by nothing. Data the system accepts but can never display is not a
+ * feature, it is a silent budget leak on every Gemini call.
+ *
+ * Adding a variant back here is only correct once a component selects it.
+ * This list drives THREE things — the enum check, the coverage rule, and the
+ * Content Agent's prompt — so it can never drift from what ships.
+ */
+export const TESTIMONIAL_VARIANTS = ['quote', 'reel'];
 export const TESTIMONIAL_ALL_FIELDS = ['id', 'author', 'location', 'rating', 'date', 'title', 'body', 'verified', 'variant'];
 
 export const DEFAULT_ERRORS = {
@@ -146,14 +166,38 @@ function collectTestimonialsIssues(testimonials) {
         fields: unknown,
       });
     }
-    if (!['quote', 'card', 'reel'].includes(item.variant)) {
+    if (!TESTIMONIAL_VARIANTS.includes(item.variant)) {
       issues.push({
         code: 'testimonial-bad-variant',
         path: `testimonials[${i}].variant`,
-        message: `testimonials[${i}].variant must be 'quote' | 'card' | 'reel', got "${item.variant}"`,
+        message: `testimonials[${i}].variant must be ${TESTIMONIAL_VARIANTS.map((v) => `'${v}'`).join(' | ')}, got "${item.variant}"`,
       });
     }
   });
+
+  // COVERAGE, not just membership. The enum check above accepts a set of
+  // testimonials that is 100% valid and still leaves a section empty: the
+  // first live generation returned 1 quote + 3 card + ZERO reel, so
+  // 10-reviews-reel.astro rendered its dark band, its wave dividers and its
+  // carousel arrows around an empty track. Membership was never the
+  // guarantee the renderer needed — coverage is.
+  //
+  // Emitted as a per-variant issue so the Content Agent's retry loop gets a
+  // correction it can act on ("falta reel"), not a vague rejection.
+  for (const variant of TESTIMONIAL_VARIANTS) {
+    if (!testimonials.some((t) => t.variant === variant)) {
+      issues.push({
+        code: 'testimonials-variant-uncovered',
+        path: 'testimonials',
+        message:
+          `content.json "testimonials" has no entry with variant "${variant}". ` +
+          `Every variant in the contract is rendered by a real section, so a missing one ` +
+          `ships a visibly empty section. Add at least one testimonial with variant "${variant}".`,
+        variant,
+      });
+    }
+  }
+
   return issues;
 }
 

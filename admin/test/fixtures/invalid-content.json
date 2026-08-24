@@ -267,24 +267,24 @@
       "variant": "quote"
     },
     {
-      "id": "t-card-1",
+      "id": "t-reel-1",
       "author": "Franco Bellido",
       "location": "Córdoba",
       "rating": 5,
       "date": "2026-06-22",
       "body": "Llegó bien embalada y la calidad del foam es notable. Duermo de costado y no pierde soporte.",
       "verified": true,
-      "variant": "card"
+      "variant": "reel"
     },
     {
-      "id": "t-card-2",
+      "id": "t-reel-2",
       "author": "Daniela Roust",
       "location": "Mendoza",
       "rating": 5,
       "date": "2026-07-01",
       "body": "La funda lavable es un golazo, la tenía re sucia con la almohada vieja.",
       "verified": true,
-      "variant": "card"
+      "variant": "reel"
     }
   ],
   "design": {

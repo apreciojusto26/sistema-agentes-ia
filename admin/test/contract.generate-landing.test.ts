@@ -395,11 +395,20 @@ describe('Group D — scripts/lib/content-contract.mjs unit tests (no spawn)', (
   });
 
   test('validateTestimonials throws the byte-identical bad-variant message', async () => {
-    const { validateTestimonials } = await loadContract();
+    // 'card' left the vocabulary in the Design integrity phase: nothing in the
+    // template or in any generated landing ever selected it, so it was data
+    // the system accepted and could never display. The message is now built
+    // from TESTIMONIAL_VARIANTS, which is also what the enum check, the
+    // coverage rule and the Content Agent's prompt read — so this assertion is
+    // written against that constant rather than re-typing the list, which
+    // would put the drift right back.
+    const { validateTestimonials, TESTIMONIAL_VARIANTS } = await loadContract();
+    expect(TESTIMONIAL_VARIANTS).toEqual(['quote', 'reel']);
+
     const item = { ...minimalContent.testimonials[1], variant: 'bad' };
-    expect(() => validateTestimonials([item])).toThrowError(
-      'testimonials[0].variant must be \'quote\' | \'card\' | \'reel\', got "bad"',
-    );
+    const expected = `testimonials[0].variant must be ${TESTIMONIAL_VARIANTS.map((v: string) => `'${v}'`).join(' | ')}, got "bad"`;
+    expect(expected).toBe('testimonials[0].variant must be \'quote\' | \'reel\', got "bad"');
+    expect(() => validateTestimonials([item])).toThrowError(expected);
   });
 
   test('validateContent throws the byte-identical missing-top-level message', async () => {

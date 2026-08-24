@@ -45,6 +45,16 @@ export interface RegistryEntry {
   densityAllowed: '*' | DesignDensity[];
   /** Canonical `category/type/variant` keys this capability cannot coexist with. */
   incompatibleWith: string[];
+  /**
+   * Content this capability needs before it can be composed, as
+   * `"<dot.path>"` or `"<dot.path>:<variant>"` against content.json.
+   * `[]` = renders from data that is always present.
+   *
+   * Evaluated by unmetRequirements() in scripts/lib/design-registry.mjs at
+   * design time and again at generation time. Declared here so the two
+   * registries stay field-identical (the parity test asserts it).
+   */
+  requiresData: string[];
 }
 
 export interface DesignSpecSection {

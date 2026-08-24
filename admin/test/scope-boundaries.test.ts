@@ -109,6 +109,20 @@ describe('scope-boundaries (Batch G — machine-checkable, spec R14)', () => {
     // PUBLIC_SHOPIFY_PRODUCT_HANDLE per landing. Its guard is
     // `catalog.handle.test.ts`, alongside it.
     //
+    // AUTHORISED EXCEPTION — Design integrity & data-aware rendering (owner,
+    // this phase).
+    //
+    // `content/landing-base/src/components/sections/10-reviews-reel.astro` was
+    // modified once, deliberately, to add a fail-closed guard. It filters
+    // testimonials down to `variant === 'reel'` and, when that came back
+    // empty, rendered a full-width dark band with wave dividers and carousel
+    // arrows around an empty track — shipped with build PASS and validate
+    // PASS, because nothing in the stack was looking. The guard throws instead.
+    // It is a BACKSTOP: the real gates are the capability's
+    // `requiresData: ['testimonials:reel']` in both registries, checked by
+    // checkDesignSupport() at design time and again at generation time.
+    // Its guard is admin/test/contract.design-integrity.test.ts.
+    //
     // NO PATH IS EXEMPTED HERE, ON PURPOSE. This assertion measures WORKING
     // TREE dirtiness (`git status --porcelain`), not history, so once that
     // change is committed these files are clean again and the boundary holds
@@ -116,6 +130,10 @@ describe('scope-boundaries (Batch G — machine-checkable, spec R14)', () => {
     // would have turned src/lib/shopify into a permanently editable zone to
     // "fix" a condition that resolves itself on commit. The authorisation is
     // recorded here as history; the guardrail keeps its full strength.
+    //
+    // THIS TEST IS EXPECTED TO BE RED until the phase is committed. That is
+    // the mechanism working, not a regression — and it is exactly why the
+    // exception is written down here instead of being coded around.
     const protectedRelPaths = [
       'content/landing-base/src/components',
       'content/landing-base/src/lib/kv.ts',
@@ -279,6 +297,72 @@ describe('scope-boundaries (Batch G — machine-checkable, spec R14)', () => {
         '+',
       ];
 
+      // SECOND authorised diff — Design integrity & data-aware rendering
+      // (owner, this phase). NARROWED, NOT DELETED: the note above records
+      // that a previous sub-agent deleted this whole assertion rather than
+      // narrow it, and the owner rejected that. So this addition is pinned
+      // line-for-line exactly like the Fase 4 one, and any change that is not
+      // one of these two reviewed sequences still fails.
+      //
+      // What it authorises, and why:
+      //   - TESTIMONIAL_VARIANTS: one constant that drives the enum check, the
+      //     new coverage rule and the Content Agent's prompt, so the three can
+      //     never disagree. 'card' is dropped from it — no component in the
+      //     template or in any generated landing ever selected that variant.
+      //   - the coverage loop: membership alone accepted 1 quote + 3 card +
+      //     ZERO reel, which is contract-valid and renders 10-reviews-reel as
+      //     an empty carousel inside a full-width dark band.
+      const EXPECTED_DESIGN_INTEGRITY_DIFF_LINES = [
+        "+",
+        "+/**",
+        "+ * The testimonial variants the RENDERER actually consumes. Every entry here is",
+        "+ * backed by a real selector in a real component \u2014 verified repo-wide:",
+        "+ *",
+        "+ *   'quote' -> 07-featured-testimonial.astro          `.find(t => t.variant === 'quote')`",
+        "+ *              social-proof/FeaturedQuote/Default.astro  (same selector)",
+        "+ *   'reel'  -> 10-reviews-reel.astro                  `.filter(t => t.variant === 'reel')`",
+        "+ *",
+        "+ * `'card'` USED TO BE HERE and was removed: no component in the template or in",
+        "+ * any generated landing ever selected it. Three of the four testimonials the",
+        "+ * first live generation produced were `card` \u2014 perfectly contract-valid, and",
+        "+ * rendered by nothing. Data the system accepts but can never display is not a",
+        "+ * feature, it is a silent budget leak on every Gemini call.",
+        "+ *",
+        "+ * Adding a variant back here is only correct once a component selects it.",
+        "+ * This list drives THREE things \u2014 the enum check, the coverage rule, and the",
+        "+ * Content Agent's prompt \u2014 so it can never drift from what ships.",
+        "+ */",
+        "+export const TESTIMONIAL_VARIANTS = ['quote', 'reel'];",
+        "-    if (!['quote', 'card', 'reel'].includes(item.variant)) {",
+        "+    if (!TESTIMONIAL_VARIANTS.includes(item.variant)) {",
+        "-        message: `testimonials[${i}].variant must be 'quote' | 'card' | 'reel', got \"${item.variant}\"`,",
+        "+        message: `testimonials[${i}].variant must be ${TESTIMONIAL_VARIANTS.map((v) => `'${v}'`).join(' | ')}, got \"${item.variant}\"`,",
+        "+",
+        "+  // COVERAGE, not just membership. The enum check above accepts a set of",
+        "+  // testimonials that is 100% valid and still leaves a section empty: the",
+        "+  // first live generation returned 1 quote + 3 card + ZERO reel, so",
+        "+  // 10-reviews-reel.astro rendered its dark band, its wave dividers and its",
+        "+  // carousel arrows around an empty track. Membership was never the",
+        "+  // guarantee the renderer needed \u2014 coverage is.",
+        "+  //",
+        "+  // Emitted as a per-variant issue so the Content Agent's retry loop gets a",
+        "+  // correction it can act on (\"falta reel\"), not a vague rejection.",
+        "+  for (const variant of TESTIMONIAL_VARIANTS) {",
+        "+    if (!testimonials.some((t) => t.variant === variant)) {",
+        "+      issues.push({",
+        "+        code: 'testimonials-variant-uncovered',",
+        "+        path: 'testimonials',",
+        "+        message:",
+        "+          `content.json \"testimonials\" has no entry with variant \"${variant}\". ` +",
+        "+          `Every variant in the contract is rendered by a real section, so a missing one ` +",
+        "+          `ships a visibly empty section. Add at least one testimonial with variant \"${variant}\".`,",
+        "+        variant,",
+        "+      });",
+        "+    }",
+        "+  }",
+        "+",
+      ];
+
       const diffLines = extractChangedLines(gitDiffNoContext('scripts/lib/content-contract.mjs'));
 
       if (diffLines.length === 0) {
@@ -289,7 +373,13 @@ describe('scope-boundaries (Batch G — machine-checkable, spec R14)', () => {
         return;
       }
 
-      expect(diffLines).toEqual(EXPECTED_PRODUCT_ID_DIFF_LINES);
+      // EXACTLY one of the reviewed sequences. Not a union, not a superset:
+      // a partially-applied or reworded version of either is a different line
+      // sequence and still fails, exactly as the all-or-nothing check did.
+      expect(
+        [EXPECTED_PRODUCT_ID_DIFF_LINES, EXPECTED_DESIGN_INTEGRITY_DIFF_LINES],
+        'content-contract.mjs diff matches no reviewed change',
+      ).toContainEqual(diffLines);
     });
 
     it('admin/package.json declares exactly the pre-existing dependency set — no new runtime dependency for the Gemini call', () => {

@@ -44,6 +44,7 @@ type Entry = {
   familiesAllowed: unknown;
   densityAllowed: unknown;
   incompatibleWith: unknown[];
+  requiresData: string[];
 };
 
 const keyOf = (e: Entry) => `${e.category}/${e.type}/${e.variant}`;
@@ -92,6 +93,10 @@ describe('design registry parity — build-time ↔ runtime', () => {
         expect(actual.familiesAllowed, `${key} familiesAllowed`).toEqual(expected.familiesAllowed);
         expect(actual.densityAllowed, `${key} densityAllowed`).toEqual(expected.densityAllowed);
         expect(actual.incompatibleWith, `${key} incompatibleWith`).toEqual(expected.incompatibleWith);
+        // Data requirements are part of the contract: a capability that
+        // declares `testimonials:reel` at build time but nothing at runtime
+        // would let the design gate accept a spec the renderer cannot feed.
+        expect(actual.requiresData, `${key} requiresData`).toEqual(expected.requiresData);
       });
     }
   });

@@ -379,6 +379,88 @@ function escapeRegExp(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/**
+ * PRECEDENCE FIX (Design Integrity fase).
+ *
+ * The intended hierarchy is:  base defaults -> family -> DesignSpec theme.
+ * What actually shipped was the middle beating the top:
+ *
+ *   :root                                 { --color-rust: #ff6347 }  (0,1,0)  spec
+ *   body[data-design-family="energetic"]  { --color-rust: #F4511E }  (0,1,1)  family
+ *
+ * patchThemeBlock() writes the agent's tokens into global.css's `@theme`,
+ * which Tailwind compiles to `:root`. design-system.css then re-declares the
+ * same custom properties under a body attribute selector — one attribute more
+ * specific, so the FAMILY PRESET WON and the per-product palette Gemini chose
+ * was silently dead. Verified in a real build: the spec asked for #ff6347 and
+ * every `.text-rust` on the page painted #F4511E.
+ *
+ * The fix keeps family fully alive and makes the spec's explicit choice final,
+ * by emitting those same tokens once more at a specificity family cannot
+ * reach:
+ *
+ *   body[data-design-family][data-density]  { ... }                  (0,2,1)
+ *
+ * Both attributes are emitted unconditionally by Base.astro, so the selector
+ * always matches. Family still owns every token the spec does NOT mention —
+ * that is the whole point: family is the DIRECTION, the spec is the override.
+ *
+ * Why here and not in Base.astro: CSS_VAR_MAP is the single source of truth
+ * for token -> custom property, and it lives in this file. Recomputing that
+ * mapping in the template would make it a second source of truth — the exact
+ * drift the repo's anti-duplication doctrine forbids.
+ *
+ * Why appended to design-system.css and never to global.css: patchThemeBlock's
+ * regexes scan the WHOLE of global.css, so a second declaration of any token
+ * there would make an undeclared token look patchable and quietly weaken the
+ * strict-mode fail-closed guarantee. design-system.css's own header documents
+ * this constraint.
+ */
+function buildSpecThemeOverrideCss(theme) {
+  if (!theme) return '';
+  const decls = [];
+
+  for (const group of ['colors', 'fonts', 'radius', 'shadow']) {
+    if (!theme[group]) continue;
+    for (const [key, value] of Object.entries(theme[group])) {
+      decls.push(`  ${CSS_VAR_MAP[group](key)}: ${value};`);
+    }
+  }
+
+  if (theme.text) {
+    for (const [key, val] of Object.entries(theme.text)) {
+      const patches = {
+        [`--text-${key}`]: val.size,
+        [`--text-${key}--line-height`]: val.lineHeight,
+        [`--text-${key}--letter-spacing`]: val.letterSpacing,
+      };
+      for (const [varName, value] of Object.entries(patches)) {
+        if (value === undefined) continue;
+        decls.push(`  ${varName}: ${value};`);
+      }
+    }
+  }
+
+  if (decls.length === 0) return '';
+
+  return [
+    '',
+    '/* --- DesignSpec theme overrides (generated) ------------------------------',
+    ' * Emitted by scripts/generate-landing.mjs from this landing\'s design.ts.',
+    ' * Selector carries TWO attributes on purpose: specificity (0,2,1) beats the',
+    ' * family presets above (0,1,1), so a token this product explicitly chose is',
+    ' * never overwritten by its family. Tokens absent here still come from the',
+    ' * family — family sets the direction, the DesignSpec overrides within it.',
+    ' * Do not hand-edit: regenerated on every run.',
+    ' */',
+    'body[data-design-family][data-density] {',
+    ...decls,
+    '}',
+    '',
+  ].join('\n');
+}
+
+
 // --- copy (excludes build artifacts / secrets, never touches locked paths)
 
 const EXCLUDE_DIRS = new Set(['node_modules', 'dist', '.astro', '.vercel', '.git']);
@@ -542,7 +624,18 @@ function main() {
         fail(`--design file is not valid JSON: ${err.message}`, 'design-unparseable');
       }
 
-      const support = checkDesignSupport(spec);
+      // `parsed` is this run's content.json, already validated against the
+      // content contract above. Passing it here makes the gate DATA-AWARE:
+      // a registered capability whose data this content cannot feed is
+      // rejected as `unsatisfied_data` (design-contract.mjs) instead of being
+      // generated into a landing that builds green and renders an empty band.
+      //
+      // Position is what makes this cheap and safe: still inside `validate`,
+      // still BEFORE copy-template, so a rejected pairing leaves
+      // outputs/{slug}/ untouched. This is the semantic check the pipeline's
+      // own `validate` stage could never do with existsSync() — and it needs
+      // no HTML parsing, because the question was never about HTML.
+      const support = checkDesignSupport(spec, undefined, parsed);
       if (support.status !== 'pass') {
         const detail = (support.issues ?? [])
           .map((i) => `${i.code}${i.path ? ` at "${i.path}"` : ''}: ${i.message}`)
@@ -716,6 +809,15 @@ function main() {
     if (designSpec) {
       // Already resolved fail-closed in `validate`, before copy-template.
       writeFileSync(cssPath, explicitThemeCss);
+
+      // …and the same tokens again, at a specificity the family presets cannot
+      // beat. See buildSpecThemeOverrideCss(): without this the family silently
+      // wins and the spec's palette never reaches the page.
+      const override = buildSpecThemeOverrideCss(designSpec.theme ?? null);
+      if (override) {
+        const dsPath = path.join(outDir, 'src/styles/design-system.css');
+        writeFileSync(dsPath, readFileSync(dsPath, 'utf-8') + override);
+      }
       return;
     }
 

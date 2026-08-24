@@ -108,13 +108,20 @@ export function buildCapabilityCatalogue(registry = REGISTRY) {
       type: entry.type,
       variant: entry.variant,
       props: props.length ? props.join(', ') : 'ninguna',
+      // Surfaced in the prompt so the model can avoid an unfeedable capability
+      // on the FIRST attempt. The contract still rejects it either way — this
+      // just stops a correction turn being spent on something knowable upfront.
+      requiresData: entry.requiresData ?? [],
     };
   });
 }
 
 export function buildSystemInstruction() {
   const catalogue = buildCapabilityCatalogue()
-    .map((c) => `- ${c.key}  (props: ${c.props})`)
+    .map((c) => {
+      const needs = c.requiresData.length ? `, necesita datos: ${c.requiresData.join(' + ')}` : '';
+      return `- ${c.key}  (props: ${c.props}${needs})`;
+    })
     .join('\n');
 
   const tokens = Object.entries(THEME_TOKENS)
@@ -155,6 +162,9 @@ export function buildSystemInstruction() {
     '',
     'Reglas duras:',
     '- No inventes capacidades, variantes ni props que no estén en la lista. Se rechaza y falla.',
+    '- Si una capacidad dice "necesita datos", MIRÁ el contenido de arriba antes de usarla. Por ejemplo',
+    '  socialProof/ReviewsReel/default necesita testimonials con variant "reel": si no hay ninguno, esa',
+    '  sección se renderiza vacía y la generación se rechaza. Elegí otra o no la incluyas.',
     '- No incluyas el shell (header, footer, barra sticky, carrito): lo renderiza el sistema.',
     '- Incluí siempre al menos una sección de conversión y una de prueba social.',
     '- Ordená pensando en la conversión: enganchar, mostrar, convencer, resolver dudas, cerrar.',
@@ -194,7 +204,7 @@ function persistAttempt(attemptsDir, attempt, payload) {
   );
 }
 
-export async function runDesignLoop({ model, key, contents, systemInstruction, attemptsDir, productId }) {
+export async function runDesignLoop({ model, key, contents, systemInstruction, attemptsDir, productId, content = null }) {
   let attempt = 1;
   let lastIssues = 'sin detalle';
 
@@ -275,14 +285,33 @@ export async function runDesignLoop({ model, key, contents, systemInstruction, a
     // NOTE the contract's vocabulary: the success value is 'pass', NOT 'ok'
     // (design-contract.mjs:590), and `missingCapability` is a single
     // capability key string, never an array.
-    const support = checkDesignSupport(parsed);
+    //
+    // `content` makes this DATA-AWARE: a capability the registry declares but
+    // this content.json cannot feed comes back as `unsatisfied_data` and buys
+    // a correction turn, exactly like an unknown capability. This is the
+    // PRIMARY gate — the renderer must never be the first layer to discover
+    // that a section had nothing to draw.
+    const support = checkDesignSupport(parsed, undefined, content);
     if (support.status !== 'pass') {
       lastIssues = `${support.status}: ${support.missingCapability ?? describeIssues(support.issues ?? [])}`;
       persistAttempt(attemptsDir, attempt, { httpStatus, parsed, issues: support });
       emit('warn', 'generate', { message: `intento ${attempt}: ${lastIssues}` });
+
+      // Two different failures deserve two different instructions. Telling the
+      // model "esa capacidad no existe" when it picked a real one that simply
+      // lacks data teaches it the wrong lesson and it will avoid a perfectly
+      // good section on the next product.
+      const correction =
+        support.status === 'unsatisfied_data'
+          ? 'Elegiste secciones para las que NO hay contenido disponible, así que se renderizarían vacías: ' +
+            `${support.unsatisfied.map((u) => `${u.capability} necesita "${u.requirement}"`).join('; ')}. ` +
+            'Reemplazalas por capacidades que el contenido SÍ pueda alimentar, o sacalas. ' +
+            'Devolvé el JSON completo con "order" consecutivo desde 0.'
+          : `Usaste capacidades que NO existen: ${lastIssues}. Usá sólo las de la lista permitida.`;
+
       contents = [...contents, { role: 'model', parts: [{ text: JSON.stringify(parsed) }] }, {
         role: 'user',
-        parts: [{ text: `Usaste capacidades que NO existen: ${lastIssues}. Usá sólo las de la lista permitida.` }],
+        parts: [{ text: correction }],
       }];
       attempt++;
       continue;
@@ -352,6 +381,7 @@ async function main() {
     contents: [{ role: 'user', parts: [{ text: buildFirstUserTurn({ product, content }) }] }],
     attemptsDir: args.attemptsDir,
     productId,
+    content,
   });
 
   if (!outcome.ok) {

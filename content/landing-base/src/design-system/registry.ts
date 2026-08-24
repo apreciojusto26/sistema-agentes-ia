@@ -19,7 +19,12 @@
 import type { RegistryEntry } from '../types/design';
 
 /** A legacy section: unconstrained `default` variant, zero props. */
-function legacy(category: string, type: string, component: string): RegistryEntry {
+function legacy(
+  category: string,
+  type: string,
+  component: string,
+  requiresData: string[] = [],
+): RegistryEntry {
   return {
     category,
     type,
@@ -29,6 +34,7 @@ function legacy(category: string, type: string, component: string): RegistryEntr
     familiesAllowed: '*',
     densityAllowed: '*',
     incompatibleWith: [],
+    requiresData,
   };
 }
 
@@ -43,6 +49,7 @@ function block(
   variant: string,
   component: string,
   propsSchema: RegistryEntry['propsSchema'],
+  requiresData: string[] = [],
 ): RegistryEntry {
   return {
     category,
@@ -53,31 +60,33 @@ function block(
     familiesAllowed: '*',
     densityAllowed: '*',
     incompatibleWith: [],
+    requiresData,
   };
 }
 
 export const REGISTRY: RegistryEntry[] = [
-  legacy('hero', 'Hero', '@/components/sections/03-hero.astro'),
-  legacy('media', 'GalleryStrip', '@/components/sections/04-gallery-strip.astro'),
+  legacy('hero', 'Hero', '@/components/sections/03-hero.astro', ['product.gallery']),
+  legacy('media', 'GalleryStrip', '@/components/sections/04-gallery-strip.astro', ['product.gallery']),
   legacy('conversion', 'BuyBox', '@/components/sections/05-buy-box.astro'),
-  legacy('product', 'HowItWorks', '@/components/sections/06-how-it-works.astro'),
-  legacy('socialProof', 'FeaturedTestimonial', '@/components/sections/07-featured-testimonial.astro'),
-  legacy('conversion', 'Faq', '@/components/sections/08-faq.astro'),
-  legacy('socialProof', 'UgcStrip', '@/components/sections/09-ugc-strip.astro'),
-  legacy('socialProof', 'ReviewsReel', '@/components/sections/10-reviews-reel.astro'),
-  legacy('product', 'Comparison', '@/components/sections/11-comparison.astro'),
+  legacy('product', 'HowItWorks', '@/components/sections/06-how-it-works.astro', ['product.steps']),
+  legacy('socialProof', 'FeaturedTestimonial', '@/components/sections/07-featured-testimonial.astro', ['testimonials:quote']),
+  legacy('conversion', 'Faq', '@/components/sections/08-faq.astro', ['faq']),
+  legacy('socialProof', 'UgcStrip', '@/components/sections/09-ugc-strip.astro', ['product.ugc']),
+  legacy('socialProof', 'ReviewsReel', '@/components/sections/10-reviews-reel.astro', ['testimonials:reel']),
+  legacy('product', 'Comparison', '@/components/sections/11-comparison.astro', ['product.comparison']),
   legacy('conversion', 'Guarantee', '@/components/sections/12-guarantee.astro'),
-  legacy('socialProof', 'RealResults', '@/components/sections/13-real-results.astro'),
+  legacy('socialProof', 'RealResults', '@/components/sections/13-real-results.astro', ['product.ugc']),
 
   block('hero', 'ProductHero', 'split', '@/design-system/blocks/hero/ProductHero/Split.astro', {
     align: { type: 'string', enum: ['left', 'center'] },
-  }),
+  }, ['product.gallery']),
   block('socialProof', 'FeaturedQuote', 'default', '@/design-system/blocks/social-proof/FeaturedQuote/Default.astro', {
     tone: { type: 'string', enum: ['light', 'muted'] },
-  }),
+  }, ['testimonials:quote']),
   block('conversion', 'ProductGuarantee', 'default', '@/design-system/blocks/conversion/ProductGuarantee/Default.astro', {
     tone: { type: 'string', enum: ['gold', 'plain'] },
   }),
+
 ];
 
 /** Canonical `category/type/variant` key. */

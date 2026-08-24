@@ -7,64 +7,294 @@
     "variantGroupLabel": "Tamaño",
     "ratingAverage": 4.8,
     "ratingCount": 214,
-    "ratingBreakdown": { "5": 180, "4": 22, "3": 8, "2": 3, "1": 1 },
-    "badges": ["Envío 24-48h", "Funda lavable", "Garantía 30 días"],
-    "trustTicker": ["Envío gratis desde 29€", "Pago 100% seguro", "+200 reseñas de 5 estrellas", "Garantía de 30 días"],
-    "offer": { "durationMinutes": 15, "label": "Oferta de lanzamiento termina en", "expiredLabel": "La oferta ha finalizado" },
-    "benefits": [
-      { "id": "soporte-cervical", "icon": "shield", "title": "Soporte cervical dual", "text": "Doble curva ergonómica que sostiene el cuello en cualquier posición para dormir, aliviando la tensión acumulada durante el día." },
-      { "id": "memory-foam", "icon": "star", "title": "Memory foam de alta densidad", "text": "Se adapta a la forma de tu cabeza y cuello sin perder firmeza, para un descanso estable toda la noche." },
-      { "id": "transpirable", "icon": "sparkle", "title": "Funda transpirable y lavable", "text": "Tela fresca que no acumula calor, con funda extraíble apta para lavadora." },
-      { "id": "cualquier-postura", "icon": "check", "title": "Sirve en cualquier postura", "text": "Boca arriba, de costado o boca abajo: el diseño se adapta sin perder soporte." }
+    "ratingBreakdown": {
+      "5": 180,
+      "4": 22,
+      "3": 8,
+      "2": 3,
+      "1": 1
+    },
+    "badges": [
+      "Envío 24-48h",
+      "Funda lavable",
+      "Garantía 30 días"
     ],
-    "heroPills": ["Soporte cervical dual", "Funda lavable", "Memory foam premium"],
+    "trustTicker": [
+      "Envío gratis desde 29€",
+      "Pago 100% seguro",
+      "+200 reseñas de 5 estrellas",
+      "Garantía de 30 días"
+    ],
+    "offer": {
+      "durationMinutes": 15,
+      "label": "Oferta de lanzamiento termina en",
+      "expiredLabel": "La oferta ha finalizado"
+    },
+    "benefits": [
+      {
+        "id": "soporte-cervical",
+        "icon": "shield",
+        "title": "Soporte cervical dual",
+        "text": "Doble curva ergonómica que sostiene el cuello en cualquier posición para dormir, aliviando la tensión acumulada durante el día."
+      },
+      {
+        "id": "memory-foam",
+        "icon": "star",
+        "title": "Memory foam de alta densidad",
+        "text": "Se adapta a la forma de tu cabeza y cuello sin perder firmeza, para un descanso estable toda la noche."
+      },
+      {
+        "id": "transpirable",
+        "icon": "sparkle",
+        "title": "Funda transpirable y lavable",
+        "text": "Tela fresca que no acumula calor, con funda extraíble apta para lavadora."
+      },
+      {
+        "id": "cualquier-postura",
+        "icon": "check",
+        "title": "Sirve en cualquier postura",
+        "text": "Boca arriba, de costado o boca abajo: el diseño se adapta sin perder soporte."
+      }
+    ],
+    "heroPills": [
+      "Soporte cervical dual",
+      "Funda lavable",
+      "Memory foam premium"
+    ],
     "specs": [
-      { "label": "Material", "value": "Memory foam de alta densidad" },
-      { "label": "Funda", "value": "Poliéster transpirable, lavable" },
-      { "label": "Dimensiones", "value": "60 x 40 x 12 cm" },
-      { "label": "Peso", "value": "1.1 kg" }
+      {
+        "label": "Material",
+        "value": "Memory foam de alta densidad"
+      },
+      {
+        "label": "Funda",
+        "value": "Poliéster transpirable, lavable"
+      },
+      {
+        "label": "Dimensiones",
+        "value": "60 x 40 x 12 cm"
+      },
+      {
+        "label": "Peso",
+        "value": "1.1 kg"
+      }
     ],
     "packs": [
-      { "id": "x1", "units": 1, "freeUnits": 0, "label": "Pack 1 unidad", "sublabel": "Ideal para probar", "default": false, "popular": false },
-      { "id": "x2free1", "units": 2, "freeUnits": 1, "label": "Pack 2 + 1 GRATIS", "sublabel": "El que más se lleva", "badge": "Más popular", "popular": true, "freeGift": true, "default": true }
+      {
+        "id": "x1",
+        "units": 1,
+        "freeUnits": 0,
+        "label": "Pack 1 unidad",
+        "sublabel": "Ideal para probar",
+        "default": false,
+        "popular": false
+      },
+      {
+        "id": "x2free1",
+        "units": 2,
+        "freeUnits": 1,
+        "label": "Pack 2 + 1 GRATIS",
+        "sublabel": "El que más se lleva",
+        "badge": "Más popular",
+        "popular": true,
+        "freeGift": true,
+        "default": true
+      }
     ],
     "gallery": [
-      { "id": "g1", "asset": "gallery-01", "alt": "NubeCalma sobre una cama tendida, vista frontal", "ratio": "4/5", "label": "Vista frontal" },
-      { "id": "g2", "asset": "gallery-02", "alt": "Detalle de la doble curva ergonómica de NubeCalma", "ratio": "4/5", "label": "Soporte cervical" },
-      { "id": "g3", "asset": "gallery-03", "alt": "Persona durmiendo de costado sobre NubeCalma", "ratio": "4/5", "label": "En uso" },
-      { "id": "g4", "asset": "gallery-04", "alt": "Funda de NubeCalma siendo retirada para lavar", "ratio": "1/1", "label": "Funda lavable" },
-      { "id": "g5", "asset": "gallery-05", "alt": "NubeCalma junto a una ventana con luz natural", "ratio": "4/5", "label": "Detalle de material" }
+      {
+        "id": "g1",
+        "asset": "gallery-01",
+        "alt": "NubeCalma sobre una cama tendida, vista frontal",
+        "ratio": "4/5",
+        "label": "Vista frontal"
+      },
+      {
+        "id": "g2",
+        "asset": "gallery-02",
+        "alt": "Detalle de la doble curva ergonómica de NubeCalma",
+        "ratio": "4/5",
+        "label": "Soporte cervical"
+      },
+      {
+        "id": "g3",
+        "asset": "gallery-03",
+        "alt": "Persona durmiendo de costado sobre NubeCalma",
+        "ratio": "4/5",
+        "label": "En uso"
+      },
+      {
+        "id": "g4",
+        "asset": "gallery-04",
+        "alt": "Funda de NubeCalma siendo retirada para lavar",
+        "ratio": "1/1",
+        "label": "Funda lavable"
+      },
+      {
+        "id": "g5",
+        "asset": "gallery-05",
+        "alt": "NubeCalma junto a una ventana con luz natural",
+        "ratio": "4/5",
+        "label": "Detalle de material"
+      }
     ],
     "steps": [
-      { "step": 1, "title": "Apoyá la cabeza", "text": "La doble curva se adapta al instante a la forma de tu cuello.", "media": { "asset": "step-01", "alt": "Persona apoyando la cabeza en NubeCalma", "ratio": "4/3" } },
-      { "step": 2, "title": "Dormí en cualquier postura", "text": "Boca arriba o de costado, el soporte se mantiene estable toda la noche.", "media": { "asset": "gallery-03", "alt": "Persona durmiendo de costado", "ratio": "4/3" } },
-      { "step": 3, "title": "Lavá la funda cuando quieras", "text": "Funda extraíble apta para lavadora, siempre fresca.", "media": { "asset": "gallery-04", "alt": "Funda siendo lavada", "ratio": "4/3" } }
+      {
+        "step": 1,
+        "title": "Apoyá la cabeza",
+        "text": "La doble curva se adapta al instante a la forma de tu cuello.",
+        "media": {
+          "asset": "step-01",
+          "alt": "Persona apoyando la cabeza en NubeCalma",
+          "ratio": "4/3"
+        }
+      },
+      {
+        "step": 2,
+        "title": "Dormí en cualquier postura",
+        "text": "Boca arriba o de costado, el soporte se mantiene estable toda la noche.",
+        "media": {
+          "asset": "gallery-03",
+          "alt": "Persona durmiendo de costado",
+          "ratio": "4/3"
+        }
+      },
+      {
+        "step": 3,
+        "title": "Lavá la funda cuando quieras",
+        "text": "Funda extraíble apta para lavadora, siempre fresca.",
+        "media": {
+          "asset": "gallery-04",
+          "alt": "Funda siendo lavada",
+          "ratio": "4/3"
+        }
+      }
     ],
     "comparison": [
-      { "feature": "Soporte cervical dual", "ours": true, "rival": "Curva única" },
-      { "feature": "Memory foam de alta densidad", "ours": true, "rival": "Espuma estándar" },
-      { "feature": "Funda lavable", "ours": true, "rival": false },
-      { "feature": "Sirve en cualquier postura", "ours": true, "rival": "Solo boca arriba" }
+      {
+        "feature": "Soporte cervical dual",
+        "ours": true,
+        "rival": "Curva única"
+      },
+      {
+        "feature": "Memory foam de alta densidad",
+        "ours": true,
+        "rival": "Espuma estándar"
+      },
+      {
+        "feature": "Funda lavable",
+        "ours": true,
+        "rival": false
+      },
+      {
+        "feature": "Sirve en cualquier postura",
+        "ours": true,
+        "rival": "Solo boca arriba"
+      }
     ],
-    "guarantee": { "days": 30, "title": "Garantía de 30 días", "text": "Si NubeCalma no supera tus expectativas, te devolvemos el dinero. Sin vueltas.", "points": ["Devolución simple dentro de los 30 días", "Reembolso completo, sin preguntas", "Atención al cliente en español"] },
-    "shipping": { "etaLabel": "Envío en 24-48h", "freeOverCents": 2900 },
+    "guarantee": {
+      "days": 30,
+      "title": "Garantía de 30 días",
+      "text": "Si NubeCalma no supera tus expectativas, te devolvemos el dinero. Sin vueltas.",
+      "points": [
+        "Devolución simple dentro de los 30 días",
+        "Reembolso completo, sin preguntas",
+        "Atención al cliente en español"
+      ]
+    },
+    "shipping": {
+      "etaLabel": "Envío en 24-48h",
+      "freeOverCents": 2900
+    },
     "ugc": [
-      { "asset": "ugc-01", "alt": "NubeCalma sobre una cama de dormitorio", "ratio": "9/16" },
-      { "asset": "ugc-02", "alt": "Persona sosteniendo NubeCalma antes de dormir", "ratio": "9/16" },
-      { "asset": "ugc-03", "alt": "NubeCalma con funda retirada, lista para lavar", "ratio": "9/16" }
+      {
+        "asset": "ugc-01",
+        "alt": "NubeCalma sobre una cama de dormitorio",
+        "ratio": "9/16"
+      },
+      {
+        "asset": "ugc-02",
+        "alt": "Persona sosteniendo NubeCalma antes de dormir",
+        "ratio": "9/16"
+      },
+      {
+        "asset": "ugc-03",
+        "alt": "NubeCalma con funda retirada, lista para lavar",
+        "ratio": "9/16"
+      }
     ],
-    "cta": { "primary": "Comprar ahora", "sticky": "Agregar al carrito", "checkout": "Finalizar compra", "pending": "Agregando...", "soldOut": "Agotado" }
+    "cta": {
+      "primary": "Comprar ahora",
+      "sticky": "Agregar al carrito",
+      "checkout": "Finalizar compra",
+      "pending": "Agregando...",
+      "soldOut": "Agotado"
+    }
   },
   "faq": [
-    { "id": "que-es", "question": "¿Qué es NubeCalma y cómo funciona?", "answer": "Es una almohada cervical de memory foam con doble curva ergonómica que sostiene el cuello en cualquier posición para dormir." },
-    { "id": "lavado", "question": "¿Se puede lavar?", "answer": "Sí, la funda es extraíble y apta para lavadora. El núcleo de memory foam no se lava, solo se airea." },
-    { "id": "postura", "question": "¿Sirve para dormir de costado?", "answer": "Sí, el diseño de doble curva se adapta a cualquier postura: boca arriba, de costado o boca abajo." },
-    { "id": "garantia", "question": "¿Qué garantía tiene?", "answer": "NubeCalma tiene 30 días de garantía de devolución. Si no cumple tus expectativas, te devolvemos el importe." }
+    {
+      "id": "que-es",
+      "question": "¿Qué es NubeCalma y cómo funciona?",
+      "answer": "Es una almohada cervical de memory foam con doble curva ergonómica que sostiene el cuello en cualquier posición para dormir."
+    },
+    {
+      "id": "lavado",
+      "question": "¿Se puede lavar?",
+      "answer": "Sí, la funda es extraíble y apta para lavadora. El núcleo de memory foam no se lava, solo se airea."
+    },
+    {
+      "id": "postura",
+      "question": "¿Sirve para dormir de costado?",
+      "answer": "Sí, el diseño de doble curva se adapta a cualquier postura: boca arriba, de costado o boca abajo."
+    },
+    {
+      "id": "garantia",
+      "question": "¿Qué garantía tiene?",
+      "answer": "NubeCalma tiene 30 días de garantía de devolución. Si no cumple tus expectativas, te devolvemos el importe."
+    }
   ],
   "testimonials": [
-    { "id": "t-featured", "author": "Laura Gimenez", "location": "Rosario", "rating": 5, "date": "2026-06-10", "title": "Se me fue el dolor de cuello", "body": "Dormía fatal por un dolor cervical constante. A la tercera noche con NubeCalma ya notaba la diferencia.", "verified": true, "variant": "quote" },
-    { "id": "t-card-1", "author": "Franco Bellido", "location": "Córdoba", "rating": 5, "date": "2026-06-22", "body": "Llegó bien embalada y la calidad del foam es notable. Duermo de costado y no pierde soporte.", "verified": true, "variant": "card" },
-    { "id": "t-card-2", "author": "Daniela Roust", "location": "Mendoza", "rating": 5, "date": "2026-07-01", "body": "La funda lavable es un golazo, la tenía re sucia con la almohada vieja.", "verified": true, "variant": "card" }
+    {
+      "id": "t-featured",
+      "author": "Laura Gimenez",
+      "location": "Rosario",
+      "rating": 5,
+      "date": "2026-06-10",
+      "title": "Se me fue el dolor de cuello",
+      "body": "Dormía fatal por un dolor cervical constante. A la tercera noche con NubeCalma ya notaba la diferencia.",
+      "verified": true,
+      "variant": "quote"
+    },
+    {
+      "id": "t-reel-1",
+      "author": "Franco Bellido",
+      "location": "Córdoba",
+      "rating": 5,
+      "date": "2026-06-22",
+      "body": "Llegó bien embalada y la calidad del foam es notable. Duermo de costado y no pierde soporte.",
+      "verified": true,
+      "variant": "reel"
+    },
+    {
+      "id": "t-reel-2",
+      "author": "Daniela Roust",
+      "location": "Mendoza",
+      "rating": 5,
+      "date": "2026-07-01",
+      "body": "La funda lavable es un golazo, la tenía re sucia con la almohada vieja.",
+      "verified": true,
+      "variant": "reel"
+    },
+    {
+      "id": "t-reel-3",
+      "author": "Martín Aguirre",
+      "location": "La Plata",
+      "rating": 4,
+      "date": "2026-07-14",
+      "body": "Tardé un par de noches en acostumbrarme a la altura, pero ahora no vuelvo a la almohada común.",
+      "verified": true,
+      "variant": "reel"
+    }
   ],
   "design": {
     "colors": {

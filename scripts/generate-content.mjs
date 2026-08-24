@@ -16,7 +16,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync } from
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { randomBytes } from 'node:crypto';
-import { REQUIRED_PRODUCT_FIELDS, FAQ_FIELDS, TESTIMONIAL_REQUIRED_FIELDS, collectContentErrors } from './lib/content-contract.mjs';
+import { REQUIRED_PRODUCT_FIELDS, FAQ_FIELDS, TESTIMONIAL_REQUIRED_FIELDS, TESTIMONIAL_VARIANTS, collectContentErrors } from './lib/content-contract.mjs';
 import { isProductId } from './lib/product-id.cjs';
 import events from './lib/events.cjs';
 
@@ -99,7 +99,16 @@ export function buildSystemInstruction() {
     '',
     `"product" debe incluir exactamente estos campos: ${REQUIRED_PRODUCT_FIELDS.join(', ')}.`,
     `Cada elemento de "faq" debe incluir: ${FAQ_FIELDS.join(', ')}.`,
-    `Cada elemento de "testimonials" debe incluir: ${TESTIMONIAL_REQUIRED_FIELDS.join(', ')} (variant es 'quote'|'card'|'reel').`,
+    `Cada elemento de "testimonials" debe incluir: ${TESTIMONIAL_REQUIRED_FIELDS.join(', ')}.`,
+    // Coverage, stated as a hard requirement rather than left to the few-shot.
+    // The enum alone produced 1 quote + 3 card + 0 reel on the first live run,
+    // which is contract-valid and renders an empty carousel. Both the rule and
+    // the vocabulary are derived from TESTIMONIAL_VARIANTS so the prompt can
+    // never drift from what content-contract.mjs enforces.
+    `"variant" sólo puede ser: ${TESTIMONIAL_VARIANTS.map((v) => `'${v}'`).join(' | ')}.`,
+    `OBLIGATORIO: tiene que haber AL MENOS UN testimonial de CADA variant (${TESTIMONIAL_VARIANTS.join(', ')}).`,
+    "Cada variant la renderiza una sección distinta de la landing: 'quote' es el testimonio destacado y 'reel' es",
+    'el carrusel oscuro de reseñas. Si falta una, esa sección queda visiblemente vacía. Escribí 1 "quote" y 3 o 4 "reel".',
     '',
     'NUNCA incluyas un campo "commerce" en product — los precios y el handle de la tienda no los generás vos.',
     'Usá siempre un tono cercano en español rioplatense, orientado a beneficios: cada benefit debe enmarcar un',

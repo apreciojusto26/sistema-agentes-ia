@@ -1,10 +1,56 @@
 ---
+// BACKSTOP, not the primary validation.
+//
+// The real gates run long before this file: the Design Agent's loop and
+// generate-landing.mjs's `validate` stage both call checkDesignSupport() with
+// this landing's content.json, and `socialProof/ReviewsReel/default` declares
+// `requiresData: ['testimonials:reel']` in the registry. Either of them should
+// have rejected the pairing already.
+//
+// This throw exists for the case where they DIDN'T — a hand-written design.ts,
+// a spec generated before the requirement existed, a future refactor that
+// drops the gate. The first live generation produced exactly this state:
+// 1 quote + 3 card + zero reel, a dark band with wave dividers and carousel
+// arrows wrapped around an empty track, shipped with build PASS and validate
+// PASS. Nothing in the stack objected, because nothing in the stack was
+// looking.
+//
+// The doctrine (index.astro states it for unresolvable capabilities) is that a
+// landing which refuses to build beats a landing that looks valid and is not.
+// This applies it to the other half of the problem: the capability resolved
+// fine, the DATA was missing.
+//
+// HOW TO REPEAT THIS PATTERN — do NOT sprinkle it everywhere. A section earns
+// a backstop only when ALL of:
+//   1. it narrows a collection with a selector (`.filter`/`.find` on a
+//      discriminator), so "valid data" and "renderable data" can diverge;
+//   2. an empty result still paints chrome — a band, a heading, controls — so
+//      the emptiness looks like a broken page rather than an absent section;
+//   3. the capability declares the matching `requiresData` in BOTH registries,
+//      so this throw is genuinely unreachable in a healthy pipeline.
+// A section that simply renders `items.map(...)` and collapses to nothing when
+// empty needs no guard: it degrades honestly.
 import Container from '@/components/ui/Container.astro';
 import WaveDivider from '@/components/ui/WaveDivider.astro';
 import { ReviewCarousel } from '@/components/islands/ReviewCarousel';
 import { testimonials } from '@/data/testimonials';
 
 const reelReviews = testimonials.filter((t) => t.variant === 'reel');
+
+if (reelReviews.length === 0) {
+  throw new Error(
+    'ReviewsReel was composed into this landing, but src/data/testimonials.ts contains no ' +
+      'testimonial with variant "reel" — the section would render as an empty carousel ' +
+      'inside a full-width dark band.\n' +
+      'FIX ONE OF THESE:\n' +
+      '  - add at least one testimonial with variant "reel" to src/data/testimonials.ts, or\n' +
+      '  - remove the socialProof/ReviewsReel section from src/data/design.ts.\n' +
+      'This should have been caught upstream: the capability declares ' +
+      'requiresData: ["testimonials:reel"] and checkDesignSupport() rejects the pairing ' +
+      'at design time and again at generation time. Reaching this throw means a DesignSpec ' +
+      'bypassed both gates.',
+  );
+}
 ---
 
 <div class="bg-bone">
