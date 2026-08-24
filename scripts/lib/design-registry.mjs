@@ -96,7 +96,6 @@ export const REGISTRY = [
   // props and live under src/components/sections/ (a path the scope-boundaries
   // guardrail protects — they are read and rendered, never modified).
   legacy('hero', 'Hero', '@/components/sections/03-hero.astro', ['product.gallery']),
-  legacy('media', 'GalleryStrip', '@/components/sections/04-gallery-strip.astro', ['product.gallery']),
   legacy('conversion', 'BuyBox', '@/components/sections/05-buy-box.astro'),
   legacy('product', 'HowItWorks', '@/components/sections/06-how-it-works.astro', ['product.steps']),
   legacy('socialProof', 'FeaturedTestimonial', '@/components/sections/07-featured-testimonial.astro', ['testimonials:quote']),
@@ -152,6 +151,20 @@ export const REGISTRY = [
   //     registry forbids. incompatibleWith stays [].
   block('socialProof', 'ReviewsReel', 'carousel', '@/design-system/blocks/social-proof/ReviewsReel/Carousel.astro', {}, ['testimonials:reel']),
   block('socialProof', 'ReviewsReel', 'grid', '@/design-system/blocks/social-proof/ReviewsReel/Grid.astro', {}, ['testimonials:reel']),
+
+  // media/GalleryStrip — SECOND capability on the structural-variant axis,
+  // same pattern as socialProof/ReviewsReel above. Both variants resolve their
+  // images through blocks/media/GalleryStrip/gallery-images.ts, which owns the
+  // commerce precedence rule (Shopify images win over the authored gallery) so
+  // no variant can answer "which images are these" differently.
+  //
+  // AUDIT — familiesAllowed / incompatibleWith, both left empty on evidence:
+  //   * families only re-declare CSS custom properties; a strip and a grid are
+  //     both legible under all nine. No real restriction exists. '*' stays.
+  //   * strip vs grid cannot co-occur already — `section-duplicate-type`
+  //     rejects a repeated type regardless of variant. [] stays.
+  block('media', 'GalleryStrip', 'strip', '@/design-system/blocks/media/GalleryStrip/Strip.astro', {}, ['product.gallery']),
+  block('media', 'GalleryStrip', 'grid', '@/design-system/blocks/media/GalleryStrip/Grid.astro', {}, ['product.gallery']),
 ];
 
 /**

@@ -271,7 +271,7 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
     test('at least one conversion section is required', () => {
       const spec = fixtureSpec([
         { category: 'hero', type: 'Hero', variant: 'default', order: 0 },
-        { category: 'media', type: 'GalleryStrip', variant: 'default', order: 1 },
+        { category: 'media', type: 'GalleryStrip', variant: 'strip', order: 1 },
       ]);
       expect(codes(contract.collectDesignErrors(spec))).toContain('conversion-missing');
     });
@@ -358,7 +358,6 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
     // green if a legacy capability were swapped for a block.
     const LEGACY_KEYS = [
       'hero/Hero/default',
-      'media/GalleryStrip/default',
       'conversion/BuyBox/default',
       'product/HowItWorks/default',
       'socialProof/FeaturedTestimonial/default',
@@ -380,16 +379,21 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
       // renders byte-identically to the pre-registry page.
       'socialProof/ReviewsReel/carousel',
       'socialProof/ReviewsReel/grid',
+      // media/GalleryStrip took the same route, for the same reason. Its
+      // composition moved into these two and
+      // components/sections/04-gallery-strip.astro became a shim.
+      'media/GalleryStrip/strip',
+      'media/GalleryStrip/grid',
     ];
     const keyOf = (e: { category: string; type: string; variant: string }) =>
       `${e.category}/${e.type}/${e.variant}`;
 
-    test('registers exactly the 10 legacy sections plus the 5 building blocks', () => {
-      expect(registryModule.REGISTRY).toHaveLength(15);
+    test('registers exactly the 9 legacy sections plus the 7 building blocks', () => {
+      expect(registryModule.REGISTRY).toHaveLength(16);
       expect(registryModule.REGISTRY.map(keyOf)).toEqual([...LEGACY_KEYS, ...BLOCK_KEYS]);
     });
 
-    test('the 10 legacy capabilities still point at their original section files', () => {
+    test('the 9 legacy capabilities still point at their original section files', () => {
       for (const key of LEGACY_KEYS) {
         const entry = registryModule.REGISTRY.find((e) => keyOf(e) === key);
         expect(entry, `${key} missing`).toBeDefined();

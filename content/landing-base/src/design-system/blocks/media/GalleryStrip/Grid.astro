@@ -1,0 +1,82 @@
+---
+// DESIGN SYSTEM building block — media/GalleryStrip/grid.
+//
+// The SAME images as Strip.astro, composed as a static responsive grid.
+// Sibling variant, not a derivative: same galleryImages() resolver, same
+// requiresData, same commerce precedence.
+//
+// STRUCTURALLY different, not re-skinned:
+//   - no JS: Strip mounts ProductGallery with `client:visible` (active-image
+//     state, lightbox, thumbnail tablist). This variant mounts nothing, so
+//     index.html carries no <astro-island> for it and the browser never
+//     requests that chunk. (The chunk is still EMITTED — index.astro's
+//     `import.meta.glob({eager:true})` bundles every registered candidate.
+//     Unreferenced, so unloaded: the saving is a request the visitor does not
+//     make, not a smaller dist/.)
+//   - no controls: no thumbnail rail, no role="tablist", no lightbox trigger.
+//   - EVERY image is visible at once, 1 -> 2 -> 3 columns, instead of one
+//     large image plus a horizontal strip of thumbnails.
+//   - the first image spans the full width as a lead shot, so the grid still
+//     has a focal point rather than reading as an undifferentiated contact
+//     sheet.
+//
+// PlaceholderShot is used for unresolved media exactly as ProductGallery does,
+// so a landing generated before its images were swapped in still renders.
+//
+// Tailwind v4 scans SOURCE TEXT: every class below is a complete literal
+// string, never interpolated or concatenated (ADR-4, guarded by
+// contract.design-blocks.test.ts B2).
+import Container from '@/components/ui/Container.astro';
+import { PlaceholderShot } from '@/components/islands/parts/PlaceholderShot';
+import { galleryImages } from './gallery-images';
+
+const images = await galleryImages('grid');
+// galleryImages() throws on an empty list, so there is always a lead image —
+// but that invariant lives in the resolver and TypeScript cannot see it from
+// here. Stated explicitly rather than destructured, so the non-null is a
+// documented consequence of the guard instead of eight scattered `!`s.
+const lead = images[0]!;
+const rest = images.slice(1);
+---
+
+<section class="py-8 md:py-12">
+  <Container>
+    <ul class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+      <li class="md:col-span-2 lg:col-span-3">
+        {lead.placeholder ? (
+          <PlaceholderShot ratio={lead.ratio} alt={lead.alt} rounded="rounded-card" className="w-full" />
+        ) : (
+          <img
+            src={lead.src}
+            srcset={lead.srcset}
+            width={lead.width}
+            height={lead.height}
+            alt={lead.alt}
+            loading="eager"
+            class="aspect-[16/9] w-full rounded-card object-cover"
+          />
+        )}
+      </li>
+
+      {
+        rest.map((image) => (
+          <li>
+            {image.placeholder ? (
+              <PlaceholderShot ratio="1/1" alt={image.alt} rounded="rounded-tile" className="w-full" />
+            ) : (
+              <img
+                src={image.src}
+                srcset={image.srcset}
+                width={image.width}
+                height={image.height}
+                alt={image.alt}
+                loading="lazy"
+                class="aspect-square w-full rounded-tile object-cover"
+              />
+            )}
+          </li>
+        ))
+      }
+    </ul>
+  </Container>
+</section>

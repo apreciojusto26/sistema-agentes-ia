@@ -138,6 +138,16 @@ describe('scope-boundaries (Batch G — machine-checkable, spec R14)', () => {
     // content/landing-base/src/design-system/blocks/social-proof/ReviewsReel/
     // variants.render.test.ts.
     //
+    // `content/landing-base/src/components/sections/04-gallery-strip.astro` is
+    // the SAME arrangement, one capability later: media/GalleryStrip gained
+    // strip|grid variants, its composition moved to
+    // design-system/blocks/media/GalleryStrip/Strip.astro alongside Grid.astro
+    // and the gallery-images.ts resolver they share (which owns the Shopify-
+    // over-local precedence rule, and the fail-closed guard, once), and this
+    // file became a one-line shim for the same byte-locked-fixture reason.
+    // The golden test passes. Guards: contract.design-integrity.test.ts and
+    // design-system/blocks/media/GalleryStrip/variants.render.test.ts.
+    //
     // NO PATH IS EXEMPTED HERE, ON PURPOSE. This assertion measures WORKING
     // TREE dirtiness (`git status --porcelain`), not history, so once that
     // change is committed these files are clean again and the boundary holds

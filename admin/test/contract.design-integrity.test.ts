@@ -88,6 +88,11 @@ const HERO = { category: 'hero', type: 'Hero' };
 const BUYBOX = { category: 'conversion', type: 'BuyBox' };
 const REVIEWS_REEL = { category: 'socialProof', type: 'ReviewsReel', variant: 'carousel' };
 
+/** content.json that satisfies EVERY registered requirement. */
+function richContent() {
+  return contentWith([{ variant: 'quote' }, { variant: 'reel' }]);
+}
+
 /** content.json shaped just enough to satisfy every OTHER requirement. */
 function contentWith(testimonials: Array<{ variant: string }>) {
   return {
@@ -520,5 +525,163 @@ describe('structural variants — socialProof/ReviewsReel', () => {
     const legacy = read('content/landing-base/src/components/sections/10-reviews-reel.astro');
     expect(legacy, 'the legacy section still holds a copy of the markup').not.toContain('<section');
     expect(legacy).toContain('ReviewsReel/Carousel.astro');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Structural variants — media/GalleryStrip/{strip,grid}
+//
+// SECOND capability on the variant axis. The render-level proof (island vs
+// none, thumbnail rail vs column grid, one <li> per image) lives beside the
+// components in content/landing-base/src/design-system/blocks/media/
+// GalleryStrip/variants.render.test.ts — it needs the Astro container. What
+// belongs here is the contract half.
+//
+// Written against a LIST of converted capabilities rather than one literal, so
+// the third conversion inherits every assertion instead of copying it.
+// ---------------------------------------------------------------------------
+
+describe('structural variants — the variant axis, per converted capability', () => {
+  const CONVERTED = [
+    { category: 'socialProof', type: 'ReviewsReel', variants: ['carousel', 'grid'], requires: 'testimonials:reel' },
+    { category: 'media', type: 'GalleryStrip', variants: ['strip', 'grid'], requires: 'product.gallery' },
+  ];
+
+  test.each(CONVERTED)('$category/$type declares exactly its variants', ({ category, type, variants }) => {
+    expect(registry.listVariants(category, type).sort()).toEqual([...variants].sort());
+    // The placeholder variant is gone, not kept as an alias.
+    expect(registry.resolveCapability(category, type, 'default')).toBeNull();
+  });
+
+  test.each(CONVERTED)('$type: each variant has its OWN component, none wraps a sibling', ({ category, type, variants }) => {
+    const components = variants.map((v) => registry.resolveCapability(category, type, v).component);
+    expect(new Set(components).size, 'two variants share one component').toBe(variants.length);
+
+    for (const component of components) {
+      expect(component).toMatch(/^@\/design-system\/blocks\//);
+      const src = read(component.replace('@/', 'content/landing-base/src/'));
+      for (const other of components.filter((c) => c !== component)) {
+        const name = other.split('/').pop()!.replace('.astro', '');
+        expect(src, `${component} imports its sibling ${name}`).not.toContain(`./${name}.astro`);
+      }
+    }
+  });
+
+  test.each(CONVERTED)('$type: every variant carries the SAME data requirement', ({ category, type, variants, requires }) => {
+    for (const variant of variants) {
+      const entry = registry.resolveCapability(category, type, variant);
+      expect(entry.requiresData, `${variant} drifted`).toEqual([requires]);
+    }
+  });
+
+  test.each(CONVERTED)('$type: an unknown variant is rejected as unsupported_design', ({ category, type }) => {
+    const spec = specWith([HERO, BUYBOX, REVIEWS_REEL, { category, type, variant: 'nope' }]);
+    const verdict = design.checkDesignSupport(spec, undefined, richContent());
+    expect(verdict.status).toBe('unsupported_design');
+    expect(verdict.missingCapability).toBe(`${category}/${type}/nope`);
+  });
+
+  test.each(CONVERTED)('$type: every variant validates when the data IS there', ({ category, type, variants }) => {
+    for (const variant of variants) {
+      const sections = [HERO, BUYBOX];
+      if (type !== 'ReviewsReel') sections.push(REVIEWS_REEL);
+      sections.push({ category, type, variant });
+      const verdict = design.checkDesignSupport(specWith(sections), undefined, richContent());
+      expect(verdict.status, `${type}/${variant}: ${JSON.stringify(verdict)}`).toBe('pass');
+    }
+  });
+
+  test.each(CONVERTED)('$type: NO variant can be used without its data', ({ category, type, variants, requires }) => {
+    for (const variant of variants) {
+      const content = richContent();
+      // Starve exactly this capability's requirement, leave the rest intact.
+      if (requires === 'testimonials:reel') content.testimonials = [{ variant: 'quote' }];
+      else content.product.gallery = [];
+
+      const sections = [HERO, BUYBOX];
+      if (type !== 'ReviewsReel') sections.push(REVIEWS_REEL);
+      sections.push({ category, type, variant });
+
+      const verdict = design.checkDesignSupport(specWith(sections), undefined, content);
+      expect(verdict.status, `${type}/${variant} slipped past the data gate`).toBe('unsatisfied_data');
+      expect(verdict.unsatisfied.some((u: { requirement: string }) => u.requirement === requires)).toBe(true);
+    }
+  });
+
+  test.each(CONVERTED)('$type: both variants reach the Design Agent from the registry', ({ category, type, variants, requires }) => {
+    const catalogue = agent.buildCapabilityCatalogue().map((c: { key: string }) => c.key);
+    const instruction = agent.buildSystemInstruction();
+
+    for (const variant of variants) {
+      expect(catalogue).toContain(`${category}/${type}/${variant}`);
+      expect(instruction).toContain(`${category}/${type}/${variant}`);
+    }
+
+    // Same advertised requirement on every variant, or the model could read
+    // one of them as the cheap way around the data gate.
+    const lines = instruction.split('\n').filter((l: string) => l.includes(`${category}/${type}/`));
+    expect(lines).toHaveLength(variants.length);
+    for (const line of lines) expect(line).toContain(requires);
+  });
+
+  test.each(CONVERTED)('$type: the agent hardcodes neither the variants nor a steering rule', ({ type, variants }) => {
+    const src = read('scripts/generate-design.mjs');
+    for (const variant of variants) {
+      expect(src, `generate-design.mjs hardcodes ${type}/${variant}`).not.toContain(`${type}/${variant}`);
+    }
+    expect(src).not.toMatch(/family\s*===?\s*['"]/);
+    expect(src).not.toMatch(/density\s*===?\s*['"]/);
+  });
+
+  test.each(CONVERTED)('$type: the two variants cannot both be composed into one landing', ({ category, type, variants }) => {
+    // Guaranteed by `section-duplicate-type`, which is WHY incompatibleWith
+    // stays empty instead of restating it as metadata.
+    const sections = [HERO, BUYBOX, REVIEWS_REEL, ...variants.map((variant) => ({ category, type, variant }))];
+    const issues = design.collectDesignErrors(specWith(sections));
+    expect(issues.map((i: { code: string }) => i.code)).toContain('section-duplicate-type');
+
+    for (const variant of variants) {
+      const entry = registry.resolveCapability(category, type, variant);
+      expect(entry.incompatibleWith, 'metadata restating section-duplicate-type').toEqual([]);
+      expect(entry.familiesAllowed, 'a family restriction with no evidence behind it').toBe('*');
+    }
+  });
+
+  test.each(CONVERTED)('$type: the data mapping is declared ONCE, not per variant', ({ category, type, variants }) => {
+    const dirs = new Set(
+      variants.map((v) => {
+        const c = registry.resolveCapability(category, type, v).component;
+        return c.slice(0, c.lastIndexOf('/'));
+      }),
+    );
+    expect(dirs.size, 'variants live in different directories').toBe(1);
+
+    for (const variant of variants) {
+      const entry = registry.resolveCapability(category, type, variant);
+      const src = read(entry.component.replace('@/', 'content/landing-base/src/'));
+      // The shared module is imported; the mapping is not re-derived.
+      expect(src, `${variant} does not use the shared selector`).toMatch(/from '\.\/[a-z-]+'/);
+      expect(src, `${variant} re-implements the selector`).not.toMatch(/\.filter\(|resolveMediaList|resolveShopifyImages/);
+    }
+  });
+
+  test.each(CONVERTED)('$type: the legacy section is a shim, not a second copy', ({ category, type, variants }) => {
+    // Compatibility, not cleanliness: design-system/test-fixtures/
+    // LegacyIndex2074c93.astro imports these paths statically and
+    // legacy-render.golden.test.ts requires byte-identical output.
+    const promoted = registry.resolveCapability(category, type, variants[0]).component;
+    const legacyFile = {
+      ReviewsReel: 'content/landing-base/src/components/sections/10-reviews-reel.astro',
+      GalleryStrip: 'content/landing-base/src/components/sections/04-gallery-strip.astro',
+    }[type]!;
+
+    const legacy = read(legacyFile);
+    expect(legacy, 'the legacy section still holds a copy of the markup').not.toContain('<section');
+    expect(legacy).toContain(promoted.split('/').slice(-2).join('/'));
+
+    const fixture = read('content/landing-base/src/design-system/test-fixtures/LegacyIndex2074c93.astro');
+    expect(fixture, 'the golden fixture no longer imports the legacy path').toContain(
+      legacyFile.replace('content/landing-base/src/', '@/'),
+    );
   });
 });

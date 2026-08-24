@@ -1,0 +1,24 @@
+---
+// DESIGN SYSTEM building block — media/GalleryStrip/strip.
+//
+// THE COMPOSITION MOVED HERE, verbatim, from
+// @/components/sections/04-gallery-strip.astro, which is now a one-line shim
+// so the byte-locked legacy golden fixture keeps resolving. See Carousel.astro
+// under blocks/social-proof/ReviewsReel/ for the same pattern and the reason
+// it is safe: legacy-render.golden.test.ts renders both paths and requires
+// BYTE-IDENTICAL output.
+//
+// Sibling of Grid.astro, not its parent. Both declare
+// requiresData ['product.gallery'] and both resolve images through
+// galleryImages(). Choosing between them is the Design Agent's decision,
+// expressed as the DesignSpec section's `variant` — never a prop, never a
+// branch inside a component.
+import { ProductGallery } from '@/components/islands/ProductGallery';
+import { galleryImages } from './gallery-images';
+
+const resolvedImages = await galleryImages('strip');
+---
+
+<section class="mx-auto w-full max-w-[28rem] px-5 md:max-w-[42rem] lg:max-w-[40rem] py-8">
+  <ProductGallery client:visible images={resolvedImages} />
+</section>

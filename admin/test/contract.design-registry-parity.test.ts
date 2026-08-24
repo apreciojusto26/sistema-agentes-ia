@@ -139,13 +139,13 @@ describe('design registry parity — build-time ↔ runtime', () => {
     ).then((mod) => {
       const sections = mod.design.sections;
       expect(sections).toHaveLength(11);
-      // ONE documented exception to "legacy only" (Structural variants v1):
-      // socialProof/ReviewsReel/carousel. That block IS the composition the
+      // The documented exceptions to "legacy only": each is a legacy section
+      // PROMOTED onto the variant axis. Each block IS the composition its
       // legacy section held — the file moved, the markup did not — and
       // legacy-render.golden.test.ts proves the default spec still renders
       // byte-identically to the pre-registry page. No OTHER block may appear
       // here, and this list is not a place to add more.
-      const PROMOTED = new Set(['socialProof/ReviewsReel/carousel']);
+      const PROMOTED = new Set(['socialProof/ReviewsReel/carousel', 'media/GalleryStrip/strip']);
 
       sections.forEach((s: Entry & { order: number; props?: unknown }, i: number) => {
         expect(s.order, `section ${i} order`).toBe(i);

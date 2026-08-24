@@ -32,7 +32,7 @@ export const design: DesignSpec = {
   // src/styles/global.css untouched.
   sections: [
     { category: 'hero', type: 'Hero', variant: 'default', order: 0 },
-    { category: 'media', type: 'GalleryStrip', variant: 'default', order: 1 },
+    { category: 'media', type: 'GalleryStrip', variant: 'strip', order: 1 },
     { category: 'conversion', type: 'BuyBox', variant: 'default', order: 2 },
     { category: 'product', type: 'HowItWorks', variant: 'default', order: 3 },
     { category: 'socialProof', type: 'FeaturedTestimonial', variant: 'default', order: 4 },
