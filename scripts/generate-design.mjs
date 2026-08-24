@@ -163,7 +163,7 @@ export function buildSystemInstruction() {
     'Reglas duras:',
     '- No inventes capacidades, variantes ni props que no estén en la lista. Se rechaza y falla.',
     '- Si una capacidad dice "necesita datos", MIRÁ el contenido de arriba antes de usarla. Por ejemplo',
-    '  socialProof/ReviewsReel/default necesita testimonials con variant "reel": si no hay ninguno, esa',
+    '  socialProof/ReviewsReel necesita testimonials con variant "reel": si no hay ninguno, esa',
     '  sección se renderiza vacía y la generación se rechaza. Elegí otra o no la incluyas.',
     '- No incluyas el shell (header, footer, barra sticky, carrito): lo renderiza el sistema.',
     '- Incluí siempre al menos una sección de conversión y una de prueba social.',

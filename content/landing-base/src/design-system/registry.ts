@@ -72,7 +72,6 @@ export const REGISTRY: RegistryEntry[] = [
   legacy('socialProof', 'FeaturedTestimonial', '@/components/sections/07-featured-testimonial.astro', ['testimonials:quote']),
   legacy('conversion', 'Faq', '@/components/sections/08-faq.astro', ['faq']),
   legacy('socialProof', 'UgcStrip', '@/components/sections/09-ugc-strip.astro', ['product.ugc']),
-  legacy('socialProof', 'ReviewsReel', '@/components/sections/10-reviews-reel.astro', ['testimonials:reel']),
   legacy('product', 'Comparison', '@/components/sections/11-comparison.astro', ['product.comparison']),
   legacy('conversion', 'Guarantee', '@/components/sections/12-guarantee.astro'),
   legacy('socialProof', 'RealResults', '@/components/sections/13-real-results.astro', ['product.ugc']),
@@ -87,6 +86,32 @@ export const REGISTRY: RegistryEntry[] = [
     tone: { type: 'string', enum: ['gold', 'plain'] },
   }),
 
+  // --- STRUCTURAL VARIANTS v1 ---------------------------------------------
+  // socialProof/ReviewsReel is the FIRST capability whose `variant` axis
+  // carries a real structural choice rather than the placeholder 'default'.
+  // Both variants render the same reviews through the same selector
+  // (blocks/social-proof/ReviewsReel/reel-reviews.ts) and therefore declare
+  // the SAME requiresData — a new variant can never be a way around the
+  // data-aware gate.
+  //
+  // `carousel` is the composition this capability always had (it moved out of
+  // components/sections/10-reviews-reel.astro verbatim, which is now a shim);
+  // `grid` is a genuinely different composition: static, no island, no
+  // controls, every review visible at once.
+  //
+  // AUDIT — familiesAllowed / incompatibleWith (both left at their honest
+  // empty values, deliberately):
+  //   * families only re-declare CSS custom properties (styles/design-system.css
+  //     changes colours, radii, shadows, --font-display and --spacing). Neither
+  //     composition depends on any of those to stay legible, so no real
+  //     family incompatibility exists. familiesAllowed stays '*'.
+  //   * carousel vs grid cannot co-occur ALREADY: collectSectionsIssues()
+  //     rejects a repeated `type` with `section-duplicate-type`, independently
+  //     of variant. Declaring them incompatibleWith each other would be
+  //     redundant metadata dressed up as a rule — the exact fiction this
+  //     registry forbids. incompatibleWith stays [].
+  block('socialProof', 'ReviewsReel', 'carousel', '@/design-system/blocks/social-proof/ReviewsReel/Carousel.astro', {}, ['testimonials:reel']),
+  block('socialProof', 'ReviewsReel', 'grid', '@/design-system/blocks/social-proof/ReviewsReel/Grid.astro', {}, ['testimonials:reel']),
 ];
 
 /** Canonical `category/type/variant` key. */

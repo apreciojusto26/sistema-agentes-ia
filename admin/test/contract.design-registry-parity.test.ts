@@ -132,19 +132,30 @@ describe('design registry parity — build-time ↔ runtime', () => {
     expect(support.status, `support: ${JSON.stringify(support)}`).toBe('pass');
   });
 
-  test('the template default renders exactly the 11 legacy capabilities, in order, with no props', () => {
+  test('the template default renders the 11 default-generation capabilities, in order, with no props', () => {
     const runtimeMap = byKey(runtimeEntries);
     return import(
       pathToFileURL(path.join(REPO_ROOT, 'content/landing-base/src/data/design.ts')).href
     ).then((mod) => {
       const sections = mod.design.sections;
       expect(sections).toHaveLength(11);
+      // ONE documented exception to "legacy only" (Structural variants v1):
+      // socialProof/ReviewsReel/carousel. That block IS the composition the
+      // legacy section held — the file moved, the markup did not — and
+      // legacy-render.golden.test.ts proves the default spec still renders
+      // byte-identically to the pre-registry page. No OTHER block may appear
+      // here, and this list is not a place to add more.
+      const PROMOTED = new Set(['socialProof/ReviewsReel/carousel']);
+
       sections.forEach((s: Entry & { order: number; props?: unknown }, i: number) => {
         expect(s.order, `section ${i} order`).toBe(i);
-        expect(s.variant, `section ${i} variant`).toBe('default');
         expect(s.props, `section ${i} props`).toBeUndefined();
         const entry = runtimeMap.get(keyOf(s));
         expect(entry, `${keyOf(s)} not registered`).toBeDefined();
+
+        if (PROMOTED.has(keyOf(s))) return;
+
+        expect(s.variant, `section ${i} variant`).toBe('default');
         // Legacy only: no building block may sneak into the default spec.
         expect(entry!.component, `${keyOf(s)} is not a legacy section`).toMatch(
           /^@\/components\/sections\//,

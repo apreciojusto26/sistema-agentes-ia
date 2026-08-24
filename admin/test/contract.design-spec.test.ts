@@ -96,7 +96,7 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
       const spec = fixtureSpec([
         { category: 'hero', type: 'Hero', variant: 'default', order: 0 },
         { category: 'socialProof', type: 'UgcStrip', variant: 'default', order: 1 },
-        { category: 'socialProof', type: 'ReviewsReel', variant: 'default', order: 2 },
+        { category: 'socialProof', type: 'ReviewsReel', variant: 'carousel', order: 2 },
         { category: 'conversion', type: 'BuyBox', variant: 'default', order: 3 },
       ]);
       expect(contract.collectDesignErrors(spec)).toEqual([]);
@@ -364,7 +364,6 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
       'socialProof/FeaturedTestimonial/default',
       'conversion/Faq/default',
       'socialProof/UgcStrip/default',
-      'socialProof/ReviewsReel/default',
       'product/Comparison/default',
       'conversion/Guarantee/default',
       'socialProof/RealResults/default',
@@ -373,16 +372,24 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
       'hero/ProductHero/split',
       'socialProof/FeaturedQuote/default',
       'conversion/ProductGuarantee/default',
+      // Structural variants v1: socialProof/ReviewsReel LEFT the legacy list.
+      // Its composition moved into these two blocks and
+      // components/sections/10-reviews-reel.astro became a shim, so the byte-
+      // locked legacy golden fixture still resolves and
+      // legacy-render.golden.test.ts still proves the default DesignSpec
+      // renders byte-identically to the pre-registry page.
+      'socialProof/ReviewsReel/carousel',
+      'socialProof/ReviewsReel/grid',
     ];
     const keyOf = (e: { category: string; type: string; variant: string }) =>
       `${e.category}/${e.type}/${e.variant}`;
 
-    test('registers exactly the 11 legacy sections plus the 3 Fase 2 building blocks', () => {
-      expect(registryModule.REGISTRY).toHaveLength(14);
+    test('registers exactly the 10 legacy sections plus the 5 building blocks', () => {
+      expect(registryModule.REGISTRY).toHaveLength(15);
       expect(registryModule.REGISTRY.map(keyOf)).toEqual([...LEGACY_KEYS, ...BLOCK_KEYS]);
     });
 
-    test('the 11 legacy capabilities still point at their original section files', () => {
+    test('the 10 legacy capabilities still point at their original section files', () => {
       for (const key of LEGACY_KEYS) {
         const entry = registryModule.REGISTRY.find((e) => keyOf(e) === key);
         expect(entry, `${key} missing`).toBeDefined();
@@ -427,14 +434,34 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
       }
     });
 
-    // The inverse guard: a block declaring {} would be a capability pretending
-    // to be configurable, which is the same fiction from the other direction.
-    test('every building block declares a REAL, non-empty propsSchema', () => {
+    // The inverse guard: a block must add something REAL over the legacy
+    // section it derives from, or it is a capability pretending to be one.
+    //
+    // Until structural variants there was exactly one way to add something —
+    // a props contract — so this test demanded a non-empty propsSchema. There
+    // are now TWO, and socialProof/ReviewsReel/{carousel,grid} take the other:
+    // the choice they offer is the registry VARIANT itself, resolved to a
+    // different component, so encoding it as a prop as well would be the
+    // parallel taxonomy the registry forbids.
+    //
+    // The fiction this test exists to catch is unchanged and still caught: a
+    // block with no props AND no sibling variant offers nothing the legacy
+    // section did not, and fails here.
+    test('every building block adds a real capability — props, or a sibling variant', () => {
       const blocks = registryModule.REGISTRY.filter(registryModule.isBuildingBlock);
       expect(blocks.map(keyOf)).toEqual(BLOCK_KEYS);
+
       for (const entry of blocks) {
-        expect(Object.keys(entry.propsSchema).length, `${entry.type} propsSchema`).toBeGreaterThan(0);
-        for (const [prop, rule] of Object.entries(entry.propsSchema)) {
+        const props = Object.entries(entry.propsSchema);
+        const siblings = registryModule.listVariants(entry.category, entry.type);
+
+        expect(
+          props.length > 0 || siblings.length > 1,
+          `${keyOf(entry)} declares no props and is the only variant of its type — ` +
+            'it adds nothing over a legacy section',
+        ).toBe(true);
+
+        for (const [prop, rule] of props) {
           expect(rule.type, `${entry.type}.${prop} type`).toBe('string');
           expect(rule.enum?.length, `${entry.type}.${prop} enum`).toBeGreaterThan(1);
         }

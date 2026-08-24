@@ -24,7 +24,7 @@ const baseSpec = (over: Record<string, unknown> = {}) => ({
   sections: [
     { category: 'hero', type: 'Hero', variant: 'default', order: 0 },
     { category: 'conversion', type: 'BuyBox', variant: 'default', order: 1 },
-    { category: 'socialProof', type: 'ReviewsReel', variant: 'default', order: 2 },
+    { category: 'socialProof', type: 'ReviewsReel', variant: 'carousel', order: 2 },
   ],
   ...over,
 });
@@ -112,7 +112,7 @@ describe('Impeccable criteria (advisory tier)', () => {
       const spec = baseSpec({
         sections: [
           { category: 'socialProof', type: 'UgcStrip', variant: 'default', order: 0 },
-          { category: 'socialProof', type: 'ReviewsReel', variant: 'default', order: 1 },
+          { category: 'socialProof', type: 'ReviewsReel', variant: 'carousel', order: 1 },
           { category: 'socialProof', type: 'RealResults', variant: 'default', order: 2 },
           { category: 'conversion', type: 'BuyBox', variant: 'default', order: 3 },
         ],
@@ -124,7 +124,7 @@ describe('Impeccable criteria (advisory tier)', () => {
       const spec = baseSpec({
         sections: [
           { category: 'hero', type: 'Hero', variant: 'default', order: 0 },
-          { category: 'socialProof', type: 'ReviewsReel', variant: 'default', order: 1 },
+          { category: 'socialProof', type: 'ReviewsReel', variant: 'carousel', order: 1 },
         ],
       });
       expect(rules(spec)).toContain('missing-conversion');

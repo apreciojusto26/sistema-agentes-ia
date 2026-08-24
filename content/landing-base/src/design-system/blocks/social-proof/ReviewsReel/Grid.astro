@@ -1,0 +1,60 @@
+---
+// DESIGN SYSTEM building block — socialProof/ReviewsReel/grid.
+//
+// The SAME reviews as Carousel.astro, composed as a static responsive grid.
+// Sibling variant, not a derivative: it reads through the same reelReviews()
+// selector and declares the same requiresData in the registry.
+//
+// STRUCTURALLY different, not re-skinned — this is the whole point of the
+// variant axis:
+//   - no JS: no island, no client directive, nothing hydrates. The carousel
+//     mounts ReviewCarousel with `client:visible`; this variant mounts
+//     nothing, so index.html carries no <astro-island> for it and the browser
+//     never requests the carousel chunk. (The chunk is still EMITTED into
+//     _astro/ either way — index.astro's `import.meta.glob({eager:true})`
+//     bundles every registered candidate at build time. Unreferenced, so
+//     unloaded: the saving is a real request the visitor does not make, not a
+//     smaller dist/ directory.)
+//   - no controls: no prev/next, no dot tablist, no scroll track.
+//   - all reviews visible at once, 1 -> 2 -> 3 columns, instead of one card
+//     at a time behind a horizontal swipe.
+//   - light section on the page's own background, so it does NOT interrupt
+//     the vertical rhythm with a full-bleed dark band and wave dividers.
+//
+// Consequence worth knowing: because nothing hydrates, this variant costs the
+// visitor no JS for its section — the cheaper choice on a long page or a slow
+// connection. That is a real
+// trade-off the Design Agent gets to make — it is NOT encoded as a rule here,
+// and no family or density steers it.
+//
+// Tailwind v4 scans SOURCE TEXT: every class below is a complete literal
+// string. Nothing is interpolated or concatenated (ADR-4, guarded by
+// contract.design-blocks.test.ts B2).
+import Container from '@/components/ui/Container.astro';
+import { Stars } from '@/components/islands/parts/Stars';
+import { reelReviews } from './reel-reviews';
+
+const reviews = reelReviews('grid');
+---
+
+<section class="bg-bone-dim py-12 md:py-16">
+  <Container>
+    <p class="text-eyebrow font-bold uppercase text-rust">Reseñas verificadas</p>
+    <h2 class="mt-1 text-display md:text-4xl">Lo que dicen quienes ya lo tienen</h2>
+
+    <ul class="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+      {
+        reviews.map((review) => (
+          <li class="flex h-full flex-col rounded-card bg-surface p-5 shadow-card">
+            <Stars rating={review.rating} className="mb-2" />
+            <p class="flex-1 text-sm leading-relaxed text-graphite-soft">{review.body}</p>
+            <p class="mt-4 text-xs font-semibold text-graphite">
+              {review.author}
+              {review.location && <span class="font-normal text-steel">{` · ${review.location}`}</span>}
+            </p>
+          </li>
+        ))
+      }
+    </ul>
+  </Container>
+</section>

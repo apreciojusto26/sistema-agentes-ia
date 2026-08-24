@@ -113,15 +113,30 @@ describe('scope-boundaries (Batch G — machine-checkable, spec R14)', () => {
     // this phase).
     //
     // `content/landing-base/src/components/sections/10-reviews-reel.astro` was
-    // modified once, deliberately, to add a fail-closed guard. It filters
-    // testimonials down to `variant === 'reel'` and, when that came back
-    // empty, rendered a full-width dark band with wave dividers and carousel
-    // arrows around an empty track — shipped with build PASS and validate
-    // PASS, because nothing in the stack was looking. The guard throws instead.
-    // It is a BACKSTOP: the real gates are the capability's
-    // `requiresData: ['testimonials:reel']` in both registries, checked by
-    // checkDesignSupport() at design time and again at generation time.
-    // Its guard is admin/test/contract.design-integrity.test.ts.
+    // modified deliberately, across two phases, and is now a ONE-LINE SHIM.
+    //
+    // It used to filter testimonials to `variant === 'reel'` and, when that
+    // came back empty, render a full-width dark band with wave dividers and
+    // carousel arrows around an empty track — shipped with build PASS and
+    // validate PASS, because nothing in the stack was looking.
+    //
+    // Structural variants v1 moved that composition into
+    // src/design-system/blocks/social-proof/ReviewsReel/Carousel.astro, its
+    // sibling Grid.astro, and the reel-reviews.ts selector they share (which
+    // carries the fail-closed backstop, once, for both). The registry points
+    // at the blocks; this file now renders <Carousel /> and nothing else.
+    //
+    // It is NOT dead code and must not be deleted: design-system/test-fixtures/
+    // LegacyIndex2074c93.astro is byte-locked to index.astro at HEAD 2074c93
+    // and imports this path statically. legacy-render.golden.test.ts renders
+    // that fixture against the live default-DesignSpec page and requires the
+    // two to be BYTE-IDENTICAL — which is the mechanical proof that promoting
+    // this legacy section to registry variants changed nothing for a
+    // generation that passes no --design. That test passes.
+    //
+    // Its guards are admin/test/contract.design-integrity.test.ts and
+    // content/landing-base/src/design-system/blocks/social-proof/ReviewsReel/
+    // variants.render.test.ts.
     //
     // NO PATH IS EXEMPTED HERE, ON PURPOSE. This assertion measures WORKING
     // TREE dirtiness (`git status --porcelain`), not history, so once that

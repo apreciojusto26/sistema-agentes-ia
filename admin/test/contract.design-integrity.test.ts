@@ -22,9 +22,57 @@ const at = (rel: string) => path.join(REPO_ROOT, rel);
 const read = (rel: string) => readFileSync(at(rel), 'utf-8');
 const load = (rel: string) => import(pathToFileURL(at(rel)).href);
 
+/**
+ * A component's own source plus every relative module it imports.
+ *
+ * Needed since ReviewsReel gained variants: `carousel` and `grid` deliberately
+ * do NOT re-declare the reel selector, they share `./reel-reviews.ts`. A
+ * scanner that only read the .astro file would report "this component never
+ * selects reel" and be WRONG — it would push the next author to duplicate the
+ * selector just to satisfy a test, which is the opposite of the rule.
+ */
+function readWithLocalImports(rel: string): string {
+  const src = read(rel);
+  const dir = path.dirname(rel);
+  const local = [...src.matchAll(/from '(\.\/[^']+)'/g)].map((m) => m[1]);
+  return [
+    src,
+    ...local.map((spec) => {
+      const base = path.join(dir, spec);
+      for (const candidate of [base, `${base}.ts`, `${base}.astro`]) {
+        try {
+          return read(candidate);
+        } catch {
+          /* try the next extension */
+        }
+      }
+      throw new Error(`${rel} imports ${spec}, which does not resolve`);
+    }),
+  ].join('\n');
+}
+
+/**
+ * Does `src` select testimonials on this variant?
+ *
+ * Accepts BOTH the inline literal (`t.variant === 'reel'`) and a named
+ * constant (`const REEL_VARIANT = 'reel'` … `t.variant === REEL_VARIANT`).
+ * The shared selector uses the constant on purpose — the discriminator is
+ * declared once — and a scanner that only understood the literal would have
+ * pushed the next author to inline it just to satisfy this test. The
+ * guardrail must follow the code, not bend it.
+ */
+function selectsVariant(src: string, variant: string): boolean {
+  if (src.includes(`=== '${variant}'`)) return true;
+  const consts = [...src.matchAll(/const\s+([A-Z][A-Z0-9_]*)\s*=\s*'([^']+)'/g)]
+    .filter((m) => m[2] === variant)
+    .map((m) => m[1]);
+  return consts.some((name) => new RegExp(`===\\s*${name}\\b`).test(src));
+}
+
 const contract = await load('scripts/lib/content-contract.mjs');
 const registry = await load('scripts/lib/design-registry.mjs');
 const design = await load('scripts/lib/design-contract.mjs');
+const agent = await load('scripts/generate-design.mjs');
 
 /** A DesignSpec that is valid on every axis EXCEPT the ones a test varies. */
 function specWith(sections: Array<Record<string, unknown>>) {
@@ -38,7 +86,7 @@ function specWith(sections: Array<Record<string, unknown>>) {
 
 const HERO = { category: 'hero', type: 'Hero' };
 const BUYBOX = { category: 'conversion', type: 'BuyBox' };
-const REVIEWS_REEL = { category: 'socialProof', type: 'ReviewsReel' };
+const REVIEWS_REEL = { category: 'socialProof', type: 'ReviewsReel', variant: 'carousel' };
 
 /** content.json shaped just enough to satisfy every OTHER requirement. */
 function contentWith(testimonials: Array<{ variant: string }>) {
@@ -62,22 +110,27 @@ describe('testimonial variants — every accepted variant has a real consumer', 
   // The defect: 'card' was an accepted variant with no selector anywhere, so
   // 3 of the 4 testimonials the first live run produced were unrenderable.
   test('TESTIMONIAL_VARIANTS contains exactly the variants some component selects', () => {
+    // Derived from the registry, not hand-listed: a new capability that
+    // selects a variant must be covered here automatically.
     const sources = [
-      'content/landing-base/src/components/sections/07-featured-testimonial.astro',
-      'content/landing-base/src/components/sections/10-reviews-reel.astro',
-      'content/landing-base/src/design-system/blocks/social-proof/FeaturedQuote/Default.astro',
-    ].map(read).join('\n');
+      ...registry.REGISTRY.map((e: { component: string }) =>
+        readWithLocalImports(e.component.replace('@/', 'content/landing-base/src/')),
+      ),
+    ].join('\n');
 
     // Every variant the contract accepts must be selected by real source.
     for (const variant of contract.TESTIMONIAL_VARIANTS) {
       expect(
-        sources.includes(`=== '${variant}'`),
+        selectsVariant(sources, variant),
         `variant "${variant}" is accepted by the contract but no component selects it`,
       ).toBe(true);
     }
 
     // …and the inverse: no component selects a variant the contract rejects.
-    const selected = [...sources.matchAll(/t\.variant === '([a-z]+)'/g)].map((m) => m[1]);
+    const selected = [
+      ...[...sources.matchAll(/\.variant === '([a-z]+)'/g)].map((m) => m[1]),
+      ...[...sources.matchAll(/const\s+[A-Z][A-Z0-9_]*\s*=\s*'([a-z]+)' as const/g)].map((m) => m[1]),
+    ];
     for (const variant of new Set(selected)) {
       expect(
         contract.TESTIMONIAL_VARIANTS,
@@ -146,8 +199,10 @@ describe('testimonial variants — every accepted variant has a real consumer', 
 
 describe('data-aware capability resolution', () => {
   test('requirements come from the REGISTRY, never hardcoded in an agent', () => {
-    const entry = registry.resolveCapability('socialProof', 'ReviewsReel', 'default');
-    expect(entry.requiresData).toEqual(['testimonials:reel']);
+    for (const variant of registry.listVariants('socialProof', 'ReviewsReel')) {
+      const entry = registry.resolveCapability('socialProof', 'ReviewsReel', variant);
+      expect(entry.requiresData, `${variant} lost its data requirement`).toEqual(['testimonials:reel']);
+    }
 
     // The agent and the contract must be capability-agnostic: no file may name
     // a specific capability's data need. That is what keeps the registry the
@@ -166,12 +221,14 @@ describe('data-aware capability resolution', () => {
     // The registry's honesty contract, mechanised: an unfounded requirement
     // rejects landings that would have rendered perfectly.
     for (const entry of registry.REGISTRY) {
-      const src = read(entry.component.replace('@/', 'content/landing-base/src/'));
+      const src = readWithLocalImports(entry.component.replace('@/', 'content/landing-base/src/'));
       for (const req of entry.requiresData) {
         const [dotPath, variant] = req.split(':');
         if (variant) {
-          expect(src, `${entry.type} declares ${req} but never selects variant "${variant}"`)
-            .toContain(`=== '${variant}'`);
+          expect(
+            selectsVariant(src, variant),
+            `${entry.type} declares ${req} but never selects variant "${variant}"`,
+          ).toBe(true);
         } else if (dotPath.startsWith('product.')) {
           expect(src, `${entry.type} declares ${req} but never reads ${dotPath}`).toContain(dotPath);
         } else {
@@ -188,7 +245,7 @@ describe('data-aware capability resolution', () => {
 
     expect(verdict.status).toBe('unsatisfied_data');
     expect(verdict.unsatisfied).toEqual([
-      { capability: 'socialProof/ReviewsReel/default', requirement: 'testimonials:reel' },
+      { capability: 'socialProof/ReviewsReel/carousel', requirement: 'testimonials:reel' },
     ]);
   });
 
@@ -281,24 +338,43 @@ describe('theme precedence — base defaults -> family -> DesignSpec', () => {
 // ---------------------------------------------------------------------------
 
 describe('ReviewsReel backstop', () => {
-  const src = read('content/landing-base/src/components/sections/10-reviews-reel.astro');
+  // Moved out of the legacy section and into the selector both variants share,
+  // so a new variant cannot be a way around it.
+  const src = read('content/landing-base/src/design-system/blocks/social-proof/ReviewsReel/reel-reviews.ts');
 
   test('throws when composed with zero reel testimonials', () => {
-    expect(src).toMatch(/if \(reelReviews\.length === 0\) \{\s*\n\s*throw new Error\(/);
+    expect(src).toMatch(/if \(reviews\.length === 0\) \{\s*\n\s*throw new Error\(/);
   });
 
   test('the error tells the operator both real fixes', () => {
-    expect(src).toContain('add at least one testimonial with variant "reel"');
+    expect(src).toContain('add at least one testimonial with variant "${REEL_VARIANT}"');
     expect(src).toContain('remove the socialProof/ReviewsReel section');
+  });
+
+  test('the error names WHICH variant was composed', () => {
+    // "something was empty" is not actionable when a type has two variants.
+    expect(src).toContain('variant "${composedBy}"');
   });
 
   test('it is documented as a backstop, with the rule for repeating it', () => {
     // Scope control: this pattern must not metastasise into every component.
     expect(src).toMatch(/BACKSTOP, not the primary validation/);
-    expect(src).toMatch(/HOW TO REPEAT THIS PATTERN/);
+    expect(
+      read('content/landing-base/src/design-system/blocks/social-proof/ReviewsReel/Carousel.astro'),
+    ).toMatch(/A component earns a guard only when/);
   });
 
-  test('no other section grew a defensive throw in this phase', () => {
+  test('every ReviewsReel variant routes through the shared selector', () => {
+    // The guard is only a guarantee if no variant can bypass it.
+    for (const variant of registry.listVariants('socialProof', 'ReviewsReel')) {
+      const entry = registry.resolveCapability('socialProof', 'ReviewsReel', variant);
+      const code = read(entry.component.replace('@/', 'content/landing-base/src/'));
+      expect(code, `${variant} does not use reelReviews()`).toMatch(/reelReviews\('/);
+      expect(code, `${variant} re-implements the reel selector`).not.toMatch(/\.filter\(/);
+    }
+  });
+
+  test('no legacy section grew a defensive throw', () => {
     const dir = 'content/landing-base/src/components/sections';
     const guarded = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '11', '12', '13', '14', '15']
       .map((n) => {
@@ -312,5 +388,137 @@ describe('ReviewsReel backstop', () => {
       .filter(({ src: s }) => s.includes('throw new Error'));
 
     expect(guarded.map((g) => g.file), 'a section grew an undocumented guard').toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Structural variants v1 — socialProof/ReviewsReel/{carousel,grid}
+//
+// The RENDER-level proof (different HTML, controls vs no controls, island vs
+// no island) lives next to the components, in
+// content/landing-base/src/design-system/blocks/social-proof/ReviewsReel/
+// variants.render.test.ts — it needs the Astro container. What belongs HERE is
+// the contract half: the vocabulary, the gate, and the single source of truth.
+// ---------------------------------------------------------------------------
+
+describe('structural variants — socialProof/ReviewsReel', () => {
+  const VARIANTS = ['carousel', 'grid'];
+
+  test('the registry declares exactly these two variants', () => {
+    expect(registry.listVariants('socialProof', 'ReviewsReel').sort()).toEqual([...VARIANTS].sort());
+    // The placeholder variant is gone, not kept as a third alias.
+    expect(registry.resolveCapability('socialProof', 'ReviewsReel', 'default')).toBeNull();
+  });
+
+  test('each variant resolves to its OWN component — not one wrapping the other', () => {
+    const components = VARIANTS.map(
+      (v) => registry.resolveCapability('socialProof', 'ReviewsReel', v).component,
+    );
+    expect(new Set(components).size, 'two variants share one component').toBe(2);
+
+    for (const component of components) {
+      expect(component).toMatch(/^@\/design-system\/blocks\/social-proof\/ReviewsReel\//);
+      const src = read(component.replace('@/', 'content/landing-base/src/'));
+      for (const other of components.filter((c) => c !== component)) {
+        const name = other.split('/').pop()!.replace('.astro', '');
+        expect(src, `${component} imports its sibling ${name}`).not.toContain(`./${name}.astro`);
+      }
+    }
+  });
+
+  test('a DesignSpec naming an unknown ReviewsReel variant is rejected', () => {
+    const spec = specWith([HERO, BUYBOX, { category: 'socialProof', type: 'ReviewsReel', variant: 'masonry' }]);
+    const verdict = design.checkDesignSupport(spec, undefined, contentWith([{ variant: 'reel' }]));
+    expect(verdict.status).toBe('unsupported_design');
+    expect(verdict.missingCapability).toBe('socialProof/ReviewsReel/masonry');
+  });
+
+  test('BOTH variants are valid DesignSpec choices with reel data present', () => {
+    for (const variant of VARIANTS) {
+      const spec = specWith([HERO, BUYBOX, { category: 'socialProof', type: 'ReviewsReel', variant }]);
+      const verdict = design.checkDesignSupport(spec, undefined, contentWith([{ variant: 'reel' }]));
+      expect(verdict.status, `${variant}: ${JSON.stringify(verdict)}`).toBe('pass');
+    }
+  });
+
+  test('NEITHER variant can be used without reel data — a variant is not an escape hatch', () => {
+    for (const variant of VARIANTS) {
+      const spec = specWith([HERO, BUYBOX, { category: 'socialProof', type: 'ReviewsReel', variant }]);
+      const verdict = design.checkDesignSupport(spec, undefined, contentWith([{ variant: 'quote' }]));
+      expect(verdict.status, `${variant} slipped past the data gate`).toBe('unsatisfied_data');
+      expect(verdict.unsatisfied[0].requirement).toBe('testimonials:reel');
+    }
+  });
+
+  test('the Design Agent gets both variants from the REGISTRY, never a literal', () => {
+    // The catalogue is derived, so a third variant would appear in the prompt
+    // with no edit to the agent at all.
+    const catalogue = agent.buildCapabilityCatalogue();
+    for (const variant of VARIANTS) {
+      expect(catalogue.map((c: { key: string }) => c.key)).toContain(
+        `socialProof/ReviewsReel/${variant}`,
+      );
+    }
+
+    const src = read('scripts/generate-design.mjs');
+    for (const variant of VARIANTS) {
+      expect(src, `generate-design.mjs hardcodes the "${variant}" variant`).not.toContain(
+        `ReviewsReel/${variant}`,
+      );
+    }
+    // …and no steering rule was smuggled in.
+    expect(src).not.toMatch(/family\s*===?\s*['"]tech['"]/);
+    expect(src).not.toMatch(/density\s*===?\s*['"]/);
+  });
+
+  test('the vocabulary reaches the actual system instruction', () => {
+    const instruction = agent.buildSystemInstruction();
+    for (const variant of VARIANTS) {
+      expect(instruction).toContain(`socialProof/ReviewsReel/${variant}`);
+    }
+    // Both must advertise the same data requirement, or the model could think
+    // one of them is the cheap way out.
+    const lines = instruction
+      .split('\n')
+      .filter((l: string) => l.includes('socialProof/ReviewsReel/'));
+    expect(lines).toHaveLength(2);
+    for (const line of lines) expect(line).toContain('testimonials:reel');
+  });
+
+  test('the two variants cannot both be composed into one landing', () => {
+    // Already guaranteed by `section-duplicate-type`, which is WHY the registry
+    // leaves incompatibleWith empty instead of restating it as metadata.
+    const spec = specWith([
+      HERO,
+      BUYBOX,
+      { category: 'socialProof', type: 'ReviewsReel', variant: 'carousel' },
+      { category: 'socialProof', type: 'ReviewsReel', variant: 'grid' },
+    ]);
+    const issues = design.collectDesignErrors(spec);
+    expect(issues.map((i: { code: string }) => i.code)).toContain('section-duplicate-type');
+
+    for (const variant of VARIANTS) {
+      const entry = registry.resolveCapability('socialProof', 'ReviewsReel', variant);
+      expect(entry.incompatibleWith, 'redundant metadata restating section-duplicate-type').toEqual([]);
+      expect(entry.familiesAllowed, 'a family restriction with no evidence behind it').toBe('*');
+    }
+  });
+
+  test('the reel selector is declared ONCE, not per variant', () => {
+    const shared = 'content/landing-base/src/design-system/blocks/social-proof/ReviewsReel/reel-reviews.ts';
+    expect(read(shared)).toContain("REEL_VARIANT = 'reel'");
+
+    // No variant re-implements it, and the legacy path is a shim rather than a
+    // second copy of the carousel.
+    for (const variant of VARIANTS) {
+      const entry = registry.resolveCapability('socialProof', 'ReviewsReel', variant);
+      const src = read(entry.component.replace('@/', 'content/landing-base/src/'));
+      expect(src, `${variant} re-declares the discriminator`).not.toContain("'reel'");
+      expect(src).toContain("from './reel-reviews'");
+    }
+
+    const legacy = read('content/landing-base/src/components/sections/10-reviews-reel.astro');
+    expect(legacy, 'the legacy section still holds a copy of the markup').not.toContain('<section');
+    expect(legacy).toContain('ReviewsReel/Carousel.astro');
   });
 });

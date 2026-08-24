@@ -1,0 +1,48 @@
+---
+// DESIGN SYSTEM building block — socialProof/ReviewsReel/carousel.
+//
+// THE COMPOSITION MOVED HERE. This is the exact composition that used to live
+// in @/components/sections/10-reviews-reel.astro: a full-bleed dark band
+// between two wave dividers, with a swipeable, JS-driven carousel.
+// 10-reviews-reel.astro is now a one-line shim rendering this block, kept so
+// the byte-locked legacy golden fixture (design-system/test-fixtures/
+// LegacyIndex2074c93.astro, which imports it statically) keeps resolving.
+// legacy-render.golden.test.ts renders both paths and requires them to be
+// BYTE-IDENTICAL — which is the mechanical proof that promoting this legacy
+// section to a registry variant changed nothing for a generation that passes
+// no --design.
+//
+// It is the SIBLING of Grid.astro, not its parent: both are registered
+// variants of one capability, both declare requiresData ['testimonials:reel'],
+// and both read the same reviews through reelReviews(). Neither wraps the
+// other. Choosing between them is the Design Agent's decision, expressed as
+// the `variant` of the DesignSpec section — never as a prop, and never as a
+// branch inside a component.
+//
+// BACKSTOP: the emptiness guard lives in reel-reviews.ts, once for both
+// variants. A component earns a guard only when it narrows a collection with a
+// selector AND an empty result still paints chrome — this variant paints a
+// full-width dark band and carousel controls, so an empty result reads as a
+// broken page rather than an absent section. Grid.astro shares the guard for
+// the same reason: it paints a heading.
+import Container from '@/components/ui/Container.astro';
+import WaveDivider from '@/components/ui/WaveDivider.astro';
+import { ReviewCarousel } from '@/components/islands/ReviewCarousel';
+import { reelReviews } from './reel-reviews';
+
+const reviews = reelReviews('carousel');
+---
+
+<div class="bg-bone">
+  <WaveDivider fill="graphite" />
+</div>
+
+<section class="bg-graphite py-14 text-bone">
+  <Container>
+    <ReviewCarousel client:visible reviews={reviews} tone="dark" />
+  </Container>
+</section>
+
+<div class="bg-bone-dim">
+  <WaveDivider fill="graphite" flip />
+</div>

@@ -37,15 +37,23 @@ function mutate(fn: (spec: any) => void) {
 
 const codes = (issues: any[]) => issues.map((i) => i.code);
 
-const BLOCKS = [
-  { category: 'hero', type: 'ProductHero', variant: 'split' },
-  { category: 'socialProof', type: 'FeaturedQuote', variant: 'default' },
-  { category: 'conversion', type: 'ProductGuarantee', variant: 'default' },
-] as const;
+/**
+ * DERIVED FROM THE REGISTRY, never hand-listed.
+ *
+ * This was a literal array of the three Fase 2 blocks. When
+ * socialProof/ReviewsReel gained real structural variants the array became a
+ * second source of truth instantly: the two new blocks were registered, real,
+ * and completely unscanned by B2 — the guardrail would have reported green on
+ * files it had never opened. `isBuildingBlock()` already existed for exactly
+ * this and had no caller.
+ */
+const BLOCKS = registry.REGISTRY.filter(registry.isBuildingBlock).map(
+  (e: any) => ({ category: e.category, type: e.type, variant: e.variant }),
+);
 
 // --- B1: the three capabilities really pass the production contract --------
 
-describe('B1 — the 3 building blocks are accepted by the REAL DesignSpec contract', () => {
+describe('B1 — every building block is accepted by the REAL DesignSpec contract', () => {
   test('a spec using all three capabilities at once validates as `pass`', () => {
     const spec = baseSpec();
     const issues = contract.collectDesignErrors(spec);
@@ -105,9 +113,13 @@ describe('B1 — invalid capability / variant / props are REJECTED', () => {
   });
 
   test('a prop value outside the declared enum is rejected', () => {
-    for (const { type } of BLOCKS) {
-      const entry = registry.REGISTRY.find((e: any) => e.type === type);
+    for (const { category, type, variant } of BLOCKS) {
+      const entry = registry.resolveCapability(category, type, variant);
       const [prop] = Object.keys(entry.propsSchema);
+      // A props-less block has no enum to violate. Its equivalent guarantee —
+      // "props on a capability that declares none are rejected" — is the
+      // separate test below, which already covers legacy capabilities.
+      if (!prop) continue;
       const spec = mutate((s) => {
         const section = s.sections.find((x: any) => x.type === type);
         section.props = { [prop]: 'definitely-not-in-the-enum' };
@@ -315,7 +327,9 @@ const blockSources = BLOCKS.map(({ category, type, variant }) => {
   const entry = registry.resolveCapability(category, type, variant);
   const rel = entry.component.replace('@/', 'content/landing-base/src/');
   const raw = readFileSync(path.join(REPO_ROOT, rel), 'utf-8');
-  return { type, entry, raw, code: stripComments(raw) };
+  // `type` alone stopped being unique the moment one capability had two
+  // variants — two rows named "ReviewsReel" make a failure unreadable.
+  return { type: `${type}/${variant}`, entry, raw, code: stripComments(raw) };
 });
 
 describe('B2 — Tailwind classes are literal, never built by interpolation', () => {
@@ -324,9 +338,19 @@ describe('B2 — Tailwind classes are literal, never built by interpolation', ()
   // Without this assertion the scanner FAILS OPEN: a lookup it cannot parse is
   // simply absent from the results, and every downstream check passes over a
   // file it never really read.
-  test.each(blockSources)('$type — the scanner proves it parsed every lookup', ({ code }) => {
+  test.each(blockSources)('$type — the scanner proves it parsed every lookup', ({ entry, code }) => {
     const lookups = extractLookups(code);
     const declared = countAsConst(code);
+
+    // A block with NO props has no variant lookup to parse, and demanding one
+    // would force fictional props onto a capability whose structural choice is
+    // its registry VARIANT (socialProof/ReviewsReel/{carousel,grid}). The
+    // literal-class checks below still run on it — those are what B2 is for.
+    if (Object.keys(entry.propsSchema).length === 0) {
+      expect(declared, 'a props-less block declared a variant lookup with nothing to select on')
+        .toBe(0);
+      return;
+    }
 
     expect(declared, 'no `as const` variant lookup found — B2 cannot be verified').toBeGreaterThan(
       0,
@@ -358,8 +382,14 @@ describe('B2 — Tailwind classes are literal, never built by interpolation', ()
     expect(concatenatedClass.test(code), 'class attribute concatenates a string').toBe(false);
   });
 
-  test.each(blockSources)('$type expresses every variant mapping as a complete literal', ({ code }) => {
+  test.each(blockSources)('$type expresses every variant mapping as a complete literal', ({ entry, code }) => {
     const values = extractLookupValues(code);
+
+    if (Object.keys(entry.propsSchema).length === 0) {
+      expect(values, 'a props-less block declared a variant mapping').toEqual([]);
+      return;
+    }
+
     expect(values.length, 'no variant lookup found — B2 cannot be verified').toBeGreaterThan(0);
 
     for (const value of values) {
@@ -374,10 +404,25 @@ describe('B2 — Tailwind classes are literal, never built by interpolation', ()
   // renders a perfectly plausible `text-left`, passes every render assertion,
   // and emits no CSS at all because Tailwind never saw the literal in the
   // source. This traces each class value back to its origin instead.
-  test.each(blockSources)('$type resolves every class to a literal or a lookup', ({ code }) => {
+  test.each(blockSources)('$type resolves every class to a literal or a lookup', ({ entry, code }) => {
     const lookupNames = new Set(extractLookups(code).map((l) => l.name));
     const consts = frontmatterAssignments(code);
     const expressions = extractClassExpressions(code);
+
+    // A block whose classes are ALL static `class="..."` attributes has no
+    // expression to trace — and that is the strongest possible state, not an
+    // untested one. Prove it is really static instead of skipping: no dynamic
+    // class site at all, and no backtick-built class anywhere in the source.
+    // ReviewsReel/{carousel,grid} are in this bucket: the structural choice is
+    // the registry VARIANT, so nothing is selected at render time.
+    if (expressions.length === 0) {
+      expect(Object.keys(entry.propsSchema), 'a block with props built no class from them').toEqual(
+        [],
+      );
+      expect(/\bclass(?::list)?=\{/.test(code), 'class expression missed by the scanner').toBe(false);
+      expect(/class(?::list)?="[^"]*\$\{/.test(code), 'class attribute interpolates').toBe(false);
+      return;
+    }
 
     expect(expressions.length, 'no class expression found — B2 cannot be verified').toBeGreaterThan(
       0,
@@ -418,6 +463,14 @@ describe('R2 — registry prop enums and the component variant mappings cannot d
   // class at all — silent, unstyled output that no other test would catch.
   test.each(blockSources)('$type: every variant lookup matches a declared prop enum', ({ entry, code }) => {
     const lookups = extractLookupKeySets(code);
+
+    // No props, nothing to pair. Asserted as an equivalence, not skipped: a
+    // props-less block that grew a lookup is drifting and must fail here.
+    if (Object.keys(entry.propsSchema).length === 0) {
+      expect(Object.keys(lookups), 'a props-less block declared a variant lookup').toEqual([]);
+      return;
+    }
+
     expect(Object.keys(lookups).length, 'no `as const` variant lookup found').toBeGreaterThan(0);
 
     const enums = Object.entries<any>(entry.propsSchema).map(([prop, rule]) => ({
