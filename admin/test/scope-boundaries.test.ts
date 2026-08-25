@@ -157,6 +157,16 @@ describe('scope-boundaries (Batch G — machine-checkable, spec R14)', () => {
     // passes. Guards: contract.design-integrity.test.ts and
     // design-system/blocks/social-proof/UgcStrip/variants.render.test.ts.
     //
+    // `content/landing-base/src/components/sections/08-faq.astro` is the
+    // FOURTH file under this arrangement, and the first outside
+    // socialProof/media: conversion/Faq gained accordion|open-list variants,
+    // its composition moved to design-system/blocks/conversion/Faq/
+    // Accordion.astro alongside OpenList.astro and the faq-items.ts accessor
+    // they share, and this file became a one-line shim for the same
+    // byte-locked-fixture reason. The golden test passes. Guards:
+    // contract.design-integrity.test.ts and
+    // design-system/blocks/conversion/Faq/variants.render.test.ts.
+    //
     // NO PATH IS EXEMPTED HERE, ON PURPOSE. This assertion measures WORKING
     // TREE dirtiness (`git status --porcelain`), not history, so once that
     // change is committed these files are clean again and the boundary holds

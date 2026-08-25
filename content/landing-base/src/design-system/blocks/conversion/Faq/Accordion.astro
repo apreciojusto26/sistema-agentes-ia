@@ -1,0 +1,39 @@
+---
+// DESIGN SYSTEM building block — conversion/Faq/accordion.
+//
+// THE COMPOSITION MOVED HERE, verbatim, from
+// @/components/sections/08-faq.astro, which is now a one-line shim so the
+// byte-locked legacy golden fixture keeps resolving — the fourth capability
+// under this arrangement. legacy-render.golden.test.ts renders both paths and
+// requires BYTE-IDENTICAL output.
+//
+// The interactive component is NOT reinvented: FaqAccordion already exists and
+// is reused as-is. Its behaviour is unchanged — `$openFaqId` is a single-value
+// nanostore, so exactly one question is open at a time, page-wide.
+//
+// ACCESSIBILITY / CONTENT PRESENCE (verified, not claimed): FaqAccordion
+// collapses a panel with `grid-rows-[0fr]`, not `display:none` and not by
+// omitting it. Every answer is therefore PRESENT in the served HTML and inside
+// a `role="region"` labelled by its trigger — a collapsed answer is hidden
+// visually, never removed from the document. OpenList.astro differs in how the
+// answers are PRESENTED, not in whether they are there.
+//
+// Sibling of OpenList.astro, not its parent. Both declare requiresData ['faq']
+// and both read through faqItems().
+import Container from '@/components/ui/Container.astro';
+import { FaqAccordion } from '@/components/islands/FaqAccordion';
+import { faqItems, FAQ_EYEBROW, FAQ_HEADING } from './faq-items';
+
+const items = faqItems('accordion');
+---
+
+<section class="py-12 md:py-16">
+  <Container>
+    <p class="text-eyebrow font-bold uppercase text-rust">{FAQ_EYEBROW}</p>
+    <h2 class="mt-1 text-display md:text-4xl lg:text-5xl">{FAQ_HEADING}</h2>
+
+    <div class="mx-auto mt-6 max-w-3xl">
+      <FaqAccordion client:visible items={items} />
+    </div>
+  </Container>
+</section>

@@ -546,6 +546,7 @@ describe('structural variants — the variant axis, per converted capability', (
     { category: 'socialProof', type: 'ReviewsReel', variants: ['carousel', 'grid'], requires: 'testimonials:reel' },
     { category: 'media', type: 'GalleryStrip', variants: ['strip', 'grid'], requires: 'product.gallery' },
     { category: 'socialProof', type: 'UgcStrip', variants: ['strip', 'grid'], requires: 'product.ugc' },
+    { category: 'conversion', type: 'Faq', variants: ['accordion', 'open-list'], requires: 'faq' },
   ];
 
   test.each(CONVERTED)('$category/$type declares exactly its variants', ({ category, type, variants }) => {
@@ -598,6 +599,7 @@ describe('structural variants — the variant axis, per converted capability', (
       // Starve exactly this capability's requirement, leave the rest intact.
       if (requires === 'testimonials:reel') content.testimonials = [{ variant: 'quote' }];
       else if (requires === 'product.ugc') content.product.ugc = [];
+      else if (requires === 'faq') content.faq = [];
       else content.product.gallery = [];
 
       const sections = [HERO, BUYBOX];
@@ -676,6 +678,7 @@ describe('structural variants — the variant axis, per converted capability', (
       ReviewsReel: 'content/landing-base/src/components/sections/10-reviews-reel.astro',
       GalleryStrip: 'content/landing-base/src/components/sections/04-gallery-strip.astro',
       UgcStrip: 'content/landing-base/src/components/sections/09-ugc-strip.astro',
+      Faq: 'content/landing-base/src/components/sections/08-faq.astro',
     }[type]!;
 
     const legacy = read(legacyFile);

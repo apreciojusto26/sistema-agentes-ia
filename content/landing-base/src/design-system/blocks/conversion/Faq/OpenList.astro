@@ -1,0 +1,56 @@
+---
+// DESIGN SYSTEM building block — conversion/Faq/open-list.
+//
+// The SAME questions and answers as Accordion.astro, every one of them open.
+// Sibling variant: same faqItems() accessor, same framing copy, same
+// requiresData. No answer is truncated and no copy is rewritten.
+//
+// STRUCTURALLY different, not re-skinned:
+//   - no island: Accordion mounts FaqAccordion with `client:visible` for its
+//     open/close state. Nothing here hydrates, so index.html carries no
+//     <astro-island> for this section and the browser never requests that
+//     chunk. (The chunk is still EMITTED — index.astro's
+//     `import.meta.glob({eager:true})` bundles every registered candidate.
+//     Unreferenced, so unloaded.)
+//   - no expansion controls: no <button>, no aria-expanded, no aria-controls,
+//     no chevron, no collapsible region.
+//   - a real definition list. <dl>/<dt>/<dd> is the semantically correct
+//     element for question/answer pairs and is what the accordion cannot use,
+//     since each of its rows needs an interactive trigger inside a heading.
+//   - every answer is laid out at once, so the section's height is its content
+//     rather than a fixed row of triggers.
+//
+// ON CONTENT PRESENCE — the honest version. This variant does NOT put more
+// text into the HTML than the accordion does: FaqAccordion collapses with
+// `grid-rows-[0fr]`, so its answers are already in the document. What changes
+// is that here they are also VISIBLE without interaction, with no
+// CSS-dependent reveal and no JS required to read them. That is the real,
+// verifiable difference; anything stronger would be an SEO claim this file
+// cannot back up.
+//
+// Tailwind v4 scans SOURCE TEXT: every class below is a complete literal
+// string, never interpolated or concatenated (ADR-4, guarded by
+// contract.design-blocks.test.ts B2).
+import Container from '@/components/ui/Container.astro';
+import { faqItems, FAQ_EYEBROW, FAQ_HEADING } from './faq-items';
+
+const items = faqItems('open-list');
+---
+
+<section class="py-12 md:py-16">
+  <Container>
+    <p class="text-eyebrow font-bold uppercase text-rust">{FAQ_EYEBROW}</p>
+    <h2 class="mt-1 text-display md:text-4xl lg:text-5xl">{FAQ_HEADING}</h2>
+
+    <dl class="mx-auto mt-6 grid max-w-3xl grid-cols-1 gap-x-8 gap-y-6 md:max-w-5xl md:grid-cols-2">
+      {
+        items.map((item) => (
+          <div class="border-t border-graphite/10 pt-4">
+            <dt class="font-semibold text-graphite">{item.question}</dt>
+            <dd class="mt-2 text-sm leading-relaxed text-steel">{item.answer}</dd>
+          </div>
+        ))
+      }
+    </dl>
+  </Container>
+</section>

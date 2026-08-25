@@ -361,7 +361,6 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
       'conversion/BuyBox/default',
       'product/HowItWorks/default',
       'socialProof/FeaturedTestimonial/default',
-      'conversion/Faq/default',
       'product/Comparison/default',
       'conversion/Guarantee/default',
       'socialProof/RealResults/default',
@@ -385,16 +384,20 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
       'media/GalleryStrip/grid',
       'socialProof/UgcStrip/strip',
       'socialProof/UgcStrip/grid',
+      // First conversion OUTSIDE socialProof/media — the pattern did not
+      // change for a different category.
+      'conversion/Faq/accordion',
+      'conversion/Faq/open-list',
     ];
     const keyOf = (e: { category: string; type: string; variant: string }) =>
       `${e.category}/${e.type}/${e.variant}`;
 
-    test('registers exactly the 8 legacy sections plus the 9 building blocks', () => {
-      expect(registryModule.REGISTRY).toHaveLength(17);
+    test('registers exactly the 7 legacy sections plus the 11 building blocks', () => {
+      expect(registryModule.REGISTRY).toHaveLength(18);
       expect(registryModule.REGISTRY.map(keyOf)).toEqual([...LEGACY_KEYS, ...BLOCK_KEYS]);
     });
 
-    test('the 8 legacy capabilities still point at their original section files', () => {
+    test('the 7 legacy capabilities still point at their original section files', () => {
       for (const key of LEGACY_KEYS) {
         const entry = registryModule.REGISTRY.find((e) => keyOf(e) === key);
         expect(entry, `${key} missing`).toBeDefined();

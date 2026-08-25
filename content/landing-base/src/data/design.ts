@@ -36,7 +36,7 @@ export const design: DesignSpec = {
     { category: 'conversion', type: 'BuyBox', variant: 'default', order: 2 },
     { category: 'product', type: 'HowItWorks', variant: 'default', order: 3 },
     { category: 'socialProof', type: 'FeaturedTestimonial', variant: 'default', order: 4 },
-    { category: 'conversion', type: 'Faq', variant: 'default', order: 5 },
+    { category: 'conversion', type: 'Faq', variant: 'accordion', order: 5 },
     { category: 'socialProof', type: 'UgcStrip', variant: 'strip', order: 6 },
     { category: 'socialProof', type: 'ReviewsReel', variant: 'carousel', order: 7 },
     { category: 'product', type: 'Comparison', variant: 'default', order: 8 },

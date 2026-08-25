@@ -1,16 +1,21 @@
 ---
-import Container from '@/components/ui/Container.astro';
-import { FaqAccordion } from '@/components/islands/FaqAccordion';
-import { faq } from '@/data/faq';
+// LEGACY PATH SHIM — kept deliberately, not dead code.
+//
+// The composition this file used to hold moved to
+// @/design-system/blocks/conversion/Faq/Accordion.astro when conversion/Faq
+// gained real structural variants (accordion | open-list). The registry now
+// points at the blocks; nothing resolves this path through the registry any
+// more.
+//
+// It survives because design-system/test-fixtures/LegacyIndex2074c93.astro is
+// BYTE-LOCKED to index.astro at HEAD 2074c93 and imports this module
+// statically. legacy-render.golden.test.ts renders that fixture against the
+// live default-DesignSpec page and requires the two to be byte-identical.
+//
+// Fourth capability with this arrangement, after 10-reviews-reel.astro,
+// 04-gallery-strip.astro and 09-ugc-strip.astro.
+// Do not re-add markup here. Edit the block.
+import Accordion from '@/design-system/blocks/conversion/Faq/Accordion.astro';
 ---
 
-<section class="py-12 md:py-16">
-  <Container>
-    <p class="text-eyebrow font-bold uppercase text-rust">Preguntas frecuentes</p>
-    <h2 class="mt-1 text-display md:text-4xl lg:text-5xl">Todo lo que necesitas saber</h2>
-
-    <div class="mx-auto mt-6 max-w-3xl">
-      <FaqAccordion client:visible items={faq} />
-    </div>
-  </Container>
-</section>
+<Accordion />

@@ -99,7 +99,6 @@ export const REGISTRY = [
   legacy('conversion', 'BuyBox', '@/components/sections/05-buy-box.astro'),
   legacy('product', 'HowItWorks', '@/components/sections/06-how-it-works.astro', ['product.steps']),
   legacy('socialProof', 'FeaturedTestimonial', '@/components/sections/07-featured-testimonial.astro', ['testimonials:quote']),
-  legacy('conversion', 'Faq', '@/components/sections/08-faq.astro', ['faq']),
   legacy('product', 'Comparison', '@/components/sections/11-comparison.astro', ['product.comparison']),
   legacy('conversion', 'Guarantee', '@/components/sections/12-guarantee.astro'),
   legacy('socialProof', 'RealResults', '@/components/sections/13-real-results.astro', ['product.ugc']),
@@ -183,6 +182,23 @@ export const REGISTRY = [
   //     taste dressed up as a contract.
   block('socialProof', 'UgcStrip', 'strip', '@/design-system/blocks/social-proof/UgcStrip/Strip.astro', {}, ['product.ugc']),
   block('socialProof', 'UgcStrip', 'grid', '@/design-system/blocks/social-proof/UgcStrip/Grid.astro', {}, ['product.ugc']),
+
+  // conversion/Faq — FOURTH capability on the structural-variant axis, and the
+  // FIRST outside socialProof/media. Nothing about the pattern changed for a
+  // different category, which is the point of converting one here.
+  //
+  // The two variants differ in whether the answers need interaction to be
+  // read, not in whether they are in the document: FaqAccordion collapses with
+  // `grid-rows-[0fr]`, so its answers ship in the HTML either way. See
+  // OpenList.astro's header for the honest version of that difference.
+  //
+  // AUDIT — familiesAllowed / incompatibleWith, both left empty on evidence:
+  //   * families only re-declare CSS custom properties; an accordion and a
+  //     definition list are both legible under all nine. '*' stays.
+  //   * accordion vs open-list cannot co-occur already — `section-duplicate-type`
+  //     rejects a repeated type regardless of variant. [] stays.
+  block('conversion', 'Faq', 'accordion', '@/design-system/blocks/conversion/Faq/Accordion.astro', {}, ['faq']),
+  block('conversion', 'Faq', 'open-list', '@/design-system/blocks/conversion/Faq/OpenList.astro', {}, ['faq']),
 ];
 
 /**
