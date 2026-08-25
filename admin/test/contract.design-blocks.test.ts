@@ -151,11 +151,15 @@ describe('B1 — invalid capability / variant / props are REJECTED', () => {
     expect(codes(contract.collectDesignErrors(spec))).toContain('section-props-invalid');
   });
 
-  test('props on a LEGACY capability are still rejected — they accept none', () => {
+  test('props on a props-less capability are still rejected — they accept none', () => {
+    // Was conversion/BuyBox/default, which stopped existing when BuyBox gained
+    // structural variants; an unregistered triple would have failed here as
+    // `section-unknown-variant` and stopped testing props at all.
+    // socialProof/RealResults is still a real legacy section with no props.
     const spec = mutate((s) => {
       s.sections.push({
-        category: 'conversion',
-        type: 'BuyBox',
+        category: 'socialProof',
+        type: 'RealResults',
         variant: 'default',
         order: 3,
         props: { align: 'left' },

@@ -152,6 +152,11 @@ describe('design registry parity — build-time ↔ runtime', () => {
         // block. That is exactly why it has to be listed here — the default
         // spec is unchanged, so nothing else would have noticed.
         'hero/Hero/default',
+        // conversion/BuyBox/card is the second of these that kept its key shape
+        // partially: the type stayed 'BuyBox' but the variant moved from
+        // 'default' to 'card', so src/data/design.ts DID change — one line,
+        // reviewed, pointing the legacy path at the promoted composition.
+        'conversion/BuyBox/card',
         'socialProof/ReviewsReel/carousel',
         'media/GalleryStrip/strip',
         'socialProof/UgcStrip/strip',

@@ -23,7 +23,7 @@ const baseSpec = (over: Record<string, unknown> = {}) => ({
   design: { family: 'premium', density: 'balanced' },
   sections: [
     { category: 'hero', type: 'Hero', variant: 'default', order: 0 },
-    { category: 'conversion', type: 'BuyBox', variant: 'default', order: 1 },
+    { category: 'conversion', type: 'BuyBox', variant: 'card', order: 1 },
     { category: 'socialProof', type: 'ReviewsReel', variant: 'carousel', order: 2 },
   ],
   ...over,
@@ -114,7 +114,7 @@ describe('Impeccable criteria (advisory tier)', () => {
           { category: 'socialProof', type: 'UgcStrip', variant: 'strip', order: 0 },
           { category: 'socialProof', type: 'ReviewsReel', variant: 'carousel', order: 1 },
           { category: 'socialProof', type: 'RealResults', variant: 'default', order: 2 },
-          { category: 'conversion', type: 'BuyBox', variant: 'default', order: 3 },
+          { category: 'conversion', type: 'BuyBox', variant: 'card', order: 3 },
         ],
       });
       expect(rules(spec)).toContain('flat-section-rhythm');
@@ -134,7 +134,7 @@ describe('Impeccable criteria (advisory tier)', () => {
       const spec = baseSpec({
         sections: [
           { category: 'hero', type: 'Hero', variant: 'default', order: 0 },
-          { category: 'conversion', type: 'BuyBox', variant: 'default', order: 1 },
+          { category: 'conversion', type: 'BuyBox', variant: 'card', order: 1 },
         ],
       });
       expect(rules(spec)).toContain('missing-social-proof');

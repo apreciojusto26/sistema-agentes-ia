@@ -208,6 +208,28 @@ describe('scope-boundaries (Batch G — machine-checkable, spec R14)', () => {
     // design-system/blocks/hero/Hero/variants.render.test.ts, and the
     // historical golden.
     //
+    // `content/landing-base/src/components/sections/05-buy-box.astro` is the
+    // EIGHTH file under this arrangement, and the first that mounts a commerce
+    // island: conversion/BuyBox gained card|compact variants, the legacy
+    // composition moved to design-system/blocks/conversion/BuyBox/Card.astro
+    // beside Compact.astro and the buy-box-data.ts accessor they share, and
+    // this file became a one-line shim.
+    //
+    // `content/landing-base/src/components/islands/CompactBuySelector.tsx` is
+    // NEW under the same protected path, and it is the reason the boundary is
+    // worth reading twice. It is a PRESENTATION, not a transaction: every
+    // commercial decision it makes arrives from parts/use-buy-action.ts, and
+    // parts/buy-action.contract.test.ts fails if it ever re-derives one. The
+    // alternative — a `presentation` prop branching BundleSelector's whole DOM
+    // — was rejected because it would have made propsSchema a disguised
+    // variant, the exact taxonomy this design system spent eight capabilities
+    // establishing.
+    //
+    // Its guards: the historical golden (BuyBox.html, verified against a
+    // worktree at 4732910 rather than assumed), legacy-render.golden.test.ts,
+    // buy-action.contract.test.ts, and
+    // design-system/blocks/conversion/BuyBox/variants.render.test.ts.
+    //
     // NO PATH IS EXEMPTED HERE, ON PURPOSE. This assertion measures WORKING
     // TREE dirtiness (`git status --porcelain`), not history, so once that
     // change is committed these files are clean again and the boundary holds

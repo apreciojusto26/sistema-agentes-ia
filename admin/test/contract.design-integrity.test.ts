@@ -86,7 +86,15 @@ function specWith(sections: Array<Record<string, unknown>>) {
 }
 
 const HERO = { category: 'hero', type: 'Hero' };
-const BUYBOX = { category: 'conversion', type: 'BuyBox' };
+// `card` is the legacy composition. conversion/BuyBox/default stopped
+// existing when the capability gained real structural variants.
+const BUYBOX = { category: 'conversion', type: 'BuyBox', variant: 'card' };
+// …and `card` is registered INCOMPATIBLE with product/Benefits/*, because it
+// renders product.benefits itself. Any spec in this file that also composes a
+// Benefits section must use compact, or the incompatibility fires and the test
+// stops measuring what it was written to measure.
+const BUYBOX_COMPACT = { category: 'conversion', type: 'BuyBox', variant: 'compact' };
+const buyBoxFor = (type: string) => (type === 'Benefits' ? BUYBOX_COMPACT : BUYBOX);
 const REVIEWS_REEL = { category: 'socialProof', type: 'ReviewsReel', variant: 'carousel' };
 
 /** content.json that satisfies EVERY registered requirement. */
@@ -606,7 +614,7 @@ describe('structural variants — the variant axis, per converted capability', (
 
   test.each(CONVERTED)('$type: every variant validates when the data IS there', ({ category, type, variants }) => {
     for (const variant of variants) {
-      const sections = [HERO, BUYBOX];
+      const sections = [HERO, buyBoxFor(type)];
       if (type !== 'ReviewsReel') sections.push(REVIEWS_REEL);
       sections.push({ category, type, variant });
       const verdict = design.checkDesignSupport(specWith(sections), undefined, richContent());
@@ -626,7 +634,7 @@ describe('structural variants — the variant axis, per converted capability', (
       else if (requires === 'product.benefits') content.product.benefits = [];
       else content.product.gallery = [];
 
-      const sections = [HERO, BUYBOX];
+      const sections = [HERO, buyBoxFor(type)];
       if (type !== 'ReviewsReel') sections.push(REVIEWS_REEL);
       sections.push({ category, type, variant });
 
@@ -634,6 +642,61 @@ describe('structural variants — the variant axis, per converted capability', (
       expect(verdict.status, `${type}/${variant} slipped past the data gate`).toBe('unsatisfied_data');
       expect(verdict.unsatisfied.some((u: { requirement: string }) => u.requirement === requires)).toBe(true);
     }
+  });
+
+  describe('BuyBox x Benefits — the duplicate is rejected by the REGISTRY, not by the agent', () => {
+    // PARTE N of the buy-box conversion, spelled out as five specs. The failure
+    // must come from checkDesignSupport() reading incompatibleWith, never from
+    // an `if` in generate-design.mjs — a rule an agent applies is a rule an
+    // agent can forget.
+    const BENEFITS = (variant: string) => ({ category: 'product', type: 'Benefits', variant });
+
+    const verdictFor = (sections: Array<Record<string, unknown>>) =>
+      design.checkDesignSupport(specWith(sections as never), undefined, richContent());
+
+    test('VALID: BuyBox/card alone, with no separate Benefits section', () => {
+      const v = verdictFor([HERO, BUYBOX, REVIEWS_REEL]);
+      expect(v.status, JSON.stringify(v)).toBe('pass');
+    });
+
+    test.each(['icon-grid', 'feature-list'])(
+      'INVALID: BuyBox/card + product/Benefits/%s duplicates the same dataset',
+      (variant) => {
+        const v = verdictFor([HERO, BUYBOX, REVIEWS_REEL, BENEFITS(variant)]);
+        expect(v.status).toBe('invalid');
+        const issue = v.issues.find(
+          (i: { code: string }) => i.code === 'section-incompatible-pair',
+        );
+        expect(issue, `no incompatibility reported for ${variant}`).toBeDefined();
+        expect(issue.message).toContain('conversion/BuyBox/card');
+        expect(issue.message).toContain(`product/Benefits/${variant}`);
+      },
+    );
+
+    test.each(['icon-grid', 'feature-list'])(
+      'VALID: BuyBox/compact + product/Benefits/%s — compact renders no tiles',
+      (variant) => {
+        const v = verdictFor([HERO, BUYBOX_COMPACT, REVIEWS_REEL, BENEFITS(variant)]);
+        expect(v.status, JSON.stringify(v)).toBe('pass');
+      },
+    );
+
+    test('the rejection is symmetric — order in sections[] does not matter', () => {
+      const a = verdictFor([HERO, BUYBOX, REVIEWS_REEL, BENEFITS('icon-grid')]);
+      const b = verdictFor([HERO, BENEFITS('icon-grid'), REVIEWS_REEL, BUYBOX]);
+      expect(a.status).toBe('invalid');
+      expect(b.status).toBe('invalid');
+    });
+
+    test('generate-design.mjs hardcodes NO rule about this pairing', () => {
+      // The whole reason it lives in the registry. A capability name appearing
+      // in the agent's own source would be the heuristic this design forbids.
+      const src = read('scripts/generate-design.mjs');
+      expect(src, 'the agent hardcodes a Benefits rule').not.toMatch(/Benefits/);
+      expect(src, 'the agent hardcodes a BuyBox rule').not.toMatch(/BuyBox/);
+      // …and the contract is what carries it.
+      expect(read('scripts/lib/design-contract.mjs')).toContain('section-incompatible-pair');
+    });
   });
 
   test('product/Benefits is ADDITIVE — no shim, no legacy ancestor, BuyBox untouched', () => {
@@ -650,10 +713,20 @@ describe('structural variants — the variant axis, per converted capability', (
     );
     expect(inDefault, 'Benefits entered the default spec').toBeUndefined();
 
-    const buyBox = read('content/landing-base/src/components/sections/05-buy-box.astro');
-    expect(buyBox, 'BuyBox became a shim').toContain('<section');
-    expect(buyBox, 'BuyBox stopped rendering the benefit tiles').toContain('product.benefits.map');
-    expect(buyBox, 'BuyBox now delegates to a Benefits block').not.toContain('blocks/product/Benefits');
+    // BuyBox has since been converted itself, so its composition lives in
+    // blocks/conversion/BuyBox/Card.astro and 05-buy-box.astro is a shim onto
+    // it. The invariant is UNCHANGED — card still renders its own tiles, and it
+    // does not reach for a Benefits block — only the file holding it moved.
+    const card = read('content/landing-base/src/design-system/blocks/conversion/BuyBox/Card.astro');
+    expect(card, 'BuyBox/card stopped rendering the benefit tiles').toContain('product.benefits.map');
+    expect(card, 'BuyBox/card now delegates to a Benefits block').not.toContain('blocks/product/Benefits');
+    // …and compact deliberately renders none of them, which is what makes it
+    // composable with the real Benefits capability.
+    const compact = read('content/landing-base/src/design-system/blocks/conversion/BuyBox/Compact.astro');
+    // `.map` on purpose, not the bare path: Compact.astro's header EXPLAINS
+    // that card renders product.benefits, and a scan that flagged its own
+    // documentation would be useless. What matters is whether it RENDERS them.
+    expect(compact, 'BuyBox/compact grew benefit tiles').not.toContain('product.benefits.map');
 
     // And no OTHER section quietly became its shim either.
     for (const variant of ['icon-grid', 'feature-list']) {

@@ -46,6 +46,11 @@ const read = (rel: string) =>
 const PRESENTATIONS = [
   ['BundleSelector', 'components/islands/BundleSelector.tsx'],
   ['StickyAddToCart', 'components/islands/StickyAddToCart.tsx'],
+  // The third presentation, and the one this guard existed to make safe:
+  // conversion/BuyBox/compact mounts its own island rather than branching
+  // BundleSelector on a prop. It was added AFTER the guard, and it had to
+  // satisfy it on the first run.
+  ['CompactBuySelector', 'components/islands/CompactBuySelector.tsx'],
 ] as const;
 
 const HOOK = 'components/islands/parts/use-buy-action.ts';
@@ -155,6 +160,7 @@ describe('the hook really is the single source', () => {
     const files = [
       'components/islands/BundleSelector.tsx',
       'components/islands/StickyAddToCart.tsx',
+      'components/islands/CompactBuySelector.tsx',
       'components/islands/CartDrawer.tsx',
       'components/islands/parts/use-buy-action.ts',
       'components/islands/parts/use-selection.ts',

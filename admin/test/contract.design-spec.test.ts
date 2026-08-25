@@ -97,7 +97,7 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
         { category: 'hero', type: 'Hero', variant: 'default', order: 0 },
         { category: 'socialProof', type: 'UgcStrip', variant: 'strip', order: 1 },
         { category: 'socialProof', type: 'ReviewsReel', variant: 'carousel', order: 2 },
-        { category: 'conversion', type: 'BuyBox', variant: 'default', order: 3 },
+        { category: 'conversion', type: 'BuyBox', variant: 'card', order: 3 },
       ]);
       expect(contract.collectDesignErrors(spec)).toEqual([]);
     });
@@ -257,14 +257,14 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
   describe('structural invariants', () => {
     test('hero is mandatory', () => {
       const spec = fixtureSpec([
-        { category: 'conversion', type: 'BuyBox', variant: 'default', order: 0 },
+        { category: 'conversion', type: 'BuyBox', variant: 'card', order: 0 },
       ]);
       expect(codes(contract.collectDesignErrors(spec))).toContain('hero-missing');
     });
 
     test('hero must be first', () => {
       const spec = fixtureSpec([
-        { category: 'conversion', type: 'BuyBox', variant: 'default', order: 0 },
+        { category: 'conversion', type: 'BuyBox', variant: 'card', order: 0 },
         { category: 'hero', type: 'Hero', variant: 'default', order: 1 },
       ]);
       expect(codes(contract.collectDesignErrors(spec))).toContain('hero-not-first');
@@ -281,8 +281,8 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
     test('a type may appear at most once (exactly one variant per slot)', () => {
       const spec = fixtureSpec([
         { category: 'hero', type: 'Hero', variant: 'default', order: 0 },
-        { category: 'conversion', type: 'BuyBox', variant: 'default', order: 1 },
-        { category: 'conversion', type: 'BuyBox', variant: 'default', order: 2 },
+        { category: 'conversion', type: 'BuyBox', variant: 'card', order: 1 },
+        { category: 'conversion', type: 'BuyBox', variant: 'card', order: 2 },
       ]);
       expect(codes(contract.collectDesignErrors(spec))).toContain('section-duplicate-type');
     });
@@ -359,7 +359,6 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
     // Asserted by identity, not just by length: a bare length check would go
     // green if a legacy capability were swapped for a block.
     const LEGACY_KEYS = [
-      'conversion/BuyBox/default',
       'socialProof/FeaturedTestimonial/default',
       'conversion/Guarantee/default',
       'socialProof/RealResults/default',
@@ -406,12 +405,16 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
       // golden, because it has no history.
       'product/Benefits/icon-grid',
       'product/Benefits/feature-list',
+      // conversion/BuyBox LEFT the legacy list: 05-buy-box.astro is a shim now
+      // and `default` stopped existing. `card` carries the legacy composition.
+      'conversion/BuyBox/card',
+      'conversion/BuyBox/compact',
     ];
     const keyOf = (e: { category: string; type: string; variant: string }) =>
       `${e.category}/${e.type}/${e.variant}`;
 
-    test('registers exactly the 4 legacy sections plus the 19 building blocks', () => {
-      expect(registryModule.REGISTRY).toHaveLength(23);
+    test('registers exactly the 3 legacy sections plus the 21 building blocks', () => {
+      expect(registryModule.REGISTRY).toHaveLength(24);
       expect(registryModule.REGISTRY.map(keyOf)).toEqual([...LEGACY_KEYS, ...BLOCK_KEYS]);
     });
 
@@ -446,12 +449,62 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
     // The Fase 1 guardrail is UNCHANGED in substance: no family limit, no
     // density limit, no incompatibility may be invented. Only the props rule
     // splits, because building blocks now back a real rendering difference.
-    test('declares NO fictional constraints — no family/density limits, no incompatibilities, on any capability', () => {
+    test('declares NO fictional constraints — no family or density limits on any capability', () => {
+      // families and densities remain semantic-only: styles/design-system.css
+      // re-declares CSS custom properties and nothing more, so no composition
+      // in this registry is illegible under any of them. A restriction here
+      // would still be taste dressed up as a contract.
       for (const entry of registryModule.REGISTRY) {
         expect(entry.familiesAllowed, `${entry.type} familiesAllowed`).toBe('*');
         expect(entry.densityAllowed, `${entry.type} densityAllowed`).toBe('*');
-        expect(entry.incompatibleWith, `${entry.type} incompatibleWith`).toEqual([]);
       }
+    });
+
+    test('the ONLY declared incompatibility is a proven one, and it is symmetric in effect', () => {
+      // This assertion used to read `incompatibleWith).toEqual([])` for every
+      // capability, and it was right for as long as no honest conflict existed.
+      // One does now, so the invariant tightens rather than disappears: the
+      // registry may declare incompatibilities, but only real ones, and this
+      // test enumerates them so a fictional one cannot be slipped in beside it.
+      const declared = registryModule.REGISTRY.filter(
+        (e: { incompatibleWith: string[] }) => e.incompatibleWith.length > 0,
+      ).map((e: Entry & { incompatibleWith: string[] }) => [keyOf(e), [...e.incompatibleWith].sort()]);
+
+      expect(declared).toEqual([
+        [
+          'conversion/BuyBox/card',
+          ['product/Benefits/feature-list', 'product/Benefits/icon-grid'],
+        ],
+      ]);
+
+      // WHY IT IS REAL, asserted rather than asserted-in-prose: card renders
+      // product.benefits itself, and every Benefits variant renders the same
+      // array. Composing them prints each benefit twice.
+      const cardSrc = readFileSync(
+        path.join(REPO_ROOT, 'content/landing-base/src/design-system/blocks/conversion/BuyBox/Card.astro'),
+        'utf-8',
+      );
+      expect(cardSrc, 'card no longer renders benefits — then the incompatibility is fiction').toContain(
+        'product.benefits.map',
+      );
+
+      // EVERY Benefits variant must be listed. A third one added later without
+      // updating card's list would silently become composable with a buy box
+      // that already shows the same tiles.
+      const benefitsKeys = registryModule
+        .listVariants('product', 'Benefits')
+        .map((v: string) => `product/Benefits/${v}`)
+        .sort();
+      const cardEntry = registryModule.resolveCapability('conversion', 'BuyBox', 'card');
+      expect(
+        [...cardEntry.incompatibleWith].sort(),
+        'a Benefits variant exists that BuyBox/card does not declare',
+      ).toEqual(benefitsKeys);
+
+      // …and compact declares none, which is what makes the pair useful.
+      expect(
+        registryModule.resolveCapability('conversion', 'BuyBox', 'compact').incompatibleWith,
+      ).toEqual([]);
     });
 
     test('legacy sections still declare zero props — none of them accepts one', () => {
@@ -566,12 +619,15 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
       // cannot quietly "tidy up" by extracting the tiles out of BuyBox: that
       // would change what every legacy generation renders, and BuyBox is
       // imported by the byte-locked LegacyIndex2074c93 fixture.
-      const buyBox = registryModule.resolveCapability('conversion', 'BuyBox', 'default');
-      expect(buyBox.component).toBe('@/components/sections/05-buy-box.astro');
-      expect(registryModule.isBuildingBlock(buyBox), 'BuyBox was promoted').toBe(false);
+      // BuyBox has since been converted; its composition is blocks/conversion/
+      // BuyBox/Card.astro and 05-buy-box.astro is a shim. The invariant this
+      // test protects is unchanged: the legacy composition still renders its own
+      // tiles and does not delegate to a Benefits block.
+      const card = registryModule.resolveCapability('conversion', 'BuyBox', 'card');
+      expect(card.component).toBe('@/design-system/blocks/conversion/BuyBox/Card.astro');
       expect(
-        readFileSync(path.join(REPO_ROOT, 'content/landing-base/src/components/sections/05-buy-box.astro'), 'utf-8'),
-        'BuyBox stopped rendering benefits — that is a legacy behaviour change',
+        readFileSync(path.join(REPO_ROOT, 'content/landing-base/src/design-system/blocks/conversion/BuyBox/Card.astro'), 'utf-8'),
+        'BuyBox/card stopped rendering benefits — that is a legacy behaviour change',
       ).toContain('product.benefits.map');
 
       for (const variant of ['icon-grid', 'feature-list']) {

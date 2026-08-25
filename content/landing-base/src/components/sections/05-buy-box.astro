@@ -1,75 +1,22 @@
 ---
-import { BundleSelector } from '@/components/islands/BundleSelector';
-import { getProductCommerce } from '@/lib/shopify/catalog';
-import Stars from '@/components/ui/Stars.astro';
-import { product } from '@/data/product';
-
-const commerce = await getProductCommerce();
-
-const popularPack = product.packs.find((p) => p.popular) ?? product.packs[0];
-const giftThresholdUnits = popularPack?.units ?? 2;
-const ratingLabel = product.ratingAverage.toFixed(1).replace('.', ',');
-const ratingCountLabel = new Intl.NumberFormat('es-ES').format(product.ratingCount);
+// LEGACY PATH SHIM — kept deliberately, not dead code.
+//
+// The composition this file used to hold moved to
+// @/design-system/blocks/conversion/BuyBox/Card.astro when conversion/BuyBox
+// gained real structural variants (card | compact). The registry now points at
+// the blocks; nothing resolves this path through the registry any more.
+//
+// It survives because design-system/test-fixtures/LegacyIndex2074c93.astro is
+// BYTE-LOCKED and imports this module statically, and because
+// test-fixtures/legacy-markup/historical-markup.golden.test.ts renders THIS
+// path against the frozen 4732910 output.
+//
+// Eighth capability with this arrangement, after 10-reviews-reel.astro,
+// 04-gallery-strip.astro, 09-ugc-strip.astro, 08-faq.astro,
+// 06-how-it-works.astro, 11-comparison.astro and 03-hero.astro — and the first
+// that mounts a commerce island.
+// Do not re-add markup here. Edit the block.
+import Card from '@/design-system/blocks/conversion/BuyBox/Card.astro';
 ---
 
-<section id="buy" class="scroll-mt-14 mx-auto w-full max-w-[28rem] px-5 md:max-w-[42rem] lg:max-w-[64rem] py-8">
-  <div class="rounded-card bg-surface p-5 shadow-lift">
-    <div class="mb-3 flex items-center gap-2">
-      <Stars rating={product.ratingAverage} />
-      <span class="text-xs font-semibold text-graphite">{ratingLabel}/5 ({ratingCountLabel})</span>
-    </div>
-
-    <h2 class="text-display">{commerce.title}</h2>
-
-    <span class="mt-2 inline-flex items-center gap-1 rounded-pill bg-rust-tint px-2.5 py-1 text-xs font-bold text-rust">
-      Se agota rápido
-    </span>
-
-    <div class="mt-5">
-      <BundleSelector
-        client:visible
-        commerce={commerce}
-        packs={[...product.packs]}
-        bundleOfferActive={product.commerce.bundleOfferActive}
-        variantGroupLabel={product.variantGroupLabel}
-        cta={{
-          primary: product.cta.primary,
-          checkout: product.cta.checkout,
-          pending: product.cta.pending,
-          soldOut: product.cta.soldOut,
-        }}
-        errors={product.errors}
-        giftThresholdUnits={giftThresholdUnits}
-        giftLabel="Progreso hacia tu unidad gratis"
-      />
-    </div>
-
-    <div class="mt-4 flex gap-2 opacity-60 grayscale" aria-hidden="true">
-      {['Visa', 'Mastercard', 'PayPal'].map((label) => (
-        <span class="rounded bg-graphite/5 px-2 py-1 text-[0.625rem] font-bold uppercase text-graphite">{label}</span>
-      ))}
-    </div>
-
-    <div class="mt-4 space-y-1.5 text-xs text-steel">
-      <p class="flex items-center gap-1.5">
-        <svg viewBox="0 0 24 24" class="size-4 text-rust" aria-hidden="true"><path fill="currentColor" d="M3 6a1 1 0 011-1h9a1 1 0 011 1v3h2.5a1 1 0 01.8.4l2.5 3.33a1 1 0 01.2.6V16a1 1 0 01-1 1h-1.17a2.5 2.5 0 01-4.66 0H9.83a2.5 2.5 0 01-4.66 0H4a1 1 0 01-1-1V6z"/></svg>
-        {product.shipping.etaLabel}
-      </p>
-      <p class="flex items-center gap-1.5">
-        <svg viewBox="0 0 24 24" class="size-4 text-gold" aria-hidden="true"><path fill="currentColor" d="M12 2l8 3.5v5.25c0 5.06-3.4 9.62-8 11.25-4.6-1.63-8-6.19-8-11.25V5.5L12 2z"/></svg>
-        {product.guarantee.title}
-      </p>
-    </div>
-
-    <div class="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-      {
-        product.benefits.map((benefit) => (
-          <div class="rounded-tile bg-bone p-3">
-            <p class="text-sm font-bold text-graphite">{benefit.title}</p>
-            <p class="mt-0.5 text-xs text-steel">{benefit.text}</p>
-          </div>
-        ))
-      }
-    </div>
-  </div>
-</section>
+<Card />

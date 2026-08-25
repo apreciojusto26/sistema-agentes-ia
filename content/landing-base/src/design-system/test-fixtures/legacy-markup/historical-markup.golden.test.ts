@@ -78,6 +78,7 @@ import Faq from '@/components/sections/08-faq.astro';
 import HowItWorks from '@/components/sections/06-how-it-works.astro';
 import Comparison from '@/components/sections/11-comparison.astro';
 import Hero from '@/components/sections/03-hero.astro';
+import BuyBox from '@/components/sections/05-buy-box.astro';
 // hero/Hero/split has no legacy section path — it was born in the design
 // system — so it is reached directly. Both align values are frozen: `align` is
 // a PROP that dials one composition, and the golden has to pin both settings of
@@ -100,6 +101,13 @@ const FIXTURE_SHA256: Record<string, string> = {
   // exactly one added line per file before these hashes were written down.
   HeroSplitLeft: 'a57d1d9e53dcdf422a861868a5a6ef857a0a6b4ac7f9480ff5bd087825d2b67c',
   HeroSplitCenter: 'd139aaa30df869c44a657b1b356ccf60a26a50b8eb028e929a8d266a8b3baf9a',
+  // conversion/BuyBox, frozen BEFORE its conversion. Its 4732910 provenance was
+  // not assumed from an unchanged section file — 05-buy-box.astro is byte-identical
+  // to that commit, but its island is NOT, so the reference was rendered in a
+  // worktree checked out at 4732910 and compared: same sha256, zero drift. That
+  // is also independent proof that e1bf155's buy-action extraction preserved
+  // the markup.
+  BuyBox: '15eefa905197041ec745bb672796d9d1d3f43d15db637153c111213117e2e434',
 };
 
 /** [fixture name, component, baseline commit, props]. */
@@ -113,6 +121,7 @@ const CASES = [
   ['Hero', Hero, '4732910', {}],
   ['HeroSplitLeft', HeroSplit, '19f60d5 + sentinel fix', { align: 'left' }],
   ['HeroSplitCenter', HeroSplit, '19f60d5 + sentinel fix', { align: 'center' }],
+  ['BuyBox', BuyBox, '4732910', {}],
 ] as const;
 
 const fixturePath = (name: string) => fileURLToPath(new URL(`./${name}.html`, import.meta.url));
@@ -152,7 +161,7 @@ describe('historical markup golden (references: 4732910, 19f60d5)', () => {
     expect(Object.keys(FIXTURE_SHA256).sort()).toEqual(
       [
         'Comparison', 'Faq', 'GalleryStrip', 'HowItWorks', 'ReviewsReel', 'UgcStrip',
-        'Hero', 'HeroSplitLeft', 'HeroSplitCenter',
+        'Hero', 'HeroSplitLeft', 'HeroSplitCenter', 'BuyBox',
       ].sort(),
     );
     // Every fixture is also actually RENDERED. A sha entry with no CASES row
@@ -174,7 +183,7 @@ describe('historical markup golden (references: 4732910, 19f60d5)', () => {
         .toBe(true);
     }
     // No OTHER frozen reference grew one — the sentinel belongs to the hero.
-    for (const name of ['Comparison', 'Faq', 'GalleryStrip', 'HowItWorks', 'ReviewsReel', 'UgcStrip']) {
+    for (const name of ['Comparison', 'Faq', 'GalleryStrip', 'HowItWorks', 'ReviewsReel', 'UgcStrip', 'BuyBox']) {
       expect(readFileSync(fixturePath(name), 'utf-8'), `${name} grew a hero sentinel`)
         .not.toContain('hero-end');
     }

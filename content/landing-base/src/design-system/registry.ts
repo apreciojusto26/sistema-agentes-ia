@@ -50,6 +50,7 @@ function block(
   component: string,
   propsSchema: RegistryEntry['propsSchema'],
   requiresData: string[] = [],
+  incompatibleWith: string[] = [],
 ): RegistryEntry {
   return {
     category,
@@ -59,13 +60,12 @@ function block(
     propsSchema,
     familiesAllowed: '*',
     densityAllowed: '*',
-    incompatibleWith: [],
+    incompatibleWith,
     requiresData,
   };
 }
 
 export const REGISTRY: RegistryEntry[] = [
-  legacy('conversion', 'BuyBox', '@/components/sections/05-buy-box.astro'),
   legacy('socialProof', 'FeaturedTestimonial', '@/components/sections/07-featured-testimonial.astro', ['testimonials:quote']),
   legacy('conversion', 'Guarantee', '@/components/sections/12-guarantee.astro'),
   legacy('socialProof', 'RealResults', '@/components/sections/13-real-results.astro', ['product.ugc']),
@@ -291,6 +291,60 @@ export const REGISTRY: RegistryEntry[] = [
   // configurability theatre over two compositions that already differ.
   block('product', 'Benefits', 'icon-grid', '@/design-system/blocks/product/Benefits/IconGrid.astro', {}, ['product.benefits']),
   block('product', 'Benefits', 'feature-list', '@/design-system/blocks/product/Benefits/FeatureList.astro', {}, ['product.benefits']),
+
+  // conversion/BuyBox — EIGHTH capability on the variant axis, the first that
+  // mounts a commerce island, and the first to declare a real incompatibility.
+  //
+  // The conversion was only safe because e1bf155 extracted the buy DECISION
+  // into parts/use-buy-action.ts first: `card` and `compact` mount two
+  // different presentation islands, and both reach that one hook. Same variant
+  // id, same pack, same projected price, same quantity, same availability, same
+  // cart mutation, same checkout, same analytics, same preview signal, same CTA
+  // decision. Only the composition differs. Without that refactor, a second
+  // presentation would have been a third copy of the transaction.
+  //
+  // `card` carries the legacy composition verbatim (05-buy-box.astro is now a
+  // shim) and is byte-locked by test-fixtures/legacy-markup/BuyBox.html, whose
+  // 4732910 provenance was verified in a worktree rather than assumed.
+  //
+  // INCOMPATIBILITY — the first honest one in this registry, and the reason the
+  // field stops being an empty formality:
+  //
+  //   `card` renders product.benefits itself, as a 2x4 tile grid. That was
+  //   harmless while nothing else did. product/Benefits/{icon-grid,feature-list}
+  //   now exist, and a landing composing card WITH either of them prints every
+  //   benefit title and text TWICE — measured on a real build, not inferred.
+  //   That is a genuine conflict between two capabilities over one dataset, so
+  //   it is declared here instead of being left to the agent's taste or, worse,
+  //   to an `if` in generate-design.mjs.
+  //
+  //   `compact` deliberately renders no tiles, so it carries NO incompatibility
+  //   and composes freely with Benefits. That is the whole point of the pair.
+  //
+  // The keys are listed EXACTLY, because that is what the contract compares:
+  // collectSectionsIssues() does `incompatibleWith.includes(otherKey)` on full
+  // `category/type/variant` strings, symmetrically. There is no wildcard
+  // support today and none is faked here — see the audit note in
+  // contract.design-blocks.test.ts for the minimal typed extension that a third
+  // Benefits variant would justify. Until then a guard test fails if a Benefits
+  // variant is added without being listed, so the maintenance cost is
+  // mechanical rather than remembered.
+  //
+  // AUDIT — familiesAllowed / densityAllowed, both left at '*' on evidence:
+  //   families only re-declare CSS custom properties; a lifted card and a
+  //   ruled block are both legible under all nine.
+  //
+  // requiresData stays EMPTY for both, deliberately. Everything the buy box
+  // reads — packs, cta, errors, shipping, guarantee, ratingAverage, benefits —
+  // is already in REQUIRED_PRODUCT_FIELDS, so declaring it would be redundant
+  // metadata. And Shopify availability is NOT expressible here on purpose: it
+  // is commerce runtime, resolved per request by getProductCommerce(), not a
+  // property of content.json that a design-time evaluator could ever check.
+  block('conversion', 'BuyBox', 'card', '@/design-system/blocks/conversion/BuyBox/Card.astro', {}, [], [
+    'product/Benefits/icon-grid',
+    'product/Benefits/feature-list',
+  ]),
+  block('conversion', 'BuyBox', 'compact', '@/design-system/blocks/conversion/BuyBox/Compact.astro', {}),
 ];
 
 /** Canonical `category/type/variant` key. */

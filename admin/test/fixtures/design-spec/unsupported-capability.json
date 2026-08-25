@@ -7,6 +7,6 @@
   },
   "sections": [
     { "category": "hero", "type": "ImmersiveHero", "variant": "parallax", "order": 0 },
-    { "category": "conversion", "type": "BuyBox", "variant": "default", "order": 1 }
+    { "category": "conversion", "type": "BuyBox", "variant": "card", "order": 1 }
   ]
 }
