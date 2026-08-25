@@ -12,7 +12,7 @@ interface UseSelectionArgs {
   bundleOfferActive: boolean;
 }
 
-interface Selection {
+export interface Selection {
   variant: VariantOption;
   pack: PricePack;
   projection: ReturnType<typeof projectPack>;

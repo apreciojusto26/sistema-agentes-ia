@@ -1,13 +1,21 @@
+// PRESENTATION of the buy action, not an implementation of it.
+//
+// Every commercial decision this component used to make itself — is the cart in
+// sync, is the variant sold out, is a mutation in flight, which CTA label, add
+// to cart or go to checkout — now comes from useBuyAction(), which
+// StickyAddToCart consumes too. What is left here is the buy box: price row,
+// variant picker, pack radiogroup, gift meter, CTA and the aria-live region.
+//
+// parts/buy-action.contract.test.ts fails if any of that logic comes back.
 import { useId, useMemo } from 'react';
 import { useStore } from '@nanostores/react';
-import { $cartError, $cartStatus, checkout, syncCartLine } from '@/stores/cart';
+import { $cartError } from '@/stores/cart';
 import { $selectedPackId, $selectedVariantId } from '@/stores/checkout';
-import { useSelection } from '@/components/islands/parts/use-selection';
+import { useBuyAction } from '@/components/islands/parts/use-buy-action';
 import { PriceRow } from '@/components/islands/parts/PriceRow';
 import { VariantPicker } from '@/components/islands/parts/VariantPicker';
 import { packDisplayLabel, projectPack } from '@/lib/shopify/pricing';
 import { formatPrice } from '@/lib/format';
-import { centsToUnits, trackEvent } from '@/lib/analytics';
 import type { ProductCommerce } from '@/lib/shopify/types';
 import type { PricePack, ProductErrorCopy } from '@/types/content';
 
@@ -33,9 +41,13 @@ export function BundleSelector({
   giftLabel,
 }: BundleSelectorProps) {
   const groupName = useId();
-  const cartStatus = useStore($cartStatus);
   const cartError = useStore($cartError);
-  const selection = useSelection({ commerce, packs, bundleOfferActive });
+  const { selection, ctaLabel, ctaDisabled, ariaBusy, onCta } = useBuyAction({
+    commerce,
+    packs,
+    bundleOfferActive,
+    cta,
+  });
 
   // PREVIEW MODE: the landing was generated without commerce, so there is no
   // variant, no price and nothing to add to a cart. The buy box keeps its
@@ -43,7 +55,9 @@ export function BundleSelector({
   // — but renders a disabled control and NO monetary value. A 0, a struck-out
   // "was" price or a synthetic variant would all put a number on screen that
   // nobody set. `useSelection` returns null only in preview; in Shopify mode
-  // an empty variant list still throws.
+  // an empty variant list still throws. The branch stays HERE rather than in
+  // the hook: the two presentations render unavailability differently, and only
+  // the copy differs — the decision itself is the hook's.
   if (!selection) {
     return (
       <div className="space-y-4">
@@ -62,46 +76,6 @@ export function BundleSelector({
   }
 
   const { variant, pack, projection, cart } = selection;
-
-  const isPending = cartStatus === 'creating' || cartStatus === 'updating' || cartStatus === 'restoring';
-  const soldOut = !variant.availableForSale;
-  const inSync = !!cart?.line && cart.line.variantId === variant.id && cart.line.quantity === projection.totalUnits;
-
-  let ctaLabel = cta.primary;
-  let ctaDisabled = false;
-  let ariaBusy = false;
-
-  if (soldOut) {
-    ctaLabel = cta.soldOut;
-    ctaDisabled = true;
-  } else if (isPending) {
-    ctaLabel = cta.pending;
-    ctaDisabled = true;
-    ariaBusy = true;
-  } else if (cart?.line && inSync) {
-    ctaLabel = cta.checkout;
-  }
-
-  const handleCta = () => {
-    if (ctaDisabled) return;
-    if (cart?.line && inSync) {
-      checkout();
-    } else {
-      trackEvent('add_to_cart', {
-        currency: commerce.currencyCode,
-        value: centsToUnits(projection.priceCents),
-        items: [
-          {
-            item_id: variant.id,
-            item_name: commerce.title,
-            price: centsToUnits(variant.unitPriceCents),
-            quantity: projection.totalUnits,
-          },
-        ],
-      });
-      void syncCartLine(variant.id, projection.totalUnits);
-    }
-  };
 
   const announcement = useMemo(() => {
     if (cartError) return errors[cartError] ?? errors.generic;
@@ -182,7 +156,7 @@ export function BundleSelector({
 
       <button
         type="button"
-        onClick={handleCta}
+        onClick={onCta}
         disabled={ctaDisabled}
         aria-busy={ariaBusy}
         className="flex h-14 w-full items-center justify-center gap-2 rounded-pill bg-rust px-6 font-display text-base font-bold tracking-wide text-white shadow-lift transition active:scale-[.99] hover:bg-rust-dark disabled:cursor-not-allowed disabled:opacity-60"

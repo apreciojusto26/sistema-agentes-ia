@@ -1,12 +1,19 @@
+// PRESENTATION of the buy action, not an implementation of it.
+//
+// This file used to carry its own copy of BundleSelector's commercial
+// decisions, under a comment promising the two "can never disagree". They now
+// SHARE that decision through useBuyAction() instead of mirroring it, which is
+// the difference between an invariant and a hope. What is left here is the
+// sticky bar: the sentinel observer, visibility, dismissal, thumbnail and CTA.
+//
+// parts/buy-action.contract.test.ts fails if that logic comes back.
 import { useEffect, useState } from 'react';
 import { useStore } from '@nanostores/react';
-import { $cartStatus, checkout, syncCartLine } from '@/stores/cart';
 import { $isLightboxOpen } from '@/stores/ui';
-import { useSelection } from '@/components/islands/parts/use-selection';
+import { useBuyAction } from '@/components/islands/parts/use-buy-action';
 import { PlaceholderShot } from '@/components/islands/parts/PlaceholderShot';
 import { formatPrice } from '@/lib/format';
 import { packDisplayLabel } from '@/lib/shopify/pricing';
-import { centsToUnits, trackEvent } from '@/lib/analytics';
 import type { ProductCommerce } from '@/lib/shopify/types';
 import type { PricePack } from '@/types/content';
 import type { ResolvedImage } from '@/types/content';
@@ -38,8 +45,21 @@ export function StickyAddToCart({
   const [pastSentinel, setPastSentinel] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const isLightboxOpen = useStore($isLightboxOpen);
-  const cartStatus = useStore($cartStatus);
-  const selection = useSelection({ commerce, packs, bundleOfferActive });
+  // Same hook, same decision, different labels: the sticky bar says
+  // `cta.sticky` where the buy box says `cta.primary`. Copy is a presentation
+  // concern; which copy APPLIES is not.
+  const {
+    selection,
+    ctaLabel: ctaText,
+    ctaDisabled,
+    ariaBusy,
+    onCta,
+  } = useBuyAction({
+    commerce,
+    packs,
+    bundleOfferActive,
+    cta: { primary: ctaLabel, checkout: checkoutLabel, pending: pendingLabel, soldOut: soldOutLabel },
+  });
 
   useEffect(() => {
     const sentinel = document.getElementById(sentinelId);
@@ -64,7 +84,9 @@ export function StickyAddToCart({
   // across renders. The bar keeps its position in the layout so the page can
   // be evaluated as a whole, but carries no price and no cart action.
   // `useSelection` returns null only in preview; Shopify mode still throws on
-  // an empty variant list, so this can never mask a real commerce failure.
+  // an empty variant list, so this can never mask a real commerce failure. The
+  // branch stays HERE rather than in the hook because the bar renders
+  // unavailability as a bar, and the buy box renders it as a block.
   if (!selection) {
     return (
       <div
@@ -89,35 +111,7 @@ export function StickyAddToCart({
     );
   }
 
-  const { variant, pack, projection, totalCents, cart } = selection;
-  const isPending = cartStatus === 'creating' || cartStatus === 'updating' || cartStatus === 'restoring';
-  const soldOut = !variant.availableForSale;
-  // Mirror BundleSelector's decision logic so the sticky bar and buy box can
-  // never disagree: checkout only when the live cart line matches the current
-  // selection; otherwise add-to-cart (syncCartLine handles create/add/update).
-  const inSync = !!cart?.line && cart.line.variantId === variant.id && cart.line.quantity === projection.totalUnits;
-
-  const handleClick = () => {
-    if (cart?.line && inSync) {
-      checkout();
-      return;
-    }
-    trackEvent('add_to_cart', {
-      currency: commerce.currencyCode,
-      value: centsToUnits(projection.priceCents),
-      items: [
-        {
-          item_id: variant.id,
-          item_name: commerce.title,
-          price: centsToUnits(variant.unitPriceCents),
-          quantity: projection.totalUnits,
-        },
-      ],
-    });
-    void syncCartLine(variant.id, projection.totalUnits);
-  };
-
-  const ctaText = soldOut ? soldOutLabel : isPending ? pendingLabel : cart?.line && inSync ? checkoutLabel : ctaLabel;
+  const { variant, pack, projection, totalCents } = selection;
 
   return (
     <div
@@ -148,10 +142,10 @@ export function StickyAddToCart({
 
         <button
           type="button"
-          onClick={handleClick}
-          disabled={soldOut || isPending}
+          onClick={onCta}
+          disabled={ctaDisabled}
           tabIndex={visible ? 0 : -1}
-          aria-busy={isPending}
+          aria-busy={ariaBusy}
           className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-pill bg-rust px-4 font-display text-sm font-bold tracking-wide text-white shadow-lift transition active:scale-[.99] hover:bg-rust-dark disabled:cursor-not-allowed disabled:opacity-60"
         >
           <span className="tabular-nums">{formatPrice(totalCents)}</span>
