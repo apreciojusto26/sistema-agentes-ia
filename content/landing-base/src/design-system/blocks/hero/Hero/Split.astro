@@ -1,10 +1,23 @@
 ---
-// DESIGN SYSTEM building block — hero/ProductHero/split (Design System Fase 2).
+// DESIGN SYSTEM building block — hero/Hero/split.
 //
-// Derives visually from @/components/sections/03-hero.astro but is a SEPARATE
-// component with a NEW capability type: a generation without --design must keep
-// rendering 03-hero.astro byte-for-byte. This block never imports, wraps or
-// modifies the legacy section.
+// Introduced at 19f60d5 as `hero/ProductHero/split`. It was never a second
+// capability: it is a second COMPOSITION of the hero, and it was renamed to
+// hero/Hero/split — file moved, markup untouched — when the taxonomy was
+// unified. test-fixtures/legacy-markup/HeroSplitLeft.html and
+// HeroSplitCenter.html were frozen from the 19f60d5 render BEFORE that move and
+// are byte-compared on every run, which is what makes "untouched" a fact
+// rather than a claim.
+//
+// Its sibling is Default.astro, which carries the legacy collage composition.
+//
+// NOTE — this variant does NOT emit the `#hero-end` sentinel that
+// 15-sticky-bar.astro observes, so a landing composed with it never shows the
+// sticky CTA. That is a PRE-EXISTING functional defect, deliberately preserved
+// here and tracked separately as "Hero split Sticky CTA anchor parity". The
+// fixtures above are frozen WITH the defect on purpose: fixing it is a
+// behaviour change and belongs in its own commit, with its own conscious
+// baseline update.
 //
 // Prop `align` is a DESIGN decision, never content. All copy still arrives
 // through @/data/product, exactly as the legacy hero does.
@@ -16,6 +29,7 @@
 import Container from '@/components/ui/Container.astro';
 import Media from '@/components/ui/Media.astro';
 import { product } from '@/data/product';
+import { heroGallery } from './hero-gallery';
 
 interface Props {
   align?: 'left' | 'center';
@@ -42,7 +56,7 @@ const textAlign = TEXT_ALIGN[align];
 const pillsJustify = PILLS_JUSTIFY[align];
 const subtaglineWidth = SUBTAGLINE_WIDTH[align];
 
-const [primary] = product.gallery;
+const [primary] = heroGallery('split');
 ---
 
 <section class="bg-bone pb-10 pt-6">

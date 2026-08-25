@@ -26,6 +26,12 @@ export const GOLDEN_DATA = {
   },
   product: {
     brand: 'GoldenBrand',
+    // hero/Hero reads these three and nothing else beyond `gallery`. Added when
+    // Hero joined the golden; none of the six earlier sections reads them, which
+    // their unchanged fixtures prove mechanically.
+    tagline: 'Golden tagline',
+    subtagline: 'Golden subtagline.',
+    heroPills: ['Golden pill one', 'Golden pill two', 'Golden pill three'],
     gallery: [
       media('golden gallery one', '4/5'),
       media('golden gallery two', '4/5'),

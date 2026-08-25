@@ -13,7 +13,8 @@
 import { describe, test, expect } from 'vitest';
 import { experimental_AstroContainer as AstroContainer } from 'astro/container';
 
-import ProductHeroSplit from './hero/ProductHero/Split.astro';
+import HeroSplit from './hero/Hero/Split.astro';
+import HeroDefault from './hero/Hero/Default.astro';
 import FeaturedQuoteDefault from './social-proof/FeaturedQuote/Default.astro';
 import ProductGuaranteeDefault from './conversion/ProductGuarantee/Default.astro';
 
@@ -22,10 +23,14 @@ const container = await AstroContainer.create();
 const render = (Component: any, props: Record<string, unknown>) =>
   container.renderToString(Component, { props });
 
-describe('ProductHero/split — align is a REAL rendering difference', () => {
+describe('Hero/split — align is a REAL rendering difference, NOT a variant', () => {
+  // `align` deliberately did not become split-left / split-center. This block
+  // is what makes that defensible: the two values must produce ONE composition
+  // with a dial turned, which is a different claim from the A-vs-B structural
+  // claim proven in blocks/hero/Hero/variants.render.test.ts.
   test('align="left" and align="center" emit different markup', async () => {
-    const left = await render(ProductHeroSplit, { align: 'left' });
-    const center = await render(ProductHeroSplit, { align: 'center' });
+    const left = await render(HeroSplit, { align: 'left' });
+    const center = await render(HeroSplit, { align: 'center' });
 
     expect(left).not.toBe(center);
     expect(left).toContain('text-left');
@@ -39,7 +44,7 @@ describe('ProductHero/split — align is a REAL rendering difference', () => {
   });
 
   test('no interpolated class survives into the output', async () => {
-    const out = await render(ProductHeroSplit, { align: 'center' });
+    const out = await render(HeroSplit, { align: 'center' });
     // A built class name would appear literally as `text-undefined` or leave
     // an empty class — both are the silent-fallback mode B2 guards against.
     expect(out).not.toContain('undefined');
@@ -47,7 +52,7 @@ describe('ProductHero/split — align is a REAL rendering difference', () => {
   });
 
   test('renders the shared shell primitives, not a commerce or shell element', async () => {
-    const out = await render(ProductHeroSplit, { align: 'left' });
+    const out = await render(HeroSplit, { align: 'left' });
     expect(out).toContain('<section');
     for (const forbidden of ['CartDrawer', 'site-header', 'site-footer', 'sticky-bar']) {
       expect(out).not.toContain(forbidden);
@@ -101,7 +106,8 @@ describe('every block defaults to a valid variant when no prop is supplied', () 
   // The DesignSpec contract makes props optional, so a spec may omit them.
   // A missing prop must fall back to a declared enum value, never undefined.
   test.each([
-    ['ProductHero/split', ProductHeroSplit],
+    ['Hero/default', HeroDefault],
+    ['Hero/split', HeroSplit],
     ['FeaturedQuote/default', FeaturedQuoteDefault],
     ['ProductGuarantee/default', ProductGuaranteeDefault],
   ])('%s renders with no props', async (_name, Component) => {

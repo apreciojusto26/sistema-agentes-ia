@@ -102,14 +102,20 @@ describe('B1 — invalid capability / variant / props are REJECTED', () => {
   });
 
   test('a real capability at a variant it does NOT declare is rejected', () => {
-    // ProductHero is registered under 'split' only. Asking for 'default' must
-    // never fall back to the registered sibling variant.
+    // This used to say hero/ProductHero at 'default'. Unifying the hero
+    // taxonomy made 'default' a REAL sibling variant of hero/Hero, so that
+    // assertion would now be testing a resolvable triple. Named an
+    // unregistered variant instead — the no-fallback claim is unchanged, the
+    // case that proves it had to move.
     const spec = mutate((s) => {
-      s.sections[0].variant = 'default';
+      s.sections[0].variant = 'immersive';
     });
     const support = contract.checkDesignSupport(spec);
     expect(support.status).toBe('unsupported_design');
-    expect(registry.resolveCapability('hero', 'ProductHero', 'default')).toBeNull();
+    expect(registry.resolveCapability('hero', 'Hero', 'immersive')).toBeNull();
+    // …while BOTH declared variants of the same capability still resolve.
+    expect(registry.resolveCapability('hero', 'Hero', 'default')).not.toBeNull();
+    expect(registry.resolveCapability('hero', 'Hero', 'split')).not.toBeNull();
   });
 
   test('a prop value outside the declared enum is rejected', () => {

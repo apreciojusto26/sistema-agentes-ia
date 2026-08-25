@@ -65,13 +65,49 @@ function block(
 }
 
 export const REGISTRY: RegistryEntry[] = [
-  legacy('hero', 'Hero', '@/components/sections/03-hero.astro', ['product.gallery']),
   legacy('conversion', 'BuyBox', '@/components/sections/05-buy-box.astro'),
   legacy('socialProof', 'FeaturedTestimonial', '@/components/sections/07-featured-testimonial.astro', ['testimonials:quote']),
   legacy('conversion', 'Guarantee', '@/components/sections/12-guarantee.astro'),
   legacy('socialProof', 'RealResults', '@/components/sections/13-real-results.astro', ['product.ugc']),
 
-  block('hero', 'ProductHero', 'split', '@/design-system/blocks/hero/ProductHero/Split.astro', {
+  // hero/Hero — SEVENTH capability on the structural-variant axis, and the one
+  // that CORRECTED a taxonomy mistake rather than only extending it.
+  //
+  // `split` shipped at 19f60d5 as a separate capability TYPE, `hero/ProductHero`.
+  // That was wrong: a landing has ONE hero, and "collage" vs "one framed shot"
+  // is a choice of composition inside it — exactly what the `variant` axis is
+  // for. Two types meant the Design Agent saw two heroes it could compose side
+  // by side, and `section-duplicate-type` would not have stopped it. Renaming
+  // the type to `Hero` is what makes that combination unrepresentable.
+  //
+  // `ProductHero` is GONE — not deprecated, not aliased. Nothing resolves it,
+  // and contract.design-spec.test.ts asserts the registry cannot answer for
+  // that type at all.
+  //
+  // Both variants read imagery through blocks/hero/Hero/hero-gallery.ts. That
+  // accessor carries NO fail-closed guard, unlike its six predecessors; the
+  // reason is written in the module itself and it is a deliberate consequence
+  // of this migration being behaviour-preserving.
+  //
+  // `default` carries the legacy composition verbatim (the collage, rendered
+  // once per breakpoint) and is the only one of the two that emits the
+  // `#hero-end` sentinel 15-sticky-bar.astro observes. `split` does not, and
+  // that PRE-EXISTING defect is preserved here on purpose — see both block
+  // headers, and the separate "Hero split Sticky CTA anchor parity" item.
+  //
+  // AUDIT — familiesAllowed / incompatibleWith, both left empty on evidence:
+  //   * families only re-declare CSS custom properties; a collage and a split
+  //     shot are both legible under all nine. '*' stays.
+  //   * the two variants cannot co-occur already — `section-duplicate-type`
+  //     rejects a repeated type regardless of variant, and unifying the type
+  //     is precisely what brought split under that rule. [] stays.
+  //
+  // `align` stays a PROP, not a pair of variants. It is the deliberate
+  // demonstration of the two axes: `variant` picks a composition,
+  // `propsSchema` dials one that already exists. `split-left`/`split-center`
+  // would have been the same DOM twice with one class swapped.
+  block('hero', 'Hero', 'default', '@/design-system/blocks/hero/Hero/Default.astro', {}, ['product.gallery']),
+  block('hero', 'Hero', 'split', '@/design-system/blocks/hero/Hero/Split.astro', {
     align: { type: 'string', enum: ['left', 'center'] },
   }, ['product.gallery']),
   block('socialProof', 'FeaturedQuote', 'default', '@/design-system/blocks/social-proof/FeaturedQuote/Default.astro', {

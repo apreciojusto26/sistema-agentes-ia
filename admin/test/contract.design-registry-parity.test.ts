@@ -146,6 +146,12 @@ describe('design registry parity — build-time ↔ runtime', () => {
       // byte-identically to the pre-registry page. No OTHER block may appear
       // here, and this list is not a place to add more.
       const PROMOTED = new Set([
+        // hero/Hero/default is the only one of these that did NOT change the
+        // key in src/data/design.ts: the type and variant were already
+        // 'Hero'/'default', and only the component behind them moved to a
+        // block. That is exactly why it has to be listed here — the default
+        // spec is unchanged, so nothing else would have noticed.
+        'hero/Hero/default',
         'socialProof/ReviewsReel/carousel',
         'media/GalleryStrip/strip',
         'socialProof/UgcStrip/strip',
@@ -179,6 +185,12 @@ describe('design registry parity — build-time ↔ runtime', () => {
     }
 
     // Neither side may substitute a different variant for an unknown one.
+    // `ProductHero` is the strongest case available: it was a REAL registered
+    // type until the hero taxonomy was unified, so a stale mirror that kept it
+    // — or an alias quietly left behind for compatibility — is caught here at
+    // BOTH variants, not just the one that never existed.
+    expect(buildTime.resolveCapability('hero', 'ProductHero', 'split')).toBeNull();
+    expect(runtime.resolveCapability('hero', 'ProductHero', 'split')).toBeNull();
     expect(buildTime.resolveCapability('hero', 'ProductHero', 'default')).toBeNull();
     expect(runtime.resolveCapability('hero', 'ProductHero', 'default')).toBeNull();
     expect(buildTime.resolveCapability('hero', 'NeverRegistered', 'default')).toBeNull();

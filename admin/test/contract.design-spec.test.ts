@@ -166,7 +166,9 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
     });
 
     test('unknown variant is rejected as unsupported_design', () => {
-      const spec = mutate('valid', (s) => { s.sections[0].variant = 'split'; });
+      // 'split' stood here and stopped being unknown when hero/Hero absorbed
+      // hero/ProductHero/split as its second variant.
+      const spec = mutate('valid', (s) => { s.sections[0].variant = 'immersive'; });
       const issues = contract.collectDesignErrors(spec);
       expect(codes(issues)).toContain('section-unknown-variant');
       expect(contract.checkDesignSupport(spec).status).toBe('unsupported_design');
@@ -187,11 +189,11 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
   // --- 11. no silent fallback ---------------------------------------------
   describe('no silent fallback (the core guarantee)', () => {
     test('an unknown variant never resolves to another registered variant', () => {
-      expect(registryModule.resolveCapability('hero', 'Hero', 'split')).toBeNull();
-      // A genuinely unregistered type. This used to name 'ProductHero', which
-      // Fase 2 turned into a REAL capability — the assertion kept passing but
-      // stopped testing what it was written to test. The ProductHero
-      // variant-isolation case now has its own dedicated test below.
+      // 'hero/Hero/split' stood here until the hero taxonomy was unified and it
+      // became REAL. Same trap the ProductHero line fell into one phase
+      // earlier: an assertion that keeps passing while it stops testing
+      // anything. Use a variant nothing declares.
+      expect(registryModule.resolveCapability('hero', 'Hero', 'immersive')).toBeNull();
       expect(registryModule.resolveCapability('hero', 'NeverRegisteredHero', 'default')).toBeNull();
       expect(registryModule.resolveCapability('nope', 'Hero', 'default')).toBeNull();
     });
@@ -357,14 +359,18 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
     // Asserted by identity, not just by length: a bare length check would go
     // green if a legacy capability were swapped for a block.
     const LEGACY_KEYS = [
-      'hero/Hero/default',
       'conversion/BuyBox/default',
       'socialProof/FeaturedTestimonial/default',
       'conversion/Guarantee/default',
       'socialProof/RealResults/default',
     ];
     const BLOCK_KEYS = [
-      'hero/ProductHero/split',
+      // hero/Hero is the one capability that did not merely GAIN variants: it
+      // absorbed a second type. 'hero/Hero/default' left LEGACY_KEYS above
+      // (03-hero.astro is a shim now) and 'hero/ProductHero/split' stopped
+      // existing entirely, becoming this pair.
+      'hero/Hero/default',
+      'hero/Hero/split',
       'socialProof/FeaturedQuote/default',
       'conversion/ProductGuarantee/default',
       // Structural variants v1: socialProof/ReviewsReel LEFT the legacy list.
@@ -394,12 +400,12 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
     const keyOf = (e: { category: string; type: string; variant: string }) =>
       `${e.category}/${e.type}/${e.variant}`;
 
-    test('registers exactly the 5 legacy sections plus the 15 building blocks', () => {
+    test('registers exactly the 4 legacy sections plus the 16 building blocks', () => {
       expect(registryModule.REGISTRY).toHaveLength(20);
       expect(registryModule.REGISTRY.map(keyOf)).toEqual([...LEGACY_KEYS, ...BLOCK_KEYS]);
     });
 
-    test('the 5 legacy capabilities still point at their original section files', () => {
+    test('the remaining legacy capabilities still point at their original section files', () => {
       for (const key of LEGACY_KEYS) {
         const entry = registryModule.REGISTRY.find((e) => keyOf(e) === key);
         expect(entry, `${key} missing`).toBeDefined();
@@ -497,9 +503,42 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
       }
     });
 
-    test('ProductHero is registered under "split" ONLY — "default" must not resolve', () => {
-      expect(registryModule.resolveCapability('hero', 'ProductHero', 'split')).not.toBeNull();
-      expect(registryModule.resolveCapability('hero', 'ProductHero', 'default')).toBeNull();
+    test('the hero is ONE capability with two variants — ProductHero is gone', () => {
+      expect(registryModule.resolveCapability('hero', 'Hero', 'default')).not.toBeNull();
+      expect(registryModule.resolveCapability('hero', 'Hero', 'split')).not.toBeNull();
+
+      // Not deprecated, not aliased, not kept "for compatibility": absent.
+      for (const variant of ['default', 'split', 'left', 'center']) {
+        expect(
+          registryModule.resolveCapability('hero', 'ProductHero', variant),
+          `ProductHero/${variant} still resolves`,
+        ).toBeNull();
+      }
+      expect(registryModule.listTypes('hero')).toEqual(['Hero']);
+
+      // …and the Design Agent's catalogue cannot mention it either, since the
+      // catalogue is derived from the registry rather than hand-listed.
+      const catalogue = registryModule.REGISTRY.map(
+        (e: { category: string; type: string; variant: string }) =>
+          `${e.category}/${e.type}/${e.variant}`,
+      );
+      expect(catalogue.filter((k: string) => k.includes('ProductHero'))).toEqual([]);
+      expect(registryModule.listVariants('hero', 'Hero').sort()).toEqual(['default', 'split']);
+    });
+
+    test('align stays a PROP of hero/Hero/split — never a pair of variants', () => {
+      // The taxonomy claim this whole migration exists to demonstrate:
+      // `variant` chooses a composition, `propsSchema` dials one that already
+      // exists. split-left / split-center would have collapsed the two axes
+      // into one and doubled the catalogue for a single class swap.
+      const split = registryModule.resolveCapability('hero', 'Hero', 'split');
+      expect(split.propsSchema.align).toEqual({ type: 'string', enum: ['left', 'center'] });
+      expect(registryModule.listVariants('hero', 'Hero')).not.toContain('split-left');
+      expect(registryModule.listVariants('hero', 'Hero')).not.toContain('split-center');
+
+      // …and `default` declares NO props at all: it is the legacy composition,
+      // which never had a dial.
+      expect(registryModule.resolveCapability('hero', 'Hero', 'default').propsSchema).toEqual({});
     });
   });
 

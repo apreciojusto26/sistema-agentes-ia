@@ -1,87 +1,21 @@
 ---
-import Container from '@/components/ui/Container.astro';
-import Media from '@/components/ui/Media.astro';
-import { product } from '@/data/product';
-
-const [collageA, collageB, collageC] = product.gallery;
+// LEGACY PATH SHIM — kept deliberately, not dead code.
+//
+// The composition this file used to hold moved to
+// @/design-system/blocks/hero/Hero/Default.astro when hero/Hero gained real
+// structural variants (default | split). The registry now points at the
+// blocks; nothing resolves this path through the registry any more.
+//
+// It survives because design-system/test-fixtures/LegacyIndex2074c93.astro is
+// BYTE-LOCKED and imports this module statically, and because
+// test-fixtures/legacy-markup/historical-markup.golden.test.ts renders THIS
+// path against the frozen 4732910 output.
+//
+// Seventh capability with this arrangement, after 10-reviews-reel.astro,
+// 04-gallery-strip.astro, 09-ugc-strip.astro, 08-faq.astro,
+// 06-how-it-works.astro and 11-comparison.astro.
+// Do not re-add markup here. Edit the block.
+import Default from '@/design-system/blocks/hero/Hero/Default.astro';
 ---
 
-<section class="bg-bone pb-10 pt-6">
-  <Container>
-    <div class="lg:grid lg:grid-cols-2 lg:items-center lg:gap-10">
-      <div>
-        <h1 class="text-hero md:text-5xl xl:text-6xl">
-          <span class="text-rust">{product.tagline}</span>
-        </h1>
-
-        <p class="mt-3 text-base text-steel">{product.subtagline}</p>
-
-        <div class="relative mx-auto mt-8 h-[20rem] w-full max-w-[22rem] md:h-[24rem] lg:hidden">
-          {
-            collageA && (
-              <div class="absolute left-0 top-2 z-10 w-[52%] -rotate-6 rounded-2xl shadow-lift ring-4 ring-white motion-safe:transition-transform motion-safe:hover:rotate-0">
-                <Media media={collageA} rounded="rounded-2xl" />
-              </div>
-            )
-          }
-          {
-            collageB && (
-              <div class="absolute right-0 top-0 z-20 w-[46%] rotate-3 rounded-2xl shadow-lift ring-4 ring-white motion-safe:transition-transform motion-safe:hover:rotate-0">
-                <Media media={collageB} rounded="rounded-2xl" />
-              </div>
-            )
-          }
-          {
-            collageC && (
-              <div class="absolute bottom-0 left-[22%] z-30 w-[50%] -rotate-2 rounded-2xl shadow-lift ring-4 ring-white motion-safe:transition-transform motion-safe:hover:rotate-0">
-                <Media media={collageC} rounded="rounded-2xl" />
-              </div>
-            )
-          }
-        </div>
-
-        <div class="mt-6 flex flex-wrap justify-center gap-2 lg:justify-start">
-          {
-            product.heroPills.map((pill) => (
-              <span class="flex items-center gap-1.5 rounded-pill bg-white px-3 py-2 text-xs font-semibold text-graphite shadow-card">
-                <svg viewBox="0 0 20 20" class="size-3.5 text-rust" aria-hidden="true">
-                  <path
-                    fill="currentColor"
-                    d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
-                  />
-                </svg>
-                {pill}
-              </span>
-            ))
-          }
-        </div>
-      </div>
-
-      <div class="relative mx-auto hidden h-[24rem] w-full max-w-[26rem] lg:block xl:h-[28rem] xl:max-w-[30rem]">
-        {
-          collageA && (
-            <div class="absolute left-0 top-2 z-10 w-[52%] -rotate-6 rounded-2xl shadow-lift ring-4 ring-white motion-safe:transition-transform motion-safe:hover:rotate-0">
-              <Media media={collageA} rounded="rounded-2xl" />
-            </div>
-          )
-        }
-        {
-          collageB && (
-            <div class="absolute right-0 top-0 z-20 w-[46%] rotate-3 rounded-2xl shadow-lift ring-4 ring-white motion-safe:transition-transform motion-safe:hover:rotate-0">
-              <Media media={collageB} rounded="rounded-2xl" />
-            </div>
-          )
-        }
-        {
-          collageC && (
-            <div class="absolute bottom-0 left-[22%] z-30 w-[50%] -rotate-2 rounded-2xl shadow-lift ring-4 ring-white motion-safe:transition-transform motion-safe:hover:rotate-0">
-              <Media media={collageC} rounded="rounded-2xl" />
-            </div>
-          )
-        }
-      </div>
-    </div>
-  </Container>
-
-  <div id="hero-end" class="h-px w-full" aria-hidden="true"></div>
-</section>
+<Default />

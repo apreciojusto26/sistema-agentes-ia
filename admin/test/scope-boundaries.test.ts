@@ -190,6 +190,24 @@ describe('scope-boundaries (Batch G — machine-checkable, spec R14)', () => {
     // design-system/blocks/product/Comparison/variants.render.test.ts, and that
     // historical golden.
     //
+    // `content/landing-base/src/components/sections/03-hero.astro` is the
+    // SEVENTH file under this arrangement, and the only one whose capability
+    // also changed NAME: hero/Hero gained default|split variants by ABSORBING
+    // hero/ProductHero/split, which stopped existing as a type. The legacy
+    // collage composition moved to design-system/blocks/hero/Hero/Default.astro
+    // alongside Split.astro (moved, not rewritten) and the hero-gallery.ts
+    // accessor they share, and this file became a one-line shim.
+    //
+    // Three frozen references guard it, not one: Hero.html from 4732910, and
+    // HeroSplitLeft.html / HeroSplitCenter.html from 19f60d5 — the commit that
+    // introduced split. The split pair is frozen WITH a known defect (no
+    // `#hero-end`, so the sticky CTA never appears on a split hero), because
+    // this migration had to prove behaviour preservation before anything
+    // functional moved. See "Hero split Sticky CTA anchor parity". Guards:
+    // contract.design-spec.test.ts, contract.design-registry-parity.test.ts,
+    // design-system/blocks/hero/Hero/variants.render.test.ts, and the
+    // historical golden.
+    //
     // NO PATH IS EXEMPTED HERE, ON PURPOSE. This assertion measures WORKING
     // TREE dirtiness (`git status --porcelain`), not history, so once that
     // change is committed these files are clean again and the boundary holds

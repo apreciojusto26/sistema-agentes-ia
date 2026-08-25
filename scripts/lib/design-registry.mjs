@@ -92,10 +92,11 @@ export const PROTECTED_STRUCTURAL_TOKENS = ['--breakpoint-xs', '--animate-marque
  */
 export const REGISTRY = [
   // --- LEGACY capabilities (Fase 1) ---------------------------------------
-  // The 11 original sections, unchanged and still registered. They take no
-  // props and live under src/components/sections/ (a path the scope-boundaries
-  // guardrail protects — they are read and rendered, never modified).
-  legacy('hero', 'Hero', '@/components/sections/03-hero.astro', ['product.gallery']),
+  // What is LEFT of the 11 original sections. They take no props and still
+  // live under src/components/sections/ (a path the scope-boundaries guardrail
+  // protects — they are read and rendered, never modified). The others were
+  // promoted onto the variant axis one capability at a time; their old paths
+  // survive as shims, which is why this list only shrinks.
   legacy('conversion', 'BuyBox', '@/components/sections/05-buy-box.astro'),
   legacy('socialProof', 'FeaturedTestimonial', '@/components/sections/07-featured-testimonial.astro', ['testimonials:quote']),
   legacy('conversion', 'Guarantee', '@/components/sections/12-guarantee.astro'),
@@ -104,14 +105,56 @@ export const REGISTRY = [
   // --- DESIGN SYSTEM building blocks (Fase 2 vertical slice) ---------------
   // Props-driven derivations living under src/design-system/blocks/. Each one
   // derives visually from a legacy section (documented in its own header) but
-  // exposes a real, narrow design prop. Deliberately given NEW type names
-  // rather than re-pointing a legacy key: a generation without --design must
-  // keep rendering exactly the legacy components it renders today.
+  // exposes a real, narrow design prop.
+  //
+  // These were originally given NEW type names rather than re-pointing a legacy
+  // key, to keep a no---design generation byte-identical. hero/Hero below is
+  // where that rule was RETIRED for the hero: the byte-identity is now proven
+  // by the shim plus two frozen goldens instead of by a duplicate type name,
+  // and the duplicate type was costing the Design Agent a coherent catalogue.
   //
   // `props` here are DESIGN decisions only, never content. Content still
   // arrives through the src/data/* modules generate-landing.mjs writes — the
   // Content Agent owns what is said, the Design Agent owns how it is composed.
-  block('hero', 'ProductHero', 'split', '@/design-system/blocks/hero/ProductHero/Split.astro', {
+
+  // hero/Hero — SEVENTH capability on the structural-variant axis, and the one
+  // that CORRECTED a taxonomy mistake rather than only extending it.
+  //
+  // `split` shipped at 19f60d5 as a separate capability TYPE, `hero/ProductHero`.
+  // That was wrong: a landing has ONE hero, and "collage" vs "one framed shot"
+  // is a choice of composition inside it — exactly what the `variant` axis is
+  // for. Two types meant the Design Agent saw two heroes it could compose side
+  // by side, and `section-duplicate-type` would not have stopped it. Renaming
+  // the type to `Hero` is what makes that combination unrepresentable.
+  //
+  // `ProductHero` is GONE — not deprecated, not aliased. Nothing resolves it,
+  // and contract.design-spec.test.ts asserts the registry cannot answer for
+  // that type at all.
+  //
+  // Both variants read imagery through blocks/hero/Hero/hero-gallery.ts. That
+  // accessor carries NO fail-closed guard, unlike its six predecessors; the
+  // reason is written in the module itself and it is a deliberate consequence
+  // of this migration being behaviour-preserving.
+  //
+  // `default` carries the legacy composition verbatim (the collage, rendered
+  // once per breakpoint) and is the only one of the two that emits the
+  // `#hero-end` sentinel 15-sticky-bar.astro observes. `split` does not, and
+  // that PRE-EXISTING defect is preserved here on purpose — see both block
+  // headers, and the separate "Hero split Sticky CTA anchor parity" item.
+  //
+  // AUDIT — familiesAllowed / incompatibleWith, both left empty on evidence:
+  //   * families only re-declare CSS custom properties; a collage and a split
+  //     shot are both legible under all nine. '*' stays.
+  //   * the two variants cannot co-occur already — `section-duplicate-type`
+  //     rejects a repeated type regardless of variant, and unifying the type
+  //     is precisely what brought split under that rule. [] stays.
+  //
+  // `align` stays a PROP, not a pair of variants. It is the deliberate
+  // demonstration of the two axes: `variant` picks a composition,
+  // `propsSchema` dials one that already exists. `split-left`/`split-center`
+  // would have been the same DOM twice with one class swapped.
+  block('hero', 'Hero', 'default', '@/design-system/blocks/hero/Hero/Default.astro', {}, ['product.gallery']),
+  block('hero', 'Hero', 'split', '@/design-system/blocks/hero/Hero/Split.astro', {
     align: { type: 'string', enum: ['left', 'center'] },
   }, ['product.gallery']),
   block('socialProof', 'FeaturedQuote', 'default', '@/design-system/blocks/social-proof/FeaturedQuote/Default.astro', {
