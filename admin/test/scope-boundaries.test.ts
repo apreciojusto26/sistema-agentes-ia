@@ -167,6 +167,15 @@ describe('scope-boundaries (Batch G — machine-checkable, spec R14)', () => {
     // contract.design-integrity.test.ts and
     // design-system/blocks/conversion/Faq/variants.render.test.ts.
     //
+    // `content/landing-base/src/components/sections/06-how-it-works.astro` is
+    // the FIFTH file under this arrangement: product/HowItWorks gained
+    // vertical-steps|horizontal-timeline variants, its composition moved to
+    // design-system/blocks/product/HowItWorks/HorizontalTimeline.astro
+    // alongside VerticalSteps.astro and the steps.ts accessor they share, and
+    // this file became a one-line shim. The golden test passes. Guards:
+    // contract.design-integrity.test.ts and
+    // design-system/blocks/product/HowItWorks/variants.render.test.ts.
+    //
     // NO PATH IS EXEMPTED HERE, ON PURPOSE. This assertion measures WORKING
     // TREE dirtiness (`git status --porcelain`), not history, so once that
     // change is committed these files are clean again and the boundary holds

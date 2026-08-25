@@ -34,7 +34,7 @@ export const design: DesignSpec = {
     { category: 'hero', type: 'Hero', variant: 'default', order: 0 },
     { category: 'media', type: 'GalleryStrip', variant: 'strip', order: 1 },
     { category: 'conversion', type: 'BuyBox', variant: 'default', order: 2 },
-    { category: 'product', type: 'HowItWorks', variant: 'default', order: 3 },
+    { category: 'product', type: 'HowItWorks', variant: 'horizontal-timeline', order: 3 },
     { category: 'socialProof', type: 'FeaturedTestimonial', variant: 'default', order: 4 },
     { category: 'conversion', type: 'Faq', variant: 'accordion', order: 5 },
     { category: 'socialProof', type: 'UgcStrip', variant: 'strip', order: 6 },

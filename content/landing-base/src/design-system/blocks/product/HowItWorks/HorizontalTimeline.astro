@@ -1,0 +1,61 @@
+---
+// DESIGN SYSTEM building block — product/HowItWorks/horizontal-timeline.
+//
+// THE COMPOSITION MOVED HERE, verbatim, from
+// @/components/sections/06-how-it-works.astro, which is now a one-line shim so
+// the byte-locked legacy golden fixture keeps resolving — the fifth capability
+// under this arrangement.
+//
+// WHY THIS NAME CARRIES THE LEGACY, and why it has no connector line — this is
+// a judgement call and it should be visible rather than discovered later:
+//
+//   The legacy composition is three full-bleed media cards, `space-y-8` on
+//   small screens and `lg:grid-cols-3` above. Its defining trait on a desktop
+//   screen is the horizontal sequence, and degrading to a vertical stack on
+//   mobile is exactly what a timeline is allowed to do — so this is the closer
+//   of the two names.
+//
+//   A connector line is NOT drawn. The brief made it conditional on fitting
+//   the current design, and it does not: these are edge-to-edge media cards
+//   with no gutter to run a line through, and the step numbers are badges
+//   overlaid on the images rather than points on an axis. Drawing one would
+//   change the legacy output, which is a stronger rule than matching a name.
+//   If a real connector is wanted it is a deliberate design change with its
+//   own golden update, not a side effect of this conversion.
+//
+// Sibling of VerticalSteps.astro, not its parent. Both declare
+// requiresData ['product.steps'] and both read through howItWorksSteps().
+// NEITHER hydrates anything — Media.astro is a plain Astro component — so the
+// difference between them is purely compositional.
+import Container from '@/components/ui/Container.astro';
+import Media from '@/components/ui/Media.astro';
+import { howItWorksSteps, STEPS_EYEBROW, STEPS_HEADING } from './steps';
+
+const steps = howItWorksSteps('horizontal-timeline');
+---
+
+<section class="bg-bone-dim py-12 md:py-16">
+  <Container>
+    <p class="text-eyebrow font-bold uppercase text-rust">{STEPS_EYEBROW}</p>
+    <h2 class="mt-1 text-display md:text-4xl lg:text-5xl">{STEPS_HEADING}</h2>
+
+    <div class="mt-8 space-y-8 lg:grid lg:grid-cols-3 lg:gap-6 lg:space-y-0">
+      {
+        steps.map((step) => (
+          <div class="overflow-hidden rounded-card bg-surface shadow-card">
+            <div class="relative">
+              <Media media={step.media} rounded="rounded-none" class="aspect-[4/3] w-full" />
+              <span class="absolute left-4 top-4 grid size-9 place-items-center rounded-full bg-graphite font-display font-black text-bone">
+                {step.step}
+              </span>
+            </div>
+            <div class="p-5">
+              <h3 class="text-lg font-bold text-graphite">{step.title}</h3>
+              <p class="mt-1 text-sm text-steel">{step.text}</p>
+            </div>
+          </div>
+        ))
+      }
+    </div>
+  </Container>
+</section>

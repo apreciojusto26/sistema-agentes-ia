@@ -73,6 +73,7 @@ const contract = await load('scripts/lib/content-contract.mjs');
 const registry = await load('scripts/lib/design-registry.mjs');
 const design = await load('scripts/lib/design-contract.mjs');
 const agent = await load('scripts/generate-design.mjs');
+const { design: defaultSpec } = await load('content/landing-base/src/data/design.ts');
 
 /** A DesignSpec that is valid on every axis EXCEPT the ones a test varies. */
 function specWith(sections: Array<Record<string, unknown>>) {
@@ -547,6 +548,12 @@ describe('structural variants — the variant axis, per converted capability', (
     { category: 'media', type: 'GalleryStrip', variants: ['strip', 'grid'], requires: 'product.gallery' },
     { category: 'socialProof', type: 'UgcStrip', variants: ['strip', 'grid'], requires: 'product.ugc' },
     { category: 'conversion', type: 'Faq', variants: ['accordion', 'open-list'], requires: 'faq' },
+    {
+      category: 'product',
+      type: 'HowItWorks',
+      variants: ['vertical-steps', 'horizontal-timeline'],
+      requires: 'product.steps',
+    },
   ];
 
   test.each(CONVERTED)('$category/$type declares exactly its variants', ({ category, type, variants }) => {
@@ -600,6 +607,7 @@ describe('structural variants — the variant axis, per converted capability', (
       if (requires === 'testimonials:reel') content.testimonials = [{ variant: 'quote' }];
       else if (requires === 'product.ugc') content.product.ugc = [];
       else if (requires === 'faq') content.faq = [];
+      else if (requires === 'product.steps') content.product.steps = [];
       else content.product.gallery = [];
 
       const sections = [HERO, BUYBOX];
@@ -669,16 +677,33 @@ describe('structural variants — the variant axis, per converted capability', (
     }
   });
 
-  test.each(CONVERTED)('$type: the legacy section is a shim, not a second copy', ({ category, type, variants }) => {
+  test.each(CONVERTED)('$type: the legacy section is a shim onto the DEFAULT variant', ({ category, type, variants }) => {
     // Compatibility, not cleanliness: design-system/test-fixtures/
     // LegacyIndex2074c93.astro imports these paths statically and
-    // legacy-render.golden.test.ts requires byte-identical output.
-    const promoted = registry.resolveCapability(category, type, variants[0]).component;
+    // legacy-render.golden.test.ts requires the legacy import path and the
+    // registry path to render identically.
+    //
+    // The promoted variant is read from the TEMPLATE DEFAULT SPEC, not from
+    // variants[0]. Position is not the contract: product/HowItWorks lists
+    // vertical-steps first but it is horizontal-timeline that carries the
+    // legacy composition. Deriving it from src/data/design.ts asserts the
+    // real invariant — the shim and a --design-less generation reach the same
+    // component — instead of a coincidence that held for the first four.
+    const defaultSection = defaultSpec.sections.find(
+      (s: { category: string; type: string }) => s.category === category && s.type === type,
+    );
+    expect(defaultSection, `${type} is absent from the template default spec`).toBeDefined();
+    expect(variants, `${type}/${defaultSection.variant} is not a registered variant`).toContain(
+      defaultSection.variant,
+    );
+
+    const promoted = registry.resolveCapability(category, type, defaultSection.variant).component;
     const legacyFile = {
       ReviewsReel: 'content/landing-base/src/components/sections/10-reviews-reel.astro',
       GalleryStrip: 'content/landing-base/src/components/sections/04-gallery-strip.astro',
       UgcStrip: 'content/landing-base/src/components/sections/09-ugc-strip.astro',
       Faq: 'content/landing-base/src/components/sections/08-faq.astro',
+      HowItWorks: 'content/landing-base/src/components/sections/06-how-it-works.astro',
     }[type]!;
 
     const legacy = read(legacyFile);

@@ -97,7 +97,6 @@ export const REGISTRY = [
   // guardrail protects — they are read and rendered, never modified).
   legacy('hero', 'Hero', '@/components/sections/03-hero.astro', ['product.gallery']),
   legacy('conversion', 'BuyBox', '@/components/sections/05-buy-box.astro'),
-  legacy('product', 'HowItWorks', '@/components/sections/06-how-it-works.astro', ['product.steps']),
   legacy('socialProof', 'FeaturedTestimonial', '@/components/sections/07-featured-testimonial.astro', ['testimonials:quote']),
   legacy('product', 'Comparison', '@/components/sections/11-comparison.astro', ['product.comparison']),
   legacy('conversion', 'Guarantee', '@/components/sections/12-guarantee.astro'),
@@ -199,6 +198,25 @@ export const REGISTRY = [
   //     rejects a repeated type regardless of variant. [] stays.
   block('conversion', 'Faq', 'accordion', '@/design-system/blocks/conversion/Faq/Accordion.astro', {}, ['faq']),
   block('conversion', 'Faq', 'open-list', '@/design-system/blocks/conversion/Faq/OpenList.astro', {}, ['faq']),
+
+  // product/HowItWorks — FIFTH capability on the structural-variant axis, and
+  // the first in `product`. Both variants read through
+  // blocks/product/HowItWorks/steps.ts and render the AUTHORED `step` number,
+  // never an array index, so neither can renumber the process.
+  //
+  // Neither hydrates: this section explains a process, it does not track one.
+  //
+  // `horizontal-timeline` carries the legacy composition verbatim (three media
+  // cards, lg:grid-cols-3, stacking below) and deliberately draws NO connector
+  // line — see its header for why that would have changed legacy output.
+  //
+  // AUDIT — familiesAllowed / incompatibleWith, both left empty on evidence:
+  //   * families only re-declare CSS custom properties; a card row and a
+  //     numbered rail are both legible under all nine. '*' stays.
+  //   * the two variants cannot co-occur already — `section-duplicate-type`
+  //     rejects a repeated type regardless of variant. [] stays.
+  block('product', 'HowItWorks', 'vertical-steps', '@/design-system/blocks/product/HowItWorks/VerticalSteps.astro', {}, ['product.steps']),
+  block('product', 'HowItWorks', 'horizontal-timeline', '@/design-system/blocks/product/HowItWorks/HorizontalTimeline.astro', {}, ['product.steps']),
 ];
 
 /**
