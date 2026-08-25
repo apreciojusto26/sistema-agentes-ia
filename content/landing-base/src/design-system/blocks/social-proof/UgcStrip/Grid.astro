@@ -1,0 +1,57 @@
+---
+// DESIGN SYSTEM building block — socialProof/UgcStrip/grid.
+//
+// The SAME UGC pieces as Strip.astro, composed as a responsive mosaic.
+// Sibling variant, not a derivative: same ugcItems() accessor, same
+// requiresData.
+//
+// STRUCTURALLY different, not re-skinned:
+//   - no horizontal scroller: Strip is one `overflow-x-auto` row with
+//     `snap-x`/`snap-start` and fixed-width `shrink-0` items, so most pieces
+//     sit off-screen behind a swipe. This variant wraps into rows and every
+//     piece is on screen.
+//   - a real mosaic, not a uniform contact sheet: the first piece spans 2x2
+//     from `md` up, so the composition keeps a focal point instead of reading
+//     as an undifferentiated tile field. That is also what distinguishes it
+//     from 13-real-results.astro's flat `grid-cols-3 lg:grid-cols-6` strip of
+//     squares, which renders the same data with no hierarchy at all.
+//   - the 9:16 ratio is PRESERVED in both variants. UGC is shot vertically;
+//     cropping it square to make a neater grid would be the layout overruling
+//     the medium.
+//
+// Neither variant hydrates anything — Media.astro is a plain Astro component —
+// so, unlike the other two converted capabilities, the difference here is
+// purely compositional and neither choice costs the visitor JS.
+//
+// Tailwind v4 scans SOURCE TEXT: every class below is a complete literal
+// string, never interpolated or concatenated (ADR-4, guarded by
+// contract.design-blocks.test.ts B2).
+import Container from '@/components/ui/Container.astro';
+import Media from '@/components/ui/Media.astro';
+import { ugcItems } from './ugc-items';
+
+const items = ugcItems('grid');
+// ugcItems() throws on an empty list, so a lead piece always exists — but that
+// invariant lives in the accessor and TypeScript cannot see it from here.
+// Stated explicitly rather than destructured, so the non-null is a documented
+// consequence of the guard (same reasoning as blocks/media/GalleryStrip/Grid).
+const lead = items[0]!;
+const rest = items.slice(1);
+---
+
+<section class="py-8 md:py-12">
+  <Container>
+    <ul class="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <li class="md:col-span-2 md:row-span-2">
+        <Media media={lead} rounded="rounded-card" class="aspect-[9/16] w-full" loading="eager" />
+      </li>
+      {
+        rest.map((item) => (
+          <li>
+            <Media media={item} rounded="rounded-tile" class="aspect-[9/16] w-full" loading="lazy" />
+          </li>
+        ))
+      }
+    </ul>
+  </Container>
+</section>

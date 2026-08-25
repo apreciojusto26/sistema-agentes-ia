@@ -1,0 +1,31 @@
+---
+// DESIGN SYSTEM building block — socialProof/UgcStrip/strip.
+//
+// THE COMPOSITION MOVED HERE, verbatim, from
+// @/components/sections/09-ugc-strip.astro, which is now a one-line shim so
+// the byte-locked legacy golden fixture keeps resolving — the same arrangement
+// as blocks/social-proof/ReviewsReel/Carousel.astro and
+// blocks/media/GalleryStrip/Strip.astro. legacy-render.golden.test.ts renders
+// both paths and requires BYTE-IDENTICAL output.
+//
+// Sibling of Grid.astro, not its parent. Both declare
+// requiresData ['product.ugc'] and both read through ugcItems(). Choosing
+// between them is the Design Agent's decision, expressed as the DesignSpec
+// section's `variant`.
+import Media from '@/components/ui/Media.astro';
+import { ugcItems } from './ugc-items';
+
+const items = ugcItems('strip');
+---
+
+<section class="py-8">
+  <div class="flex gap-3 overflow-x-auto px-5 [scrollbar-width:none] snap-x">
+    {
+      items.map((item, i) => (
+        <div class="w-[42%] max-w-[11rem] shrink-0 snap-start lg:max-w-[14rem]">
+          <Media media={item} rounded="rounded-tile" class="aspect-[9/16] w-full" loading={i < 2 ? 'eager' : 'lazy'} />
+        </div>
+      ))
+    }
+  </div>
+</section>

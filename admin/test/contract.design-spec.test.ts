@@ -95,7 +95,7 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
     test('two sections may share a CATEGORY when their types differ (UgcStrip + ReviewsReel)', () => {
       const spec = fixtureSpec([
         { category: 'hero', type: 'Hero', variant: 'default', order: 0 },
-        { category: 'socialProof', type: 'UgcStrip', variant: 'default', order: 1 },
+        { category: 'socialProof', type: 'UgcStrip', variant: 'strip', order: 1 },
         { category: 'socialProof', type: 'ReviewsReel', variant: 'carousel', order: 2 },
         { category: 'conversion', type: 'BuyBox', variant: 'default', order: 3 },
       ]);
@@ -362,7 +362,6 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
       'product/HowItWorks/default',
       'socialProof/FeaturedTestimonial/default',
       'conversion/Faq/default',
-      'socialProof/UgcStrip/default',
       'product/Comparison/default',
       'conversion/Guarantee/default',
       'socialProof/RealResults/default',
@@ -384,16 +383,18 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
       // components/sections/04-gallery-strip.astro became a shim.
       'media/GalleryStrip/strip',
       'media/GalleryStrip/grid',
+      'socialProof/UgcStrip/strip',
+      'socialProof/UgcStrip/grid',
     ];
     const keyOf = (e: { category: string; type: string; variant: string }) =>
       `${e.category}/${e.type}/${e.variant}`;
 
-    test('registers exactly the 9 legacy sections plus the 7 building blocks', () => {
-      expect(registryModule.REGISTRY).toHaveLength(16);
+    test('registers exactly the 8 legacy sections plus the 9 building blocks', () => {
+      expect(registryModule.REGISTRY).toHaveLength(17);
       expect(registryModule.REGISTRY.map(keyOf)).toEqual([...LEGACY_KEYS, ...BLOCK_KEYS]);
     });
 
-    test('the 9 legacy capabilities still point at their original section files', () => {
+    test('the 8 legacy capabilities still point at their original section files', () => {
       for (const key of LEGACY_KEYS) {
         const entry = registryModule.REGISTRY.find((e) => keyOf(e) === key);
         expect(entry, `${key} missing`).toBeDefined();

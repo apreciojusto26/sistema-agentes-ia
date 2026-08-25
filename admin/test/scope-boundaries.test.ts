@@ -148,6 +148,15 @@ describe('scope-boundaries (Batch G — machine-checkable, spec R14)', () => {
     // The golden test passes. Guards: contract.design-integrity.test.ts and
     // design-system/blocks/media/GalleryStrip/variants.render.test.ts.
     //
+    // `content/landing-base/src/components/sections/09-ugc-strip.astro` is the
+    // THIRD and last file under this arrangement: socialProof/UgcStrip gained
+    // strip|grid variants, its composition moved to
+    // design-system/blocks/social-proof/UgcStrip/Strip.astro alongside
+    // Grid.astro and the ugc-items.ts accessor they share, and this file became
+    // a one-line shim for the same byte-locked-fixture reason. The golden test
+    // passes. Guards: contract.design-integrity.test.ts and
+    // design-system/blocks/social-proof/UgcStrip/variants.render.test.ts.
+    //
     // NO PATH IS EXEMPTED HERE, ON PURPOSE. This assertion measures WORKING
     // TREE dirtiness (`git status --porcelain`), not history, so once that
     // change is committed these files are clean again and the boundary holds

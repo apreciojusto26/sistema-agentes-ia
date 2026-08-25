@@ -111,7 +111,7 @@ describe('Impeccable criteria (advisory tier)', () => {
     it('flags three consecutive sections of the same category', () => {
       const spec = baseSpec({
         sections: [
-          { category: 'socialProof', type: 'UgcStrip', variant: 'default', order: 0 },
+          { category: 'socialProof', type: 'UgcStrip', variant: 'strip', order: 0 },
           { category: 'socialProof', type: 'ReviewsReel', variant: 'carousel', order: 1 },
           { category: 'socialProof', type: 'RealResults', variant: 'default', order: 2 },
           { category: 'conversion', type: 'BuyBox', variant: 'default', order: 3 },

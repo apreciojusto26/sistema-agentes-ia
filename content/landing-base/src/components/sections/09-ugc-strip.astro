@@ -1,16 +1,22 @@
 ---
-import Media from '@/components/ui/Media.astro';
-import { product } from '@/data/product';
+// LEGACY PATH SHIM — kept deliberately, not dead code.
+//
+// The composition this file used to hold moved to
+// @/design-system/blocks/social-proof/UgcStrip/Strip.astro when
+// socialProof/UgcStrip gained real structural variants (strip | grid). The
+// registry now points at the blocks; nothing resolves this path through the
+// registry any more.
+//
+// It survives because design-system/test-fixtures/LegacyIndex2074c93.astro is
+// BYTE-LOCKED to index.astro at HEAD 2074c93 and imports this module
+// statically. legacy-render.golden.test.ts renders that fixture against the
+// live default-DesignSpec page and requires the two to be byte-identical, so
+// this shim is what keeps that proof honest.
+//
+// Third capability with this arrangement, after
+// components/sections/10-reviews-reel.astro and 04-gallery-strip.astro.
+// Do not re-add markup here. Edit the block.
+import Strip from '@/design-system/blocks/social-proof/UgcStrip/Strip.astro';
 ---
 
-<section class="py-8">
-  <div class="flex gap-3 overflow-x-auto px-5 [scrollbar-width:none] snap-x">
-    {
-      product.ugc.map((item, i) => (
-        <div class="w-[42%] max-w-[11rem] shrink-0 snap-start lg:max-w-[14rem]">
-          <Media media={item} rounded="rounded-tile" class="aspect-[9/16] w-full" loading={i < 2 ? 'eager' : 'lazy'} />
-        </div>
-      ))
-    }
-  </div>
-</section>
+<Strip />

@@ -145,7 +145,11 @@ describe('design registry parity — build-time ↔ runtime', () => {
       // legacy-render.golden.test.ts proves the default spec still renders
       // byte-identically to the pre-registry page. No OTHER block may appear
       // here, and this list is not a place to add more.
-      const PROMOTED = new Set(['socialProof/ReviewsReel/carousel', 'media/GalleryStrip/strip']);
+      const PROMOTED = new Set([
+        'socialProof/ReviewsReel/carousel',
+        'media/GalleryStrip/strip',
+        'socialProof/UgcStrip/strip',
+      ]);
 
       sections.forEach((s: Entry & { order: number; props?: unknown }, i: number) => {
         expect(s.order, `section ${i} order`).toBe(i);

@@ -70,7 +70,6 @@ export const REGISTRY: RegistryEntry[] = [
   legacy('product', 'HowItWorks', '@/components/sections/06-how-it-works.astro', ['product.steps']),
   legacy('socialProof', 'FeaturedTestimonial', '@/components/sections/07-featured-testimonial.astro', ['testimonials:quote']),
   legacy('conversion', 'Faq', '@/components/sections/08-faq.astro', ['faq']),
-  legacy('socialProof', 'UgcStrip', '@/components/sections/09-ugc-strip.astro', ['product.ugc']),
   legacy('product', 'Comparison', '@/components/sections/11-comparison.astro', ['product.comparison']),
   legacy('conversion', 'Guarantee', '@/components/sections/12-guarantee.astro'),
   legacy('socialProof', 'RealResults', '@/components/sections/13-real-results.astro', ['product.ugc']),
@@ -125,6 +124,25 @@ export const REGISTRY: RegistryEntry[] = [
   //     rejects a repeated type regardless of variant. [] stays.
   block('media', 'GalleryStrip', 'strip', '@/design-system/blocks/media/GalleryStrip/Strip.astro', {}, ['product.gallery']),
   block('media', 'GalleryStrip', 'grid', '@/design-system/blocks/media/GalleryStrip/Grid.astro', {}, ['product.gallery']),
+
+  // socialProof/UgcStrip — THIRD capability on the structural-variant axis.
+  // Both variants read through blocks/social-proof/UgcStrip/ugc-items.ts,
+  // which is deliberately thin: Media.astro already owns asset resolution, so
+  // the only thing genuinely shared is the emptiness guard. Extracting it
+  // anyway is what stops a future variant from shipping without one.
+  //
+  // AUDIT — familiesAllowed / incompatibleWith, both left empty on evidence:
+  //   * families only re-declare CSS custom properties; a horizontal strip and
+  //     a mosaic are both legible under all nine. '*' stays.
+  //   * strip vs grid cannot co-occur already — `section-duplicate-type`
+  //     rejects a repeated type regardless of variant. [] stays.
+  //   * NOT declared incompatible with socialProof/RealResults either, even
+  //     though that section also reads product.ugc. Two sections showing the
+  //     same pieces in different framings is an editorial call the Design
+  //     Agent is allowed to make; inventing a rule against it would be
+  //     taste dressed up as a contract.
+  block('socialProof', 'UgcStrip', 'strip', '@/design-system/blocks/social-proof/UgcStrip/Strip.astro', {}, ['product.ugc']),
+  block('socialProof', 'UgcStrip', 'grid', '@/design-system/blocks/social-proof/UgcStrip/Grid.astro', {}, ['product.ugc']),
 ];
 
 /** Canonical `category/type/variant` key. */

@@ -263,7 +263,7 @@ describe('data-aware capability resolution', () => {
   test('an empty array is unsatisfied — presence is not the bar', () => {
     // product.* fields are all REQUIRED by the content contract, so they are
     // always PRESENT. `[]` is what actually ships an empty section.
-    const spec = specWith([HERO, BUYBOX, { category: 'socialProof', type: 'UgcStrip' }]);
+    const spec = specWith([HERO, BUYBOX, { category: 'socialProof', type: 'UgcStrip', variant: 'strip' }]);
     const content = contentWith([{ variant: 'quote' }, { variant: 'reel' }]);
     content.product.ugc = [];
     const verdict = design.checkDesignSupport(spec, undefined, content);
@@ -545,6 +545,7 @@ describe('structural variants — the variant axis, per converted capability', (
   const CONVERTED = [
     { category: 'socialProof', type: 'ReviewsReel', variants: ['carousel', 'grid'], requires: 'testimonials:reel' },
     { category: 'media', type: 'GalleryStrip', variants: ['strip', 'grid'], requires: 'product.gallery' },
+    { category: 'socialProof', type: 'UgcStrip', variants: ['strip', 'grid'], requires: 'product.ugc' },
   ];
 
   test.each(CONVERTED)('$category/$type declares exactly its variants', ({ category, type, variants }) => {
@@ -596,6 +597,7 @@ describe('structural variants — the variant axis, per converted capability', (
       const content = richContent();
       // Starve exactly this capability's requirement, leave the rest intact.
       if (requires === 'testimonials:reel') content.testimonials = [{ variant: 'quote' }];
+      else if (requires === 'product.ugc') content.product.ugc = [];
       else content.product.gallery = [];
 
       const sections = [HERO, BUYBOX];
@@ -673,6 +675,7 @@ describe('structural variants — the variant axis, per converted capability', (
     const legacyFile = {
       ReviewsReel: 'content/landing-base/src/components/sections/10-reviews-reel.astro',
       GalleryStrip: 'content/landing-base/src/components/sections/04-gallery-strip.astro',
+      UgcStrip: 'content/landing-base/src/components/sections/09-ugc-strip.astro',
     }[type]!;
 
     const legacy = read(legacyFile);
