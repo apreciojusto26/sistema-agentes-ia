@@ -1,0 +1,62 @@
+---
+// DESIGN SYSTEM building block — product/Benefits/icon-grid.
+//
+// ADDITIVE, not a conversion. There is no legacy Benefits section to promote:
+// `product.benefits` has only ever been rendered INSIDE
+// components/sections/05-buy-box.astro, as a row of small tiles showing title
+// and text — and dropping `icon` and `id` on the floor. BuyBox keeps that
+// verbatim; it is byte-locked by test-fixtures/LegacyIndex2074c93.astro and
+// nothing here touches it. This capability is opt-in through a DesignSpec, the
+// same arrangement conversion/ProductGuarantee and socialProof/FeaturedQuote
+// already have beside their legacy counterparts.
+//
+// So this is the FIRST composition that draws `benefit.icon` at all. See
+// benefit-items.ts for why that needed a real resolver rather than a lookup.
+//
+// A benefit here is an INDEPENDENT BLOCK: its own surface, its own shadow, its
+// icon stacked above its title. Its sibling FeatureList.astro makes the same
+// benefit a ROW inside a divided sequence, with the icon in a side rail. That
+// is the structural difference the variant axis exists for.
+//
+// COUNT-INDEPENDENT BY CONSTRUCTION. The track list is
+// `repeat(auto-fit,minmax(15rem,1fr))`, not `lg:grid-cols-4`: with four
+// benefits it lays out four columns, with three it lays out three, and with one
+// the single card expands to the full width instead of huddling in a quarter
+// track beside three empty ones. No class in this file is keyed to a count, so
+// there is no arithmetic to get wrong and no `>=N` grammar to invent.
+//
+// Every class is a complete literal in a static `class="..."` attribute — this
+// block selects nothing at render time, which is the strongest B2 state.
+import Container from '@/components/ui/Container.astro';
+import { benefitItems, benefitGlyph, BENEFITS_EYEBROW, BENEFITS_HEADING } from './benefit-items';
+
+const items = benefitItems('icon-grid');
+---
+
+<section class="bg-bone-dim py-12 md:py-16">
+  <Container>
+    <p class="text-eyebrow font-bold uppercase text-rust">{BENEFITS_EYEBROW}</p>
+    <h2 class="mt-1 text-display md:text-4xl lg:text-5xl">{BENEFITS_HEADING}</h2>
+
+    <ul class="mt-8 grid grid-cols-[repeat(auto-fit,minmax(15rem,1fr))] gap-4">
+      {
+        items.map((benefit) => {
+          const glyph = benefitGlyph(benefit.icon, 'icon-grid');
+          return (
+            <li>
+              <article class="flex h-full flex-col rounded-card bg-surface p-5 shadow-card">
+                <span class="grid size-11 shrink-0 place-items-center rounded-tile bg-rust-tint">
+                  <svg viewBox={glyph.viewBox} class="size-6 text-rust" aria-hidden="true">
+                    <path fill="currentColor" d={glyph.path} />
+                  </svg>
+                </span>
+                <h3 class="mt-4 text-base font-bold text-graphite">{benefit.title}</h3>
+                <p class="mt-1.5 text-sm text-steel">{benefit.text}</p>
+              </article>
+            </li>
+          );
+        })
+      }
+    </ul>
+  </Container>
+</section>

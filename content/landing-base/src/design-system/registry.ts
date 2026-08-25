@@ -248,6 +248,49 @@ export const REGISTRY: RegistryEntry[] = [
   //   * the two variants cannot co-occur already — `section-duplicate-type`. [] stays.
   block('product', 'Comparison', 'table', '@/design-system/blocks/product/Comparison/Table.astro', {}, ['product.comparison']),
   block('product', 'Comparison', 'cards', '@/design-system/blocks/product/Comparison/Cards.astro', {}, ['product.comparison']),
+
+  // product/Benefits — the first capability in this series that is ADDITIVE
+  // rather than a conversion, and the audit that established it is worth
+  // keeping: there IS no legacy Benefits section. `product.benefits` has only
+  // ever been rendered inside components/sections/05-buy-box.astro, as a row of
+  // small tiles carrying `title` and `text` and DISCARDING `icon` and `id`.
+  //
+  // Extracting it was considered and rejected. BuyBox is imported by the
+  // byte-locked test-fixtures/LegacyIndex2074c93.astro, so moving those tiles
+  // out would change what every legacy generation renders — a real behaviour
+  // change to a commerce-adjacent section, dressed up as a refactor. BuyBox
+  // keeps its tiles verbatim; this capability is opt-in through a DesignSpec,
+  // exactly the arrangement conversion/ProductGuarantee and
+  // socialProof/FeaturedQuote already have beside their legacy counterparts.
+  //
+  // Consequence, stated plainly: Benefits has NO historical golden, because it
+  // has no history. Freezing today's output as a "historical" reference would
+  // be a fiction — same call as hero/Hero/editorial.
+  //
+  // Both variants read through blocks/product/Benefits/benefit-items.ts, which
+  // owns the emptiness guard AND the icon resolution. That second half is real
+  // logic, not symmetry: `ICONS` is typed Record<Exclude<IconName,'star'>,...>
+  // while `IconName` includes 'star', and BOTH real catalogues use 'star' for a
+  // benefit — so a naive ICONS[benefit.icon] draws a blank square for one
+  // benefit in four. It is also the first icon id in this template that arrives
+  // as CONTENT rather than being reached statically, which is what makes it the
+  // first one that can be wrong.
+  //
+  // AUDIT — familiesAllowed / incompatibleWith, both left empty on evidence:
+  //   * families only re-declare CSS custom properties; a card grid and a
+  //     divided list are both legible under all nine. '*' stays.
+  //   * the two variants cannot co-occur already — `section-duplicate-type`
+  //     rejects a repeated type regardless of variant. [] stays.
+  //   * NOT declared incompatible with conversion/BuyBox either, even though
+  //     BuyBox also shows the same benefits as tiles. Whether to repeat them is
+  //     an editorial call the Design Agent is allowed to make; inventing a rule
+  //     against it would be taste dressed up as a contract.
+  //
+  // Neither declares props. The composition IS the variant, and neither has a
+  // dial worth exposing: an `icon` position or a `density` here would be
+  // configurability theatre over two compositions that already differ.
+  block('product', 'Benefits', 'icon-grid', '@/design-system/blocks/product/Benefits/IconGrid.astro', {}, ['product.benefits']),
+  block('product', 'Benefits', 'feature-list', '@/design-system/blocks/product/Benefits/FeatureList.astro', {}, ['product.benefits']),
 ];
 
 /** Canonical `category/type/variant` key. */

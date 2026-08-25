@@ -1,0 +1,60 @@
+---
+// DESIGN SYSTEM building block — product/Benefits/feature-list.
+//
+// Sibling of IconGrid.astro, not a narrower version of it. Both read through
+// benefit-items.ts and draw the SAME benefits with the SAME glyphs; what
+// changes is what a benefit IS in the composition.
+//
+//   icon-grid     a benefit is a CARD — its own surface, its own shadow, icon
+//                 stacked above the title, cards sitting side by side.
+//   feature-list  a benefit is a ROW in a sequence — no surface, no shadow,
+//                 separated from its neighbours by a rule, icon in a side rail,
+//                 and the text given real reading width instead of a card's.
+//
+// This is deliberately NOT `icon-grid` at `grid-cols-1`. That would be the same
+// cards in a column: same wrappers, same surfaces, same icon position, one
+// class different. Here the <article>/card surface is gone entirely, the icon
+// moves from above the title into a two-column row rail, `divide-y` replaces
+// `gap`, and the copy gets `max-w-prose`. Different DOM, different unit.
+//
+// NO JS, and nothing to reveal: a benefit list is a statement, not a control.
+// Every answer is in the document at all times.
+//
+// COUNT-INDEPENDENT BY CONSTRUCTION, like its sibling but for a different
+// reason: a divided vertical sequence has no track count to leave empty. One
+// row is a complete list; ten rows are a longer one.
+//
+// Every class is a complete literal in a static `class="..."` attribute.
+import Container from '@/components/ui/Container.astro';
+import { benefitItems, benefitGlyph, BENEFITS_EYEBROW, BENEFITS_HEADING } from './benefit-items';
+
+const items = benefitItems('feature-list');
+---
+
+<section class="bg-bone-dim py-12 md:py-16">
+  <Container>
+    <p class="text-eyebrow font-bold uppercase text-rust">{BENEFITS_EYEBROW}</p>
+    <h2 class="mt-1 text-display md:text-4xl lg:text-5xl">{BENEFITS_HEADING}</h2>
+
+    <ul class="mx-auto mt-8 max-w-3xl divide-y divide-graphite/10 border-t border-graphite/10">
+      {
+        items.map((benefit) => {
+          const glyph = benefitGlyph(benefit.icon, 'feature-list');
+          return (
+            <li class="grid grid-cols-[auto_1fr] items-start gap-x-5 py-6">
+              <span class="grid size-10 shrink-0 place-items-center rounded-full bg-graphite text-bone">
+                <svg viewBox={glyph.viewBox} class="size-5" aria-hidden="true">
+                  <path fill="currentColor" d={glyph.path} />
+                </svg>
+              </span>
+              <div>
+                <h3 class="text-lg font-bold text-graphite">{benefit.title}</h3>
+                <p class="mt-1 max-w-prose text-sm text-steel md:text-base">{benefit.text}</p>
+              </div>
+            </li>
+          );
+        })
+      }
+    </ul>
+  </Container>
+</section>

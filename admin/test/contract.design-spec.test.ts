@@ -399,12 +399,19 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
       'product/HowItWorks/horizontal-timeline',
       'product/Comparison/table',
       'product/Comparison/cards',
+      // The first ADDITIVE pair in this series: there is no legacy Benefits
+      // section to convert. product.benefits was only ever rendered inside
+      // 05-buy-box.astro, which is untouched and stays byte-locked. See the
+      // registry note — and note the consequence: Benefits has no historical
+      // golden, because it has no history.
+      'product/Benefits/icon-grid',
+      'product/Benefits/feature-list',
     ];
     const keyOf = (e: { category: string; type: string; variant: string }) =>
       `${e.category}/${e.type}/${e.variant}`;
 
-    test('registers exactly the 4 legacy sections plus the 17 building blocks', () => {
-      expect(registryModule.REGISTRY).toHaveLength(21);
+    test('registers exactly the 4 legacy sections plus the 19 building blocks', () => {
+      expect(registryModule.REGISTRY).toHaveLength(23);
       expect(registryModule.REGISTRY.map(keyOf)).toEqual([...LEGACY_KEYS, ...BLOCK_KEYS]);
     });
 
@@ -552,6 +559,42 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
       // …and `default` declares NO props either: it is the legacy composition,
       // which never had a dial.
       expect(registryModule.resolveCapability('hero', 'Hero', 'default').propsSchema).toEqual({});
+    });
+
+    test('product/Benefits is ADDITIVE — BuyBox keeps rendering its own tiles', () => {
+      // The audit that produced this capability, pinned so a later refactor
+      // cannot quietly "tidy up" by extracting the tiles out of BuyBox: that
+      // would change what every legacy generation renders, and BuyBox is
+      // imported by the byte-locked LegacyIndex2074c93 fixture.
+      const buyBox = registryModule.resolveCapability('conversion', 'BuyBox', 'default');
+      expect(buyBox.component).toBe('@/components/sections/05-buy-box.astro');
+      expect(registryModule.isBuildingBlock(buyBox), 'BuyBox was promoted').toBe(false);
+      expect(
+        readFileSync(path.join(REPO_ROOT, 'content/landing-base/src/components/sections/05-buy-box.astro'), 'utf-8'),
+        'BuyBox stopped rendering benefits — that is a legacy behaviour change',
+      ).toContain('product.benefits.map');
+
+      for (const variant of ['icon-grid', 'feature-list']) {
+        const entry = registryModule.resolveCapability('product', 'Benefits', variant);
+        expect(entry, `product/Benefits/${variant} does not resolve`).not.toBeNull();
+        expect(registryModule.isBuildingBlock(entry)).toBe(true);
+        expect(entry.propsSchema, `${variant} grew props`).toEqual({});
+        expect(entry.requiresData, `${variant} requiresData`).toEqual(['product.benefits']);
+      }
+      expect(registryModule.listVariants('product', 'Benefits')).toEqual([
+        'icon-grid',
+        'feature-list',
+      ]);
+      // No fallback, no sibling substitution.
+      expect(registryModule.resolveCapability('product', 'Benefits', 'default')).toBeNull();
+      expect(registryModule.resolveCapability('product', 'Benefits', 'cards')).toBeNull();
+
+      // NOT in the default DesignSpec: a generation without --design keeps
+      // rendering exactly what it renders today.
+      const defaultSpec = readFileSync(
+        path.join(REPO_ROOT, 'content/landing-base/src/data/design.ts'), 'utf-8',
+      );
+      expect(defaultSpec, 'Benefits entered the default spec').not.toContain("'Benefits'");
     });
 
     test('hero/Hero/editorial is registered, and gated exactly like its siblings', () => {

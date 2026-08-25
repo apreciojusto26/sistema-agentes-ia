@@ -107,6 +107,9 @@ function contentWith(testimonials: Array<{ variant: string }>) {
       // product/Comparison declared requiresData on it, at which point the
       // evaluator (correctly) read a non-array as unmet.
       comparison: [{ feature: 'f', ours: true, rival: false }],
+      // BenefitItem[] — the real shape. product/Benefits declares requiresData
+      // on it, so the evaluator reads a missing or empty array as unmet.
+      benefits: [{ id: 'b1', icon: 'check', title: 't', text: 'x' }],
     },
   };
 }
@@ -558,6 +561,13 @@ describe('structural variants — the variant axis, per converted capability', (
       requires: 'product.steps',
     },
     { category: 'product', type: 'Comparison', variants: ['table', 'cards'], requires: 'product.comparison' },
+    // ADDITIVE, not converted — there is no legacy Benefits section to promote
+    // (product.benefits is rendered by 05-buy-box.astro, which is untouched).
+    // It rides this table anyway because every invariant below is about the
+    // VARIANT AXIS, not about having had a legacy ancestor: same requirement on
+    // both variants, own component each, no sibling wrapping, no default alias,
+    // and no way past the data gate.
+    { category: 'product', type: 'Benefits', variants: ['icon-grid', 'feature-list'], requires: 'product.benefits' },
   ];
 
   test.each(CONVERTED)('$category/$type declares exactly its variants', ({ category, type, variants }) => {
@@ -613,6 +623,7 @@ describe('structural variants — the variant axis, per converted capability', (
       else if (requires === 'faq') content.faq = [];
       else if (requires === 'product.steps') content.product.steps = [];
       else if (requires === 'product.comparison') content.product.comparison = [];
+      else if (requires === 'product.benefits') content.product.benefits = [];
       else content.product.gallery = [];
 
       const sections = [HERO, BUYBOX];
@@ -622,6 +633,36 @@ describe('structural variants — the variant axis, per converted capability', (
       const verdict = design.checkDesignSupport(specWith(sections), undefined, content);
       expect(verdict.status, `${type}/${variant} slipped past the data gate`).toBe('unsatisfied_data');
       expect(verdict.unsatisfied.some((u: { requirement: string }) => u.requirement === requires)).toBe(true);
+    }
+  });
+
+  test('product/Benefits is ADDITIVE — no shim, no legacy ancestor, BuyBox untouched', () => {
+    // The counterpart to the test above, for the capability that is excluded
+    // from it. What has to hold instead:
+    //
+    //   1. it is NOT in the template default spec, so a generation without
+    //      --design renders exactly what it renders today;
+    //   2. no section file was turned into a shim for it;
+    //   3. 05-buy-box.astro still renders the benefit tiles itself — extracting
+    //      them would change the byte-locked legacy page.
+    const inDefault = defaultSpec.sections.find(
+      (s: { category: string; type: string }) => s.category === 'product' && s.type === 'Benefits',
+    );
+    expect(inDefault, 'Benefits entered the default spec').toBeUndefined();
+
+    const buyBox = read('content/landing-base/src/components/sections/05-buy-box.astro');
+    expect(buyBox, 'BuyBox became a shim').toContain('<section');
+    expect(buyBox, 'BuyBox stopped rendering the benefit tiles').toContain('product.benefits.map');
+    expect(buyBox, 'BuyBox now delegates to a Benefits block').not.toContain('blocks/product/Benefits');
+
+    // And no OTHER section quietly became its shim either.
+    for (const variant of ['icon-grid', 'feature-list']) {
+      const component = registry.resolveCapability('product', 'Benefits', variant).component;
+      expect(component).toMatch(/^@\/design-system\/blocks\/product\/Benefits\//);
+      const fixture = read('content/landing-base/src/design-system/test-fixtures/LegacyIndex2074c93.astro');
+      expect(fixture, 'the byte-locked legacy page reaches a Benefits block').not.toContain(
+        'Benefits',
+      );
     }
   });
 
@@ -682,7 +723,14 @@ describe('structural variants — the variant axis, per converted capability', (
     }
   });
 
-  test.each(CONVERTED)('$type: the legacy section is a shim onto the DEFAULT variant', ({ category, type, variants }) => {
+  // The ONE invariant in this block that is about having had a legacy ancestor
+  // rather than about the variant axis. product/Benefits has none — see the
+  // dedicated assertions below it — so it is excluded here BY NAME rather than
+  // by a `.filter()` that would silently swallow a future capability whose shim
+  // really did go missing.
+  const PROMOTED_FROM_LEGACY = CONVERTED.filter((c) => c.type !== 'Benefits');
+
+  test.each(PROMOTED_FROM_LEGACY)('$type: the legacy section is a shim onto the DEFAULT variant', ({ category, type, variants }) => {
     // Compatibility, not cleanliness: design-system/test-fixtures/
     // LegacyIndex2074c93.astro imports these paths statically and
     // legacy-render.golden.test.ts requires the legacy import path and the
