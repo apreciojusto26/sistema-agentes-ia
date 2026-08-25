@@ -1,0 +1,93 @@
+---
+// DESIGN SYSTEM building block — product/Comparison/table.
+//
+// THE COMPOSITION MOVED HERE, verbatim, from
+// @/components/sections/11-comparison.astro, which is now a one-line shim —
+// the sixth capability under this arrangement. Its historical markup is frozen
+// in design-system/test-fixtures/legacy-markup/Comparison.html and checked by
+// historical-markup.golden.test.ts, so a change here goes red against 4732910
+// rather than merely against its own sibling.
+//
+// A three-column CSS grid: feature | ours | rival, one row per entry, headers
+// on top. Compact and scannable; every row is directly comparable across.
+//
+// The boolean/string reading comes from comparisonValue() in
+// comparison-rows.ts and is NOT re-derived here — see that file for why. What
+// stays local is presentation only: `ours` icons are `text-rust`, `rival`
+// icons are `text-steel-light`.
+//
+// Sibling of Cards.astro, not its parent. Both declare
+// requiresData ['product.comparison']. Neither hydrates anything.
+import Container from '@/components/ui/Container.astro';
+import {
+  comparisonRows,
+  comparisonValue,
+  comparisonBrand,
+  comparisonHeading,
+  COMPARISON_EYEBROW,
+  COMPARISON_RIVAL_LABEL,
+  COMPARISON_FEATURE_LABEL,
+} from './comparison-rows';
+
+const rows = comparisonRows('table');
+const rowCount = rows.length;
+const brand = comparisonBrand();
+
+// The last "ours" cell rounds off the grid. Expressed as a literal lookup
+// rather than `isLast && '...'` so no class is ever BUILT — see
+// contract.design-blocks.test.ts B2. `''` is falsy, so class:list drops it and
+// the rendered output is identical to the pre-conversion inline conditional.
+const OURS_CELL_END = {
+  last: 'rounded-b-card',
+  mid: '',
+} as const;
+---
+
+<section class="bg-bone-dim py-12 md:py-16">
+  <Container>
+    <p class="text-eyebrow font-bold uppercase text-rust">{COMPARISON_EYEBROW}</p>
+    <h2 class="mt-1 text-display md:text-4xl lg:text-5xl">{comparisonHeading(brand)}</h2>
+
+    <div class="mx-auto mt-6 grid max-w-4xl grid-cols-[1.3fr_1fr_1fr] overflow-hidden rounded-card text-sm">
+      <div class="bg-surface p-3 font-semibold text-graphite">{COMPARISON_FEATURE_LABEL}</div>
+      <div class="bg-graphite p-3 text-center font-semibold text-bone">{brand}</div>
+      <div class="bg-bone-dim p-3 text-center font-semibold text-steel">{COMPARISON_RIVAL_LABEL}</div>
+
+      {
+        rows.map((row, i) => {
+          const isLast = i === rowCount - 1;
+          const ours = comparisonValue(row.ours);
+          const rival = comparisonValue(row.rival);
+          return (
+            <>
+              <div class="border-t border-graphite/10 bg-surface p-3 text-graphite">{row.feature}</div>
+              <div
+                class:list={[
+                  'border-t border-white/10 bg-graphite p-3 text-center text-bone',
+                  OURS_CELL_END[isLast ? 'last' : 'mid'],
+                ]}
+              >
+                {ours.kind === 'icon' ? (
+                  <svg viewBox={ours.viewBox} class="mx-auto size-5 text-rust" aria-hidden="true">
+                    <path fill="currentColor" d={ours.path} />
+                  </svg>
+                ) : (
+                  <span class="text-xs">{ours.text}</span>
+                )}
+              </div>
+              <div class="border-t border-graphite/10 bg-bone-dim p-3 text-center text-steel">
+                {rival.kind === 'icon' ? (
+                  <svg viewBox={rival.viewBox} class="mx-auto size-5 text-steel-light" aria-hidden="true">
+                    <path fill="currentColor" d={rival.path} />
+                  </svg>
+                ) : (
+                  <span class="text-xs">{rival.text}</span>
+                )}
+              </div>
+            </>
+          );
+        })
+      }
+    </div>
+  </Container>
+</section>

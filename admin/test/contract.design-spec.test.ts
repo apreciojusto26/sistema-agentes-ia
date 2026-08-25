@@ -360,7 +360,6 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
       'hero/Hero/default',
       'conversion/BuyBox/default',
       'socialProof/FeaturedTestimonial/default',
-      'product/Comparison/default',
       'conversion/Guarantee/default',
       'socialProof/RealResults/default',
     ];
@@ -389,16 +388,18 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
       'conversion/Faq/open-list',
       'product/HowItWorks/vertical-steps',
       'product/HowItWorks/horizontal-timeline',
+      'product/Comparison/table',
+      'product/Comparison/cards',
     ];
     const keyOf = (e: { category: string; type: string; variant: string }) =>
       `${e.category}/${e.type}/${e.variant}`;
 
-    test('registers exactly the 6 legacy sections plus the 13 building blocks', () => {
-      expect(registryModule.REGISTRY).toHaveLength(19);
+    test('registers exactly the 5 legacy sections plus the 15 building blocks', () => {
+      expect(registryModule.REGISTRY).toHaveLength(20);
       expect(registryModule.REGISTRY.map(keyOf)).toEqual([...LEGACY_KEYS, ...BLOCK_KEYS]);
     });
 
-    test('the 6 legacy capabilities still point at their original section files', () => {
+    test('the 5 legacy capabilities still point at their original section files', () => {
       for (const key of LEGACY_KEYS) {
         const entry = registryModule.REGISTRY.find((e) => keyOf(e) === key);
         expect(entry, `${key} missing`).toBeDefined();

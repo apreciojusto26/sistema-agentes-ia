@@ -342,19 +342,23 @@ describe('B2 — Tailwind classes are literal, never built by interpolation', ()
     const lookups = extractLookups(code);
     const declared = countAsConst(code);
 
-    // A block with NO props has no variant lookup to parse, and demanding one
+    // A props-less block is not REQUIRED to declare a lookup — demanding one
     // would force fictional props onto a capability whose structural choice is
-    // its registry VARIANT (socialProof/ReviewsReel/{carousel,grid}). The
-    // literal-class checks below still run on it — those are what B2 is for.
-    if (Object.keys(entry.propsSchema).length === 0) {
-      expect(declared, 'a props-less block declared a variant lookup with nothing to select on')
-        .toBe(0);
-      return;
+    // its registry VARIANT. But it is allowed to HAVE one: product/Comparison/
+    // cards keys four class lookups off `ours`/`rival`, which is an internal
+    // structural concept, not a prop. An earlier version of this test asserted
+    // `declared === 0` for those blocks; that was too strict and would have
+    // pushed a real conditional back into class:list to satisfy a test.
+    //
+    // Whatever it declares still has to PARSE — the fail-open check below is
+    // the whole point of this test and applies either way — and its values
+    // still have to be complete literals, which the loop under it enforces.
+    if (Object.keys(entry.propsSchema).length > 0) {
+      expect(declared, 'no `as const` variant lookup found — B2 cannot be verified').toBeGreaterThan(
+        0,
+      );
     }
-
-    expect(declared, 'no `as const` variant lookup found — B2 cannot be verified').toBeGreaterThan(
-      0,
-    );
+    if (declared === 0) return;
     expect(
       lookups.length,
       `the scanner parsed ${lookups.length} lookup(s) but the source declares ${declared} ` +
@@ -385,12 +389,14 @@ describe('B2 — Tailwind classes are literal, never built by interpolation', ()
   test.each(blockSources)('$type expresses every variant mapping as a complete literal', ({ entry, code }) => {
     const values = extractLookupValues(code);
 
-    if (Object.keys(entry.propsSchema).length === 0) {
-      expect(values, 'a props-less block declared a variant mapping').toEqual([]);
-      return;
+    // A props-less block may still declare class lookups keyed by an internal
+    // structural concept (product/Comparison/cards keys four off ours/rival).
+    // It is not required to have any — but whatever it has must be literal,
+    // which is what the loop below checks. Only the "must exist" half is
+    // skipped.
+    if (Object.keys(entry.propsSchema).length > 0) {
+      expect(values.length, 'no variant lookup found — B2 cannot be verified').toBeGreaterThan(0);
     }
-
-    expect(values.length, 'no variant lookup found — B2 cannot be verified').toBeGreaterThan(0);
 
     for (const value of values) {
       expect(value, `${value} is not a quoted literal`).toMatch(LITERAL_CLASS);
@@ -432,9 +438,31 @@ describe('B2 — Tailwind classes are literal, never built by interpolation', ()
       for (const atom of classAtoms(expr)) {
         if (LITERAL_CLASS.test(atom)) continue;
 
+        // An INLINE `LOOKUP[expr]` is a selection, exactly like the hoisted
+        // `const x = LOOKUP[prop]` form below — and it is the only form
+        // available when the key varies per iteration, as in
+        // product/Comparison/cards (`PANEL_SURFACE[side.key]` inside a map)
+        // or its `OURS_CELL_END[isLast ? 'last' : 'mid']`. Requiring the
+        // hoisted form there would have pushed a real ternary back INTO
+        // class:list, which is the thing this test exists to prevent.
+        //
+        // Stricter than the identifier path, not looser: the lookup must be
+        // an `as const` declared in this same file, so there is nowhere for a
+        // built string to hide.
+        const inline = LOOKUP_SELECTION.exec(atom);
+        if (inline) {
+          expect(
+            lookupNames.has(inline[1]),
+            `class value \`${atom}\` selects from \`${inline[1]}\`, which is not an ` +
+              '`as const` lookup in this file',
+          ).toBe(true);
+          continue;
+        }
+
         expect(
           BARE_IDENTIFIER.test(atom),
-          `class value \`${atom}\` is neither a complete literal nor a plain identifier`,
+          `class value \`${atom}\` is neither a complete literal, an \`as const\` lookup ` +
+            'selection, nor a plain identifier',
         ).toBe(true);
 
         const rhs = consts.get(atom);
@@ -464,10 +492,14 @@ describe('R2 — registry prop enums and the component variant mappings cannot d
   test.each(blockSources)('$type: every variant lookup matches a declared prop enum', ({ entry, code }) => {
     const lookups = extractLookupKeySets(code);
 
-    // No props, nothing to pair. Asserted as an equivalence, not skipped: a
-    // props-less block that grew a lookup is drifting and must fail here.
+    // No props means no enum to pair against, so R2's drift check is vacuous
+    // here — but the lookup is not exempt from being LITERAL, which B2 above
+    // already enforces on the same source. Skipping the pairing is correct;
+    // skipping the file would not be.
     if (Object.keys(entry.propsSchema).length === 0) {
-      expect(Object.keys(lookups), 'a props-less block declared a variant lookup').toEqual([]);
+      for (const [name, keys] of Object.entries(lookups)) {
+        expect(keys.length, `${name} is an empty lookup`).toBeGreaterThan(0);
+      }
       return;
     }
 

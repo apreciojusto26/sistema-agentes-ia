@@ -176,6 +176,20 @@ describe('scope-boundaries (Batch G — machine-checkable, spec R14)', () => {
     // contract.design-integrity.test.ts and
     // design-system/blocks/product/HowItWorks/variants.render.test.ts.
     //
+    // `content/landing-base/src/components/sections/11-comparison.astro` is the
+    // SIXTH file under this arrangement: product/Comparison gained table|cards
+    // variants, its composition moved to
+    // design-system/blocks/product/Comparison/Table.astro alongside Cards.astro
+    // and the comparison-rows.ts module they share — which also owns the ONE
+    // reading of `boolean | string`. This file became a one-line shim.
+    //
+    // From this phase on, a shim's markup is ALSO pinned against the frozen
+    // 4732910 render by test-fixtures/legacy-markup/historical-markup.golden.test.ts,
+    // which is the invariant legacy-render.golden.test.ts could never cover.
+    // Guards: contract.design-integrity.test.ts,
+    // design-system/blocks/product/Comparison/variants.render.test.ts, and that
+    // historical golden.
+    //
     // NO PATH IS EXEMPTED HERE, ON PURPOSE. This assertion measures WORKING
     // TREE dirtiness (`git status --porcelain`), not history, so once that
     // change is committed these files are clean again and the boundary holds

@@ -151,6 +151,7 @@ describe('design registry parity — build-time ↔ runtime', () => {
         'socialProof/UgcStrip/strip',
         'conversion/Faq/accordion',
         'product/HowItWorks/horizontal-timeline',
+        'product/Comparison/table',
       ]);
 
       sections.forEach((s: Entry & { order: number; props?: unknown }, i: number) => {

@@ -98,7 +98,6 @@ export const REGISTRY = [
   legacy('hero', 'Hero', '@/components/sections/03-hero.astro', ['product.gallery']),
   legacy('conversion', 'BuyBox', '@/components/sections/05-buy-box.astro'),
   legacy('socialProof', 'FeaturedTestimonial', '@/components/sections/07-featured-testimonial.astro', ['testimonials:quote']),
-  legacy('product', 'Comparison', '@/components/sections/11-comparison.astro', ['product.comparison']),
   legacy('conversion', 'Guarantee', '@/components/sections/12-guarantee.astro'),
   legacy('socialProof', 'RealResults', '@/components/sections/13-real-results.astro', ['product.ugc']),
 
@@ -217,6 +216,26 @@ export const REGISTRY = [
   //     rejects a repeated type regardless of variant. [] stays.
   block('product', 'HowItWorks', 'vertical-steps', '@/design-system/blocks/product/HowItWorks/VerticalSteps.astro', {}, ['product.steps']),
   block('product', 'HowItWorks', 'horizontal-timeline', '@/design-system/blocks/product/HowItWorks/HorizontalTimeline.astro', {}, ['product.steps']),
+
+  // product/Comparison — SIXTH capability on the structural-variant axis.
+  // Both variants read rows through blocks/product/Comparison/comparison-rows.ts,
+  // which also owns the ONE interpretation of `boolean | string`: true -> check,
+  // false -> cross, string -> text. That is the first shared module in this
+  // series that encapsulates real SEMANTICS rather than just an accessor and a
+  // guard, and it exists so `false` cannot mean a cross in one variant and the
+  // word "No" in the other.
+  //
+  // `product.brand` is read by both variants and deliberately NOT declared in
+  // requiresData: it is already in REQUIRED_PRODUCT_FIELDS, and the requiresData
+  // grammar evaluates non-empty ARRAYS, so declaring a string there would be
+  // redundant metadata the evaluator would report as permanently unmet.
+  //
+  // AUDIT — familiesAllowed / incompatibleWith, both left empty on evidence:
+  //   * families only re-declare CSS custom properties; a grid table and two
+  //     panels are both legible under all nine. '*' stays.
+  //   * the two variants cannot co-occur already — `section-duplicate-type`. [] stays.
+  block('product', 'Comparison', 'table', '@/design-system/blocks/product/Comparison/Table.astro', {}, ['product.comparison']),
+  block('product', 'Comparison', 'cards', '@/design-system/blocks/product/Comparison/Cards.astro', {}, ['product.comparison']),
 ];
 
 /**

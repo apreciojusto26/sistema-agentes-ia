@@ -32,7 +32,7 @@
     { "category": "media", "type": "GalleryStrip", "variant": "strip", "order": 1 },
     { "category": "conversion", "type": "BuyBox", "variant": "default", "order": 2 },
     { "category": "socialProof", "type": "ReviewsReel", "variant": "carousel", "order": 3 },
-    { "category": "product", "type": "Comparison", "variant": "default", "order": 4 },
+    { "category": "product", "type": "Comparison", "variant": "table", "order": 4 },
     { "category": "conversion", "type": "Guarantee", "variant": "default", "order": 5 }
   ]
 }

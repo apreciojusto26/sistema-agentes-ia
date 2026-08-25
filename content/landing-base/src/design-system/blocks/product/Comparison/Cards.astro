@@ -1,0 +1,126 @@
+---
+// DESIGN SYSTEM building block — product/Comparison/cards.
+//
+// The SAME rows as Table.astro, read down instead of across.
+// Sibling variant: same comparisonRows() accessor, same comparisonValue()
+// interpretation, same framing copy, same requiresData.
+//
+// STRUCTURALLY different, and deliberately NOT "the table with display:grid".
+// The table's DOM is one flat grid of feature/ours/rival cells in row order —
+// its unit is the ROW. Here the unit is the SIDE:
+//   - TWO panels, ours and rival, each a self-contained <article> with its own
+//     heading. Each panel owns a complete <ul> of every feature with that
+//     side's answer, so a panel reads on its own as "what you get" versus
+//     "what you get elsewhere".
+//   - the DOM is regrouped, not restyled: cells are nested inside the panel
+//     they belong to rather than interleaved ours/rival/ours/rival. Reordering
+//     the CSS of the table could never produce this tree.
+//   - the ours panel is emphasised (dark surface, accent icons) and carries
+//     the brand; the rival panel is muted. The table gives both sides equal
+//     visual weight in adjacent columns.
+//   - each feature is named INSIDE each panel, because a panel that only
+//     showed a column of ticks would be unreadable without the table beside it.
+//
+// The boolean/string reading is comparisonValue()'s, not this file's, so
+// `false` cannot mean a cross here and something else in the table.
+//
+// Neither variant hydrates. A comparison is a statement, not a control.
+//
+// Tailwind v4 scans SOURCE TEXT: every class below is a complete literal
+// string, never interpolated or concatenated (ADR-4, guarded by
+// contract.design-blocks.test.ts B2).
+import Container from '@/components/ui/Container.astro';
+import {
+  comparisonRows,
+  comparisonValue,
+  comparisonBrand,
+  comparisonHeading,
+  COMPARISON_EYEBROW,
+  COMPARISON_RIVAL_LABEL,
+} from './comparison-rows';
+
+const rows = comparisonRows('cards');
+const brand = comparisonBrand();
+
+// Every class is SELECTED from a literal lookup, never built with a ternary
+// inside class:list — contract.design-blocks.test.ts B2 scans source text and
+// a conditional there is indistinguishable from string building.
+const PANEL_SURFACE = {
+  ours: 'bg-graphite text-bone shadow-lift',
+  rival: 'bg-surface text-steel',
+} as const;
+
+const PANEL_TITLE = {
+  ours: 'text-bone',
+  rival: 'text-graphite',
+} as const;
+
+const PANEL_DIVIDER = {
+  ours: 'border-white/10',
+  rival: 'border-graphite/10',
+} as const;
+
+const PANEL_ICON = {
+  ours: 'text-rust',
+  rival: 'text-steel-light',
+} as const;
+
+type SideKey = keyof typeof PANEL_SURFACE;
+
+const sides: Array<{ key: SideKey; label: string; values: ReturnType<typeof comparisonValue>[] }> = [
+  { key: 'ours', label: brand, values: rows.map((row) => comparisonValue(row.ours)) },
+  { key: 'rival', label: COMPARISON_RIVAL_LABEL, values: rows.map((row) => comparisonValue(row.rival)) },
+];
+---
+
+<section class="bg-bone-dim py-12 md:py-16">
+  <Container>
+    <p class="text-eyebrow font-bold uppercase text-rust">{COMPARISON_EYEBROW}</p>
+    <h2 class="mt-1 text-display md:text-4xl lg:text-5xl">{comparisonHeading(brand)}</h2>
+
+    <div class="mx-auto mt-6 grid max-w-4xl gap-4 md:grid-cols-2">
+      {
+        sides.map((side) => (
+          <article
+            class:list={['flex flex-col rounded-card p-5 text-sm', PANEL_SURFACE[side.key]]}
+          >
+            <h3
+              class:list={['text-base font-bold', PANEL_TITLE[side.key]]}
+            >
+              {side.label}
+            </h3>
+
+            <ul class="mt-4 flex flex-col gap-3">
+              {
+                rows.map((row, i) => {
+                  const value = side.values[i]!;
+                  return (
+                    <li
+                      class:list={[
+                        'flex items-start justify-between gap-3 border-t pt-3',
+                        PANEL_DIVIDER[side.key],
+                      ]}
+                    >
+                      <span class="min-w-0 flex-1">{row.feature}</span>
+                      {value.kind === 'icon' ? (
+                        <svg
+                          viewBox={value.viewBox}
+                          class:list={['size-5 shrink-0', PANEL_ICON[side.key]]}
+                          aria-hidden="true"
+                        >
+                          <path fill="currentColor" d={value.path} />
+                        </svg>
+                      ) : (
+                        <span class="shrink-0 text-xs">{value.text}</span>
+                      )}
+                    </li>
+                  );
+                })
+              }
+            </ul>
+          </article>
+        ))
+      }
+    </div>
+  </Container>
+</section>

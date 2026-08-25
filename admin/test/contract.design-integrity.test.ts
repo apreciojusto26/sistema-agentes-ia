@@ -103,7 +103,10 @@ function contentWith(testimonials: Array<{ variant: string }>) {
       gallery: [{ asset: 'product-01' }],
       steps: [{ title: 's' }],
       ugc: [{ asset: 'ugc-01' }],
-      comparison: { rows: [] , us: [], them: [] },
+      // ComparisonRow[] — the real shape. It was an object here until
+      // product/Comparison declared requiresData on it, at which point the
+      // evaluator (correctly) read a non-array as unmet.
+      comparison: [{ feature: 'f', ours: true, rival: false }],
     },
   };
 }
@@ -554,6 +557,7 @@ describe('structural variants — the variant axis, per converted capability', (
       variants: ['vertical-steps', 'horizontal-timeline'],
       requires: 'product.steps',
     },
+    { category: 'product', type: 'Comparison', variants: ['table', 'cards'], requires: 'product.comparison' },
   ];
 
   test.each(CONVERTED)('$category/$type declares exactly its variants', ({ category, type, variants }) => {
@@ -608,6 +612,7 @@ describe('structural variants — the variant axis, per converted capability', (
       else if (requires === 'product.ugc') content.product.ugc = [];
       else if (requires === 'faq') content.faq = [];
       else if (requires === 'product.steps') content.product.steps = [];
+      else if (requires === 'product.comparison') content.product.comparison = [];
       else content.product.gallery = [];
 
       const sections = [HERO, BUYBOX];
@@ -704,6 +709,7 @@ describe('structural variants — the variant axis, per converted capability', (
       UgcStrip: 'content/landing-base/src/components/sections/09-ugc-strip.astro',
       Faq: 'content/landing-base/src/components/sections/08-faq.astro',
       HowItWorks: 'content/landing-base/src/components/sections/06-how-it-works.astro',
+      Comparison: 'content/landing-base/src/components/sections/11-comparison.astro',
     }[type]!;
 
     const legacy = read(legacyFile);
