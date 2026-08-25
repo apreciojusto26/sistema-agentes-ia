@@ -11,13 +11,25 @@
 //
 // Its sibling is Default.astro, which carries the legacy collage composition.
 //
-// NOTE — this variant does NOT emit the `#hero-end` sentinel that
-// 15-sticky-bar.astro observes, so a landing composed with it never shows the
-// sticky CTA. That is a PRE-EXISTING functional defect, deliberately preserved
-// here and tracked separately as "Hero split Sticky CTA anchor parity". The
-// fixtures above are frozen WITH the defect on purpose: fixing it is a
-// behaviour change and belongs in its own commit, with its own conscious
-// baseline update.
+// STICKY CTA SENTINEL. The `<div id="hero-end">` at the bottom of this section
+// is a functional contract EVERY hero/Hero variant owes the shell, not a design
+// choice — which is why it takes no prop and no variant may opt out of it.
+//
+// 15-sticky-bar.astro passes sentinelId="hero-end" to StickyAddToCart, whose
+// effect does `getElementById(sentinelId); if (!sentinel) return;`. With no
+// sentinel there is no IntersectionObserver, `pastSentinel` stays false for the
+// life of the page, and the bar keeps translate-y-full / aria-hidden / inert
+// forever. The island still hydrates and still mounts: the CTA exists, is
+// unreachable, and reports nothing. That is how this shipped unnoticed from
+// 19f60d5 until the fix commit.
+//
+// Byte-identical to the element in Default.astro on purpose. If it ever needs
+// to change, it changes in BOTH — a hero whose sentinel differs by variant is
+// the same bug wearing a different mask.
+//
+// AND IT LIVES UP HERE, NOT BESIDE THE ELEMENT: Astro passes `<!-- -->` through
+// to the rendered DOM, so an HTML comment would ship this paragraph into every
+// generated landing. The golden caught exactly that on the first attempt.
 //
 // Prop `align` is a DESIGN decision, never content. All copy still arrives
 // through @/data/product, exactly as the legacy hero does.
@@ -91,4 +103,6 @@ const [primary] = heroGallery('split');
       </div>
     </div>
   </Container>
+
+  <div id="hero-end" class="h-px w-full" aria-hidden="true"></div>
 </section>

@@ -39,13 +39,16 @@
 // string, aria/role/id attributes, item counts — the whole rendered DOM of each
 // promoted section.
 //
-// A PRESERVED DEFECT LIVES IN HERE. HeroSplitLeft.html and HeroSplitCenter.html
-// contain NO `#hero-end` sentinel, while Hero.html does. 15-sticky-bar.astro
-// observes that id, so a landing composed with hero/Hero/split never shows its
-// sticky CTA. That is a real bug and it is FROZEN here on purpose: the hero
-// taxonomy migration had to be provably behaviour-preserving first. Fixing it
-// is a separate, deliberate commit — "Hero split Sticky CTA anchor parity" —
-// which will turn these two fixtures red and must update them BY HAND.
+// A DEFECT USED TO LIVE IN HERE, AND THIS IS THE RECORD OF ITS REMOVAL.
+// HeroSplitLeft.html and HeroSplitCenter.html carried NO `#hero-end` sentinel
+// from 19f60d5 onward, so a landing composed with hero/Hero/split never showed
+// its sticky CTA. The hero taxonomy migration FROZE that on purpose, to prove
+// itself behaviour-preserving; "Hero split Sticky CTA anchor parity" then
+// turned these two fixtures red on purpose, and they were updated by hand.
+//
+// That two-step is the whole reason this file exists. A golden that regenerates
+// itself would have absorbed both the rename and the bug fix without anyone
+// seeing either.
 // WHAT IT DOES NOT: the resolved-image branch of Media.astro / ProductGallery.
 // GOLDEN_DATA uses `asset: null` throughout so media takes the PlaceholderShot
 // path, which keeps the output deterministic (no content-hashed asset URLs).
@@ -90,8 +93,13 @@ const FIXTURE_SHA256: Record<string, string> = {
   HowItWorks: 'aec423d4517857dd125c1c3f8735e4360d5beb9a92d00edb079aab437a6fbf2a',
   Comparison: '851eb3fc7c4a17dccff08753dac874d32685014964b5155501200d251e2e9376',
   Hero: '6c7364e836ebe4c1b81fcd77ea60e9598d6e99fa8af7ef27f99d0dbafab5835a',
-  HeroSplitLeft: '67ce54deecbda15070533f2cf7c9de3b0a9669c4bf27a3547882fbf48c789c3e',
-  HeroSplitCenter: 'c574bbd4b2b397c37bdd64932a6217762f585df54de4674d2bb0e0eeb5d27d38',
+  // UPDATED CONSCIOUSLY, once, by the sticky-CTA fix. The previous values
+  // (67ce54de… / c574bbd4…) were the 19f60d5 renders, which were missing the
+  // `#hero-end` sentinel. Both files were edited BY HAND — one element
+  // inserted, lifted verbatim out of Hero.html — and the diff was reviewed at
+  // exactly one added line per file before these hashes were written down.
+  HeroSplitLeft: 'a57d1d9e53dcdf422a861868a5a6ef857a0a6b4ac7f9480ff5bd087825d2b67c',
+  HeroSplitCenter: 'd139aaa30df869c44a657b1b356ccf60a26a50b8eb028e929a8d266a8b3baf9a',
 };
 
 /** [fixture name, component, baseline commit, props]. */
@@ -103,8 +111,8 @@ const CASES = [
   ['HowItWorks', HowItWorks, '4732910', {}],
   ['Comparison', Comparison, '4732910', {}],
   ['Hero', Hero, '4732910', {}],
-  ['HeroSplitLeft', HeroSplit, '19f60d5', { align: 'left' }],
-  ['HeroSplitCenter', HeroSplit, '19f60d5', { align: 'center' }],
+  ['HeroSplitLeft', HeroSplit, '19f60d5 + sentinel fix', { align: 'left' }],
+  ['HeroSplitCenter', HeroSplit, '19f60d5 + sentinel fix', { align: 'center' }],
 ] as const;
 
 const fixturePath = (name: string) => fileURLToPath(new URL(`./${name}.html`, import.meta.url));
@@ -152,18 +160,23 @@ describe('historical markup golden (references: 4732910, 19f60d5)', () => {
     expect(CASES.map(([name]) => name).sort()).toEqual(Object.keys(FIXTURE_SHA256).sort());
   });
 
-  test('the preserved #hero-end defect is exactly where it was, and nowhere else', () => {
-    // This is a BUG PIN, not an approval. hero/Hero/default emits the sentinel
-    // 15-sticky-bar.astro observes; hero/Hero/split does not, so the sticky CTA
-    // never appears on a split-hero landing. Frozen deliberately so the taxonomy
-    // migration could be proven behaviour-preserving. When "Hero split Sticky
-    // CTA anchor parity" lands, this test is what tells the next reader that
-    // flipping the two split fixtures was the WHOLE point of that commit.
-    const read = (n: string) => readFileSync(fixturePath(n), 'utf-8');
-    expect(read('Hero'), 'Hero/default lost #hero-end').toContain('id="hero-end"');
-    expect(read('HeroSplitLeft'), 'split gained #hero-end — fix it in its own commit')
-      .not.toContain('hero-end');
-    expect(read('HeroSplitCenter'), 'split gained #hero-end — fix it in its own commit')
-      .not.toContain('hero-end');
+  test('EVERY frozen hero reference carries the sticky-CTA sentinel, exactly once', () => {
+    // The inverted pin. This assertion previously recorded the defect (split
+    // must NOT contain it); it now records the contract. A hero variant added
+    // later without a sentinel cannot reach main through this file.
+    const SENTINEL = '<div id="hero-end" class="h-px w-full" aria-hidden="true"></div>';
+    for (const name of ['Hero', 'HeroSplitLeft', 'HeroSplitCenter']) {
+      const html = readFileSync(fixturePath(name), 'utf-8');
+      expect(html.split(SENTINEL).length - 1, `${name}: sentinel count`).toBe(1);
+      // …and it is the LAST thing in the section, after all hero content, so
+      // the observer fires when the hero has actually been scrolled past.
+      expect(html.trimEnd().endsWith(SENTINEL + '</section>'), `${name}: sentinel misplaced`)
+        .toBe(true);
+    }
+    // No OTHER frozen reference grew one — the sentinel belongs to the hero.
+    for (const name of ['Comparison', 'Faq', 'GalleryStrip', 'HowItWorks', 'ReviewsReel', 'UgcStrip']) {
+      expect(readFileSync(fixturePath(name), 'utf-8'), `${name} grew a hero sentinel`)
+        .not.toContain('hero-end');
+    }
   });
 });
