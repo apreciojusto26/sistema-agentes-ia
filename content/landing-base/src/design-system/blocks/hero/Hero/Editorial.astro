@@ -1,0 +1,149 @@
+---
+// DESIGN SYSTEM building block — hero/Hero/editorial.
+//
+// THIRD structural variant of the hero capability, and the first with no
+// historical markup to preserve: default carries the 4732910 collage, split
+// carries the 19f60d5 two-column, this one is new. It is deliberately NOT in
+// the historical golden — it has no history to freeze.
+//
+// WHY THIS IS A VARIANT AND NOT A PROP. default and split both say the same
+// thing (headline + imagery) in different arrangements. Editorial says MORE:
+// it puts brand, rating, review count and badges on screen — four pieces of
+// real product data that no hero has ever shown — and composes the gallery as
+// an asymmetric cluster rather than a collage or a single frame. The DOM
+// difference is driven by how much content is present, not by a class swap.
+// That is the bar this series has enforced since socialProof/ReviewsReel.
+//
+// NO PROPS, ON PURPOSE (`propsSchema: {}`). `align` belongs to split; density,
+// layout, imageCount and overlay were all considered and rejected — a prop
+// that exists "for future configurability" is a fictional capability, which
+// this registry forbids. The editorial STRUCTURE is the variant.
+//
+// NOTHING HERE IS INVENTED. Every string on screen comes from @/data/product.
+// There is no "Bestseller", no "Top rated", no fabricated claim: the badges are
+// product.badges verbatim and the rating is product.ratingAverage /
+// product.ratingCount. A hero is not allowed to make a claim the Content Agent
+// did not write and the scraper did not support.
+//
+// STICKY CTA SENTINEL — see the bottom of this file. Present from the FIRST
+// commit of this variant, unlike split, which shipped without one at 19f60d5
+// and silently killed the sticky CTA on every landing that used it.
+//
+// Tailwind v4 scans SOURCE TEXT, so every class below is a complete literal
+// selected by object lookup — never `aspect-[${n}/5]`. An interpolated name is
+// invisible to the scanner and renders unstyled in silence.
+import Container from '@/components/ui/Container.astro';
+import Media from '@/components/ui/Media.astro';
+import Stars from '@/components/ui/Stars.astro';
+import Badge from '@/components/ui/Badge.astro';
+import { product } from '@/data/product';
+import { heroGallery } from './hero-gallery';
+
+// THE MEDIA CLUSTER, and why these exact numbers.
+//
+// The two cells in the top row must END ON THE SAME LINE — a wide landscape
+// crop beside a tall portrait crop, optically aligned, is the whole editorial
+// effect. Their aspect ratios are chosen so that ALREADY holds at gap 0: the
+// dominant is 8/12 of W at 16/10 = 0.4167W tall, the first secondary is 4/12 of
+// W at 4/5 = 0.4167W tall. The same number.
+//
+// But `gap-4` is an ABSOLUTE 16px, and it does not divide between the two in
+// proportion to their spans — measured on a real 1600px viewport the pair came
+// out 509px and 497px, a 12px lip. So above md the secondary drops its aspect
+// and takes `h-full` instead: the grid row is sized by the dominant, and the
+// secondary fills it exactly, at any viewport and any gap. The ratio above is
+// still the design intent; `h-full` is what makes it a guarantee rather than
+// arithmetic that happens to be close.
+//
+// The aspect lives on the WRAPPER, not on <Media>. Media.astro emits an inline
+// `style="aspect-ratio:..."` from media.ratio, and inline styles beat classes —
+// so passing `aspect-[16/10]` as a class would be silently overridden by
+// whatever ratio the source image declares. The wrapper sets the box, the image
+// fills it with h-full/w-full/object-cover. That is also what makes this
+// cluster deterministic across products: a 4/5 gallery and a 1/1 gallery
+// compose identically.
+const DOMINANT_CELL = {
+  solo: 'aspect-[4/5] sm:aspect-[16/9] md:col-span-12 md:aspect-[16/7]',
+  paired: 'aspect-[4/5] sm:aspect-[16/10] md:col-span-8 md:aspect-[16/10]',
+} as const;
+
+// Keyed by POSITION, not by count: the second secondary is a full-width band
+// under the pair, not another column. There is no dead key here — `band` only
+// exists when a third image does.
+const SECONDARY_CELL = {
+  column: 'aspect-[4/5] md:col-span-4 md:aspect-auto md:h-full',
+  band: 'aspect-[16/9] md:col-span-12 md:aspect-[16/6]',
+} as const;
+
+// AT MOST THREE. A fourth image would need a fourth position in a composition
+// that was designed around three, and "just append it" is how a hero turns into
+// a gallery. GalleryStrip already exists for showing everything.
+const gallery = heroGallery('editorial');
+const [dominant, ...rest] = gallery;
+const secondaries = rest.slice(0, 2);
+
+// Truthiness gating, the same way Hero/default guards collageA/B/C. Every
+// block below is either fully populated or absent — no empty cell, no
+// placeholder invented to fill a slot.
+const dominantCell = DOMINANT_CELL[secondaries.length === 0 ? 'solo' : 'paired'];
+const hasRating = product.ratingAverage > 0;
+const hasCount = product.ratingCount > 0;
+const badges = product.badges ?? [];
+---
+
+<section class="bg-bone pb-12 pt-8">
+  <Container>
+    <header class="max-w-[46rem]">
+      <p class="text-eyebrow font-bold uppercase text-rust">{product.brand}</p>
+      <h1 class="mt-2 text-hero md:text-5xl xl:text-6xl">{product.tagline}</h1>
+      <p class="mt-4 text-base text-steel md:text-lg">{product.subtagline}</p>
+    </header>
+
+    {
+      (hasRating || badges.length > 0) && (
+        <div class="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-graphite/10 pt-5">
+          {hasRating && (
+            <div class="flex items-center gap-2">
+              <Stars rating={product.ratingAverage} />
+              <span class="font-display text-sm font-bold text-graphite">{product.ratingAverage}</span>
+              {hasCount && <span class="text-sm text-steel">{product.ratingCount} reseñas</span>}
+            </div>
+          )}
+
+          {badges.length > 0 && (
+            <ul class="flex flex-wrap items-center gap-2">
+              {badges.map((badge) => (
+                <li>
+                  <Badge tone="graphite">{badge}</Badge>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )
+    }
+
+    {
+      dominant && (
+        <div class="mt-8 grid grid-cols-1 gap-3 md:grid-cols-12 md:gap-4">
+          <div class:list={['overflow-hidden rounded-card shadow-lift', dominantCell]}>
+            <Media media={dominant} rounded="rounded-card" loading="eager" sizes="(min-width: 768px) 66vw, 90vw" />
+          </div>
+
+          {secondaries.map((media, i) => (
+            <div
+              class:list={[
+                'overflow-hidden rounded-card shadow-card',
+                SECONDARY_CELL[i === 0 ? 'column' : 'band'],
+              ]}
+            >
+              <Media media={media} rounded="rounded-card" sizes="(min-width: 768px) 33vw, 90vw" />
+            </div>
+          ))}
+        </div>
+      )
+    }
+  </Container>
+
+  <div id="hero-end" class="h-px w-full" aria-hidden="true"></div>
+</section>

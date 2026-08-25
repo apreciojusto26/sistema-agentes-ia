@@ -371,6 +371,9 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
       // existing entirely, becoming this pair.
       'hero/Hero/default',
       'hero/Hero/split',
+      // The first hero composition with NO legacy ancestor — proof the unified
+      // capability can grow a genuinely new variant without a new type.
+      'hero/Hero/editorial',
       'socialProof/FeaturedQuote/default',
       'conversion/ProductGuarantee/default',
       // Structural variants v1: socialProof/ReviewsReel LEFT the legacy list.
@@ -400,8 +403,8 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
     const keyOf = (e: { category: string; type: string; variant: string }) =>
       `${e.category}/${e.type}/${e.variant}`;
 
-    test('registers exactly the 4 legacy sections plus the 16 building blocks', () => {
-      expect(registryModule.REGISTRY).toHaveLength(20);
+    test('registers exactly the 4 legacy sections plus the 17 building blocks', () => {
+      expect(registryModule.REGISTRY).toHaveLength(21);
       expect(registryModule.REGISTRY.map(keyOf)).toEqual([...LEGACY_KEYS, ...BLOCK_KEYS]);
     });
 
@@ -503,9 +506,13 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
       }
     });
 
-    test('the hero is ONE capability with two variants — ProductHero is gone', () => {
-      expect(registryModule.resolveCapability('hero', 'Hero', 'default')).not.toBeNull();
-      expect(registryModule.resolveCapability('hero', 'Hero', 'split')).not.toBeNull();
+    test('the hero is ONE capability with three variants — ProductHero is gone', () => {
+      for (const variant of ['default', 'split', 'editorial']) {
+        expect(
+          registryModule.resolveCapability('hero', 'Hero', variant),
+          `hero/Hero/${variant} does not resolve`,
+        ).not.toBeNull();
+      }
 
       // Not deprecated, not aliased, not kept "for compatibility": absent.
       for (const variant of ['default', 'split', 'left', 'center']) {
@@ -523,7 +530,9 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
           `${e.category}/${e.type}/${e.variant}`,
       );
       expect(catalogue.filter((k: string) => k.includes('ProductHero'))).toEqual([]);
-      expect(registryModule.listVariants('hero', 'Hero').sort()).toEqual(['default', 'split']);
+      expect(registryModule.listVariants('hero', 'Hero').sort()).toEqual(
+        ['default', 'editorial', 'split'],
+      );
     });
 
     test('align stays a PROP of hero/Hero/split — never a pair of variants', () => {
@@ -536,9 +545,30 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
       expect(registryModule.listVariants('hero', 'Hero')).not.toContain('split-left');
       expect(registryModule.listVariants('hero', 'Hero')).not.toContain('split-center');
 
-      // …and `default` declares NO props at all: it is the legacy composition,
+      // `align` belongs to split ALONE. A variant never inherits a sibling's
+      // props, so editorial cannot be handed an align it does not implement —
+      // the contract would reject it as section-props-unknown.
+      expect(registryModule.resolveCapability('hero', 'Hero', 'editorial').propsSchema).toEqual({});
+      // …and `default` declares NO props either: it is the legacy composition,
       // which never had a dial.
       expect(registryModule.resolveCapability('hero', 'Hero', 'default').propsSchema).toEqual({});
+    });
+
+    test('hero/Hero/editorial is registered, and gated exactly like its siblings', () => {
+      const editorial = registryModule.resolveCapability('hero', 'Hero', 'editorial');
+      expect(editorial.component).toBe('@/design-system/blocks/hero/Hero/Editorial.astro');
+      expect(registryModule.isBuildingBlock(editorial)).toBe(true);
+      // Same data gate as default and split: a new variant is never a way
+      // around the data-aware requirement.
+      for (const variant of ['default', 'split', 'editorial']) {
+        expect(
+          registryModule.resolveCapability('hero', 'Hero', variant).requiresData,
+          `hero/Hero/${variant} requiresData`,
+        ).toEqual(['product.gallery']);
+      }
+      // NOT extended with a `>=3` grammar to prop up the cluster — the block
+      // degrades from three images to one on its own.
+      expect(editorial.requiresData.join()).not.toMatch(/[<>=]/);
     });
   });
 

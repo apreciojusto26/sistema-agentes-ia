@@ -102,6 +102,8 @@ export const REGISTRY: RegistryEntry[] = [
   //     rejects a repeated type regardless of variant, and unifying the type
   //     is precisely what brought split under that rule. [] stays.
   //
+  // `align` belongs to `split` ALONE — editorial does not inherit it, and
+  // nothing in the contract lets a variant borrow a sibling's props.
   // `align` stays a PROP, not a pair of variants. It is the deliberate
   // demonstration of the two axes: `variant` picks a composition,
   // `propsSchema` dials one that already exists. `split-left`/`split-center`
@@ -110,6 +112,20 @@ export const REGISTRY: RegistryEntry[] = [
   block('hero', 'Hero', 'split', '@/design-system/blocks/hero/Hero/Split.astro', {
     align: { type: 'string', enum: ['left', 'center'] },
   }, ['product.gallery']),
+  //
+  // `editorial` (added after the taxonomy was unified) is the first hero
+  // composition with no legacy ancestor. It is the proof that the unified
+  // capability accepts a genuinely NEW variant without a new type: it shows
+  // brand, ratingAverage, ratingCount and badges — real product data no hero
+  // rendered before — and composes the gallery as an asymmetric cluster.
+  //
+  // It declares NO props. `align` is split's; density/layout/imageCount/overlay
+  // were considered and rejected as configurability theatre. The structure IS
+  // the variant. It declares the SAME requiresData as its siblings, so a new
+  // variant can never be a way around the data-aware gate, and it degrades from
+  // three images to two to one on its own rather than leaning on a
+  // `product.gallery>=3` grammar that does not exist.
+  block('hero', 'Hero', 'editorial', '@/design-system/blocks/hero/Hero/Editorial.astro', {}, ['product.gallery']),
   block('socialProof', 'FeaturedQuote', 'default', '@/design-system/blocks/social-proof/FeaturedQuote/Default.astro', {
     tone: { type: 'string', enum: ['light', 'muted'] },
   }, ['testimonials:quote']),
