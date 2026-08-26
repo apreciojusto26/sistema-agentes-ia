@@ -333,6 +333,7 @@ describe('runner — real end-to-end against generate-landing.mjs (no network, f
       'copy-template',
       'write-data',
       'patch-theme',
+      'write-favicon',
       'write-manifest',
       'todos',
     ]);

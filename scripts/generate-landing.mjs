@@ -16,6 +16,7 @@ import { execSync } from 'node:child_process';
 import { DEFAULT_ERRORS, ContentContractError, validateContent } from './lib/content-contract.mjs';
 import { checkDesignSupport } from './lib/design-contract.mjs';
 import { isProductId } from './lib/product-id.cjs';
+import { buildFaviconSvg, buildFaviconIco, pickForeground } from './lib/favicon.mjs';
 import { isShopifyHandle } from './lib/shopify-handle.mjs';
 import { writeLandingGitignore, initLandingRepo } from './lib/landing-scaffold.mjs';
 import { planAssets, materializeAssets, buildImagesModule, describeRejections, TEMPLATE_SLOT_KEYS } from './lib/asset-pipeline.mjs';
@@ -823,6 +824,29 @@ function main() {
 
     const css = readFileSync(cssPath, 'utf-8');
     writeFileSync(cssPath, patchThemeBlock(css, input.design, { strict: false }));
+  });
+
+  // FAVICON — after patch-theme on purpose: it reads the tokens that stage
+  // just resolved. Every landing gets its OWN icon; the template's generic
+  // favicon is deleted rather than kept as a fallback (owner decision D5), so
+  // an output can never silently ship the shared one.
+  withStage('write-favicon', () => {
+    const cssPath = path.join(outDir, 'src/styles/global.css');
+    const css = readFileSync(cssPath, 'utf-8');
+    const token = (name) => {
+      const m = new RegExp(`--color-${name}:\\s*([^;]+);`).exec(css);
+      return m ? m[1].trim() : null;
+    };
+
+    // Background: the darkest identity token available, so the monogram sits on
+    // a solid block at 16px. Foreground: chosen by measured contrast, never
+    // assumed — the template's own rust-on-bone pair is 3.96:1 and fails.
+    const background = token('graphite') ?? '#1e2124';
+    const foreground = pickForeground(background, [token('bone'), token('surface')].filter(Boolean));
+
+    const brand = input.product?.brand ?? args.slug;
+    writeFileSync(path.join(outDir, 'public/favicon.svg'), buildFaviconSvg({ brand, background, foreground }));
+    writeFileSync(path.join(outDir, 'public/favicon.ico'), buildFaviconIco({ brand, background, foreground }));
   });
 
   console.log(`✓ outputs/${args.slug} created from content/landing-base`);

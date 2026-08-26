@@ -50,6 +50,7 @@ export type GenerateStage =
   | 'write-data'
   | 'write-design'
   | 'patch-theme'
+  | 'write-favicon'
   | 'copy-images'
   | 'write-manifest'
   | 'todos';

@@ -48,6 +48,7 @@ const EXPECTED_GENERATE_STAGES: GenerateStage[] = [
   // This array is the UNION of both, hence 10.
   'write-design',
   'patch-theme',
+  'write-favicon',
   'copy-images',
   'write-manifest',
   'todos',
@@ -111,7 +112,7 @@ describe('stage-label-coverage (spec Real-Stage Label Mapping, corrected sources
     }
   });
 
-  it('contract.generate-landing.test.ts has exactly the 10 expected stage.start stages (union of both arrays)', () => {
+  it('contract.generate-landing.test.ts has exactly the 11 expected stage.start stages (union of both arrays)', () => {
     const real = extractGenerateStagesFromContractTest().sort();
     expect(real).toEqual([...EXPECTED_GENERATE_STAGES].sort());
   });

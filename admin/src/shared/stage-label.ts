@@ -31,6 +31,7 @@ const GENERATE_LABELS: Record<GenerateStage, string> = {
   'write-data': 'Escribiendo los textos de tu landing',
   'write-design': 'Guardando el diseño elegido',
   'patch-theme': 'Aplicando los colores y las tipografías',
+  'write-favicon': 'Creando el favicon de la marca',
   'copy-images': 'Copiando las imágenes a la landing',
   'write-manifest': 'Guardando el registro de la generación (.generation.json)',
   todos: 'Anotando lo que falta revisar',

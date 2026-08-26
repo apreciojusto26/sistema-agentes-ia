@@ -237,6 +237,7 @@ describe('Group B — event schema (LG_EVENTS=1, Batch C)', () => {
       'copy-template',
       'write-data',
       'patch-theme',
+      'write-favicon',
       'write-manifest',
       'todos',
     ]);
@@ -266,6 +267,7 @@ describe('Group B — event schema (LG_EVENTS=1, Batch C)', () => {
       'copy-template',
       'write-data',
       'patch-theme',
+      'write-favicon',
       'copy-images',
       'write-manifest',
       'todos',
@@ -452,6 +454,7 @@ describe('Group D — --design explicit generation mode', () => {
       'write-data',
       'write-design',
       'patch-theme',
+      'write-favicon',
       'write-manifest',
       'todos',
     ]);

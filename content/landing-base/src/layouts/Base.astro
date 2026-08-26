@@ -27,7 +27,14 @@ const clarityId = import.meta.env.PROD ? getSecret('PUBLIC_CLARITY_PROJECT_ID') 
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!--
+      Both files are WRITTEN PER LANDING by generate-landing.mjs's write-favicon
+      stage from the brand and the resolved theme — the template ships none, so
+      an output can never silently wear a shared icon. SVG first for modern
+      browsers; the ICO is the fallback and carries 16x16 and 32x32.
+    -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/x-icon" sizes="16x16 32x32" href="/favicon.ico" />
     <meta name="generator" content={Astro.generator} />
 
     <title>{title}</title>
