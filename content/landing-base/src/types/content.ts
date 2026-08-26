@@ -99,13 +99,16 @@ export interface Guarantee {
 
 export interface Testimonial {
   id: string;
+  /**
+   * RAW author exactly as the source gave it — marketplace masks included
+   * (`Y***t`). Never rewritten here: the mask IS the provenance. Components
+   * render `reviewerDisplayName()` from lib/reviewer-identity.ts instead.
+   */
   author: string;
-  location?: string;
   rating: Stars;
   date: string; // ISO 'YYYY-MM-DD'
   title?: string;
   body: string;
-  verified: boolean;
   media?: MediaRef;
   // Only variants a component actually SELECTS live here. 'card' was removed:
   // nothing in this template ever read it. Mirrors TESTIMONIAL_VARIANTS in
@@ -143,6 +146,17 @@ export interface ProductContent {
   gallery: GalleryImage[];
   steps: HowToStep[]; // exactly 3, uses the REAL photos
   comparison: ComparisonRow[];
+  /**
+   * The GENERIC alternative this product is compared against — "almohadas
+   * convencionales", "sacacorchos manuales". Content, not design: the Content
+   * Agent infers it from CanonicalProduct's category.
+   *
+   * It exists because the comparison heading used to be a template literal
+   * (`${brand} vs. lámparas decorativas comunes`), so every landing ever
+   * generated claimed to beat a decorative lamp whatever it actually sold.
+   * Never a brand — a category.
+   */
+  comparisonRival: string;
   guarantee: Guarantee;
   shipping: { etaLabel: string; freeOverCents: number | null };
   ugc: MediaRef[]; // strip + RealResults grid

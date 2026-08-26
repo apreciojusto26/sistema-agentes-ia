@@ -87,12 +87,21 @@ import HeroSplit from '@/design-system/blocks/hero/Hero/Split.astro';
 
 /** sha256 of each reference file, so the reference cannot be edited silently. */
 const FIXTURE_SHA256: Record<string, string> = {
-  ReviewsReel: '6681c699a8d88e5be7bd388363ace0a2a441fa6dd9a4fe92ea4727b3a1ffc70b',
+  // UPDATED CONSCIOUSLY by the same phase. `location` left the testimonial
+  // contract — CanonicalReview never carried one, so every rendered city was
+  // copied out of the few-shot example. The diff is the two ` · Nowhere` spans
+  // disappearing, plus the island uid that follows from the changed props.
+  ReviewsReel: '8798bb813a5e2a1f4d1899cb9b15693cf447cdf2bee68dd69a15192009db6a54',
   GalleryStrip: 'f18d975cb8ad1823cd2183c64dab53336f3c586ad92a131310f576ca35019964',
   UgcStrip: '9bb05f6abfaf8135f8062dd9dea9695e6c4f9818df08ce4a2e9a1805c5645bcf',
   Faq: '491435a05003fb23e82e9f1d848287df0a8ef6938fd02e090b899f24ac537c93',
   HowItWorks: 'aec423d4517857dd125c1c3f8735e4360d5beb9a92d00edb079aab437a6fbf2a',
-  Comparison: '851eb3fc7c4a17dccff08753dac874d32685014964b5155501200d251e2e9376',
+  // UPDATED CONSCIOUSLY by the generated-landing completeness phase. The old
+  // value (851eb3fc…) froze a REAL DEFECT: the heading was the template
+  // literal `${brand} vs. lámparas decorativas comunes`, so every landing
+  // claimed to beat a decorative lamp whatever it sold. The heading now derives
+  // from product.comparisonRival. Diff reviewed at exactly one changed line.
+  Comparison: '830159fa3af6ca30bd0dcf4eed77f0417d907cc8160f7b77f372d3101cdc368b',
   Hero: '6c7364e836ebe4c1b81fcd77ea60e9598d6e99fa8af7ef27f99d0dbafab5835a',
   // UPDATED CONSCIOUSLY, once, by the sticky-CTA fix. The previous values
   // (67ce54de… / c574bbd4…) were the 19f60d5 renders, which were missing the

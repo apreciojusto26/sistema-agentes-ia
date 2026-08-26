@@ -229,7 +229,8 @@
       "checkout": "Finalizar compra",
       "pending": "Agregando...",
       "soldOut": "Agotado"
-    }
+    },
+    "comparisonRival": "almohadas convencionales"
   },
   "faq": [
     {
@@ -257,42 +258,34 @@
     {
       "id": "t-featured",
       "author": "Laura Gimenez",
-      "location": "Rosario",
       "rating": 5,
       "date": "2026-06-10",
       "title": "Se me fue el dolor de cuello",
       "body": "Dormía fatal por un dolor cervical constante. A la tercera noche con NubeCalma ya notaba la diferencia.",
-      "verified": true,
       "variant": "quote"
     },
     {
       "id": "t-reel-1",
       "author": "Franco Bellido",
-      "location": "Córdoba",
       "rating": 5,
       "date": "2026-06-22",
       "body": "Llegó bien embalada y la calidad del foam es notable. Duermo de costado y no pierde soporte.",
-      "verified": true,
       "variant": "reel"
     },
     {
       "id": "t-reel-2",
       "author": "Daniela Roust",
-      "location": "Mendoza",
       "rating": 5,
       "date": "2026-07-01",
       "body": "La funda lavable es un golazo, la tenía re sucia con la almohada vieja.",
-      "verified": true,
       "variant": "reel"
     },
     {
       "id": "t-reel-3",
       "author": "Martín Aguirre",
-      "location": "La Plata",
       "rating": 4,
       "date": "2026-07-14",
       "body": "Tardé un par de noches en acostumbrarme a la altura, pero ahora no vuelvo a la almohada común.",
-      "verified": true,
       "variant": "reel"
     }
   ],

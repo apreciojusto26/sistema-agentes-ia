@@ -480,11 +480,54 @@ describe('scope-boundaries (Batch G — machine-checkable, spec R14)', () => {
         return;
       }
 
+      // THIRD authorised diff — Generated Landing Completeness (owner, this
+      // phase). Narrowed, never deleted, same as the two above.
+      //
+      // What it authorises, and why each one is a REMOVAL of a fabricated
+      // claim rather than a new capability:
+      //   - `verified` leaves TESTIMONIAL_REQUIRED_FIELDS. CanonicalReview has
+      //     no verification signal at all — product-normalizer.mjs's
+      //     projectReview() projects five keys and its own comment names
+      //     `verified` and `purchaseVerified` among the fields it refuses to
+      //     let through. A REQUIRED boolean with no provenance is a field the
+      //     model must invent, and it was rendering as a gold "Compra
+      //     verificada" badge on every generated landing.
+      //   - `location` leaves TESTIMONIAL_ALL_FIELDS, for the same reason with
+      //     worse evidence: every city ever rendered was copied out of the
+      //     few-shot example.
+      //   - `comparisonRival` joins ALLOWED_PRODUCT_FIELDS. This one ADDS a
+      //     field, and it exists to delete a hardcoded claim: the comparison
+      //     heading was the template literal
+      //     `${brand} vs. lámparas decorativas comunes`, so every landing
+      //     claimed to beat a decorative lamp whatever it actually sold.
+      const EXPECTED_COMPLETENESS_DIFF_LINES = [
+        "-  'specs', 'packs', 'gallery', 'steps', 'comparison',",
+        "+  'specs', 'packs', 'gallery', 'steps', 'comparison', 'comparisonRival',",
+        "-export const TESTIMONIAL_REQUIRED_FIELDS = ['id', 'author', 'rating', 'date', 'body', 'verified', 'variant'];",
+        "+// `verified` WAS here and was removed (D1). CanonicalReview carries no",
+        "+// verification signal at all — product-normalizer.mjs's projectReview()",
+        "+// projects exactly five keys and its own comment names `verified` and",
+        "+// `purchaseVerified` among the fields it refuses to let through. A required",
+        "+// boolean with no provenance is a field the model has to invent, and every",
+        "+// generated landing was rendering it as a gold \"Compra verificada\" badge.",
+        "+//",
+        "+// If the scraper ever captures a real signal, it comes back as an OPTIONAL",
+        "+// `purchaseVerified` with explicit provenance — a separate change, not this one.",
+        "+export const TESTIMONIAL_REQUIRED_FIELDS = ['id', 'author', 'rating', 'date', 'body', 'variant'];",
+        "-export const TESTIMONIAL_ALL_FIELDS = ['id', 'author', 'location', 'rating', 'date', 'title', 'body', 'verified', 'variant'];",
+        "+// `location` left too (D2), for the same reason and with worse evidence: it is",
+        "+// absent from CanonicalReview, so every \"· Mendoza\" ever rendered was copied",
+        "+// out of the few-shot example. Being OPTIONAL did not make it honest — it made",
+        "+// it invisible.",
+        "+export const TESTIMONIAL_ALL_FIELDS = ['id', 'author', 'rating', 'date', 'title', 'body', 'variant'];",
+      ];
+
       // EXACTLY one of the reviewed sequences. Not a union, not a superset:
       // a partially-applied or reworded version of either is a different line
       // sequence and still fails, exactly as the all-or-nothing check did.
       expect(
-        [EXPECTED_PRODUCT_ID_DIFF_LINES, EXPECTED_DESIGN_INTEGRITY_DIFF_LINES],
+
+        [EXPECTED_PRODUCT_ID_DIFF_LINES, EXPECTED_DESIGN_INTEGRITY_DIFF_LINES, EXPECTED_COMPLETENESS_DIFF_LINES],
         'content-contract.mjs diff matches no reviewed change',
       ).toContainEqual(diffLines);
     });

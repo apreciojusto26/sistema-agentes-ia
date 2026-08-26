@@ -421,7 +421,10 @@ describe('Group D — scripts/lib/content-contract.mjs unit tests (no spawn)', (
   test('ALLOWED_PRODUCT_FIELDS is exported and matches the CLI whitelist length', async () => {
     const { ALLOWED_PRODUCT_FIELDS } = await loadContract();
     expect(ALLOWED_PRODUCT_FIELDS).toContain('ratingBreakdown');
-    expect(ALLOWED_PRODUCT_FIELDS.length).toBe(23);
+    // 23 -> 24: `comparisonRival` joined the whitelist so the Comparison
+    // heading could stop being a template literal about decorative lamps.
+    expect(ALLOWED_PRODUCT_FIELDS).toContain('comparisonRival');
+    expect(ALLOWED_PRODUCT_FIELDS.length).toBe(24);
   });
 });
 

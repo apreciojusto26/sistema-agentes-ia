@@ -203,6 +203,11 @@ export const product = {
     { feature: 'Material ABS resistente', ours: true, rival: true },
   ],
 
+  // The GENERIC alternative, never a brand. Replaces the heading literal that
+  // used to live in the Comparison component and claimed every product on
+  // earth competed with a decorative lamp.
+  comparisonRival: 'lámparas decorativas comunes',
+
   guarantee: {
     days: 30,
     title: 'Garantía de 30 días',

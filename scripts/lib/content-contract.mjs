@@ -26,14 +26,23 @@ export const ALLOWED_PRODUCT_FIELDS = [
   'brand', 'name', 'tagline', 'subtagline',
   'ratingAverage', 'ratingCount', 'ratingBreakdown',
   'badges', 'trustTicker', 'offer', 'benefits', 'heroPills',
-  'specs', 'packs', 'gallery', 'steps', 'comparison',
+  'specs', 'packs', 'gallery', 'steps', 'comparison', 'comparisonRival',
   'guarantee', 'shipping', 'ugc', 'cta', 'variantGroupLabel', 'errors',
 ];
 // errors has a sane default (translation-only field) so it's not required input.
 export const REQUIRED_PRODUCT_FIELDS = ALLOWED_PRODUCT_FIELDS.filter((f) => f !== 'errors');
 
 export const FAQ_FIELDS = ['id', 'question', 'answer'];
-export const TESTIMONIAL_REQUIRED_FIELDS = ['id', 'author', 'rating', 'date', 'body', 'verified', 'variant'];
+// `verified` WAS here and was removed (D1). CanonicalReview carries no
+// verification signal at all — product-normalizer.mjs's projectReview()
+// projects exactly five keys and its own comment names `verified` and
+// `purchaseVerified` among the fields it refuses to let through. A required
+// boolean with no provenance is a field the model has to invent, and every
+// generated landing was rendering it as a gold "Compra verificada" badge.
+//
+// If the scraper ever captures a real signal, it comes back as an OPTIONAL
+// `purchaseVerified` with explicit provenance — a separate change, not this one.
+export const TESTIMONIAL_REQUIRED_FIELDS = ['id', 'author', 'rating', 'date', 'body', 'variant'];
 
 /**
  * The testimonial variants the RENDERER actually consumes. Every entry here is
@@ -54,7 +63,11 @@ export const TESTIMONIAL_REQUIRED_FIELDS = ['id', 'author', 'rating', 'date', 'b
  * Content Agent's prompt — so it can never drift from what ships.
  */
 export const TESTIMONIAL_VARIANTS = ['quote', 'reel'];
-export const TESTIMONIAL_ALL_FIELDS = ['id', 'author', 'location', 'rating', 'date', 'title', 'body', 'verified', 'variant'];
+// `location` left too (D2), for the same reason and with worse evidence: it is
+// absent from CanonicalReview, so every "· Mendoza" ever rendered was copied
+// out of the few-shot example. Being OPTIONAL did not make it honest — it made
+// it invisible.
+export const TESTIMONIAL_ALL_FIELDS = ['id', 'author', 'rating', 'date', 'title', 'body', 'variant'];
 
 export const DEFAULT_ERRORS = {
   network: 'No pudimos conectar con la tienda. Probá de nuevo en unos segundos.',

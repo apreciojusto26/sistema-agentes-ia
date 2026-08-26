@@ -113,11 +113,12 @@ export const GOLDEN_DATA = {
       { feature: 'Golden feature false', ours: false, rival: true },
       { feature: 'Golden feature text', ours: 'Golden ours text', rival: 'Golden rival text' },
     ] as ComparisonRow[],
+    comparisonRival: 'golden rival category',
   },
   testimonials: [
-    { id: 'g-quote', author: 'Golden Quote', location: 'Nowhere', rating: 5, date: '2026-01-01', title: 'Golden title', body: 'Golden quote body.', verified: true, variant: 'quote' },
-    { id: 'g-reel-1', author: 'Golden Reel One', location: 'Nowhere', rating: 5, date: '2026-01-02', body: 'Golden reel body one.', verified: true, variant: 'reel' },
-    { id: 'g-reel-2', author: 'Golden Reel Two', location: 'Nowhere', rating: 4, date: '2026-01-03', body: 'Golden reel body two.', verified: false, variant: 'reel' },
+    { id: 'g-quote', author: 'Golden Quote', rating: 5, date: '2026-01-01', title: 'Golden title', body: 'Golden quote body.', variant: 'quote' },
+    { id: 'g-reel-1', author: 'Golden Reel One', rating: 5, date: '2026-01-02', body: 'Golden reel body one.', variant: 'reel' },
+    { id: 'g-reel-2', author: 'Golden Reel Two', rating: 4, date: '2026-01-03', body: 'Golden reel body two.', variant: 'reel' },
   ] as Testimonial[],
   faq: [
     { id: 'g-q1', question: 'Golden question one?', answer: 'Golden answer one.' },

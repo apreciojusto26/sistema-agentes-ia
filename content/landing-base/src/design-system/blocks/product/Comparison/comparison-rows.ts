@@ -30,9 +30,35 @@ export function comparisonBrand(): string {
   return product.brand;
 }
 
-/** Legacy heading, verbatim. Kept here so both variants title the section the same way. */
+/**
+ * The section heading, derived from CONTENT rather than from a template
+ * literal. Declared here so both variants title the comparison identically.
+ *
+ * WHAT THIS REPLACED: `return `${brand} vs. lámparas decorativas comunes``.
+ * That string came from components/sections/11-comparison.astro at 4732910 and
+ * was carried through the Comparison conversion verbatim — correct for
+ * byte-compatibility, and a latent defect the whole time. It made every
+ * landing compare its product to a decorative lamp: a pillow, a corkscrew, an
+ * oil sprayer, all of them.
+ *
+ * FAIL-CLOSED. An empty rival is not defaulted to a generic phrase, because a
+ * generic phrase is exactly how the old bug read as plausible for two years.
+ * The content contract requires the field; reaching this throw means something
+ * upstream let a landing through without one.
+ */
 export function comparisonHeading(brand: string): string {
-  return `${brand} vs. lámparas decorativas comunes`;
+  const rival = product.comparisonRival?.trim();
+  if (!rival) {
+    throw new Error(
+      'Comparison was composed into this landing, but `comparisonRival` in ' +
+        'src/data/product.ts is empty — the heading would have to invent what this ' +
+        'product competes with.\n' +
+        'FIX: set `comparisonRival` (a generic category, never a brand: ' +
+        '"almohadas convencionales", "sacacorchos manuales"), or remove the ' +
+        'product/Comparison section from src/data/design.ts.',
+    );
+  }
+  return `${brand} vs. ${rival}`;
 }
 
 /**
