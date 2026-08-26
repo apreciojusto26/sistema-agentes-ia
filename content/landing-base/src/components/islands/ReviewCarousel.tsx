@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { reviewerDisplayName } from '@/lib/reviewer-identity';
 import { Stars } from '@/components/islands/parts/Stars';
 import type { Testimonial } from '@/types/content';
 
@@ -92,7 +91,7 @@ export function ReviewCarousel({ reviews }: ReviewCarouselProps) {
             <Stars rating={review.rating} className="mb-2" />
             <p className="text-sm text-bone/80">{review.body}</p>
             <p className="mt-3 text-xs font-semibold text-bone">
-              {reviewerDisplayName(review.author)}
+              {review.author}
             </p>
           </article>
         ))}

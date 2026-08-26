@@ -12,6 +12,7 @@
 // earns a guard at all.
 import { testimonials } from '@/data/testimonials';
 import type { Testimonial } from '@/types/content';
+import { reviewerDisplayName } from '@/lib/reviewer-identity';
 
 /** The discriminator every ReviewsReel variant renders. Declared once. */
 export const REEL_VARIANT = 'reel' as const;
@@ -40,5 +41,15 @@ export function reelReviews(composedBy: string): Testimonial[] {
     );
   }
 
-  return reviews;
+  // DISPLAY NAMES, resolved HERE rather than inside the carousel island.
+  //
+  // The island receives its reviews as SERIALIZED PROPS on the <astro-island>
+  // element, so deriving the name client-side still shipped the raw `Y***t`
+  // into the page source: the visible text said "Cliente" while view-source
+  // said otherwise. Caught by grepping a real generated build, not by a test.
+  //
+  // The raw author stays intact in src/data/testimonials.ts and in
+  // CanonicalProduct — the mask is provenance and is not destroyed. What
+  // crosses to the client is only what is actually rendered.
+  return reviews.map((t) => ({ ...t, author: reviewerDisplayName(t.author) }));
 }

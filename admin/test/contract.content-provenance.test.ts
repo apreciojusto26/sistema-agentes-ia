@@ -113,20 +113,38 @@ describe('reviewer location cannot be fabricated', () => {
 });
 
 describe('every renderer goes through the ONE reviewer identity helper', () => {
+  // Where each surface resolves the display name. The carousel is the odd one:
+  // it is an ISLAND, so its reviews are serialized into the <astro-island>
+  // props attribute. Deriving inside it still shipped the raw `Y***t` in the
+  // page source — visible text said "Cliente" while view-source said
+  // otherwise. It therefore receives names ALREADY resolved by reel-reviews.ts,
+  // and the guard follows the resolution to where it actually happens.
   const RENDERERS = [
     ['FeaturedTestimonial', 'content/landing-base/src/components/sections/07-featured-testimonial.astro'],
     ['FeaturedQuote', 'content/landing-base/src/design-system/blocks/social-proof/FeaturedQuote/Default.astro'],
     ['ReviewsReel/Grid', 'content/landing-base/src/design-system/blocks/social-proof/ReviewsReel/Grid.astro'],
-    ['ReviewCarousel', 'content/landing-base/src/components/islands/ReviewCarousel.tsx'],
+    ['ReviewsReel/Carousel (via reel-reviews)', 'content/landing-base/src/design-system/blocks/social-proof/ReviewsReel/reel-reviews.ts'],
   ] as const;
 
-  test.each(RENDERERS)('%s imports reviewerDisplayName', (_n, f) => {
+  test.each(RENDERERS)('%s resolves through reviewerDisplayName', (_n, f) => {
     expect(read(f)).toMatch(/reviewerDisplayName/);
   });
 
   test.each(RENDERERS)('%s renders NO raw author', (name, f) => {
     const src = read(f);
     expect(src, `${name} prints the raw author`).not.toMatch(/\{\s*(review|featured)\.author\s*\}/);
+  });
+
+  test('NO island receives a raw author in its serialized props', () => {
+    // The bug this closes, stated as an invariant: an island that takes raw
+    // testimonials ships the mask in the HTML no matter what it renders.
+    const carousel = read('content/landing-base/src/design-system/blocks/social-proof/Carousel.astro'.replace('social-proof/', 'social-proof/ReviewsReel/'));
+    expect(carousel).toContain('reelReviews(');
+    expect(carousel, 'the carousel block reaches for raw testimonials').not.toMatch(
+      /from '@\/data\/testimonials'/,
+    );
+    const accessor = read('content/landing-base/src/design-system/blocks/social-proof/ReviewsReel/reel-reviews.ts');
+    expect(accessor).toMatch(/author: reviewerDisplayName\(/);
   });
 
   test.each(RENDERERS)('%s implements no masking regex of its own', (name, f) => {
