@@ -17,6 +17,7 @@ import { DEFAULT_ERRORS, ContentContractError, validateContent } from './lib/con
 import { checkDesignSupport } from './lib/design-contract.mjs';
 import { isProductId } from './lib/product-id.cjs';
 import { buildFaviconSvg, buildFaviconIco, pickForeground } from './lib/favicon.mjs';
+import { collectMerchantIssues, normalizeMerchant, MERCHANT_REQUIRED_FIELDS } from './lib/merchant.mjs';
 import { isShopifyHandle } from './lib/shopify-handle.mjs';
 import { writeLandingGitignore, initLandingRepo } from './lib/landing-scaffold.mjs';
 import { planAssets, materializeAssets, buildImagesModule, describeRejections, TEMPLATE_SLOT_KEYS } from './lib/asset-pipeline.mjs';
@@ -94,6 +95,14 @@ function parseArgs(argv) {
         fail('Missing --design <path-to-json>', 'design-argument-missing');
       }
       args.design = value;
+      i++;
+    }
+    else if (a === '--merchant') {
+      const value = argv[i + 1];
+      if (value === undefined || value.startsWith('--')) {
+        fail('Missing --merchant <path-to-json>', 'merchant-argument-missing');
+      }
+      args.merchant = value;
       i++;
     }
     else if (a === '--force') args.force = true;
@@ -256,6 +265,10 @@ function buildProductTs(product, shopifyHandle) {
     `  steps: ${serialize(product.steps, 2, 1)},`,
     ``,
     `  comparison: ${serialize(product.comparison, 2, 1)},`,
+    // The GENERIC alternative this product is compared against. Without it
+    // comparisonHeading() throws — deliberately, because the heading it
+    // replaced was a template literal about decorative lamps.
+    `  comparisonRival: ${serialize(product.comparisonRival, 2, 1)},`,
     ``,
     `  guarantee: ${serialize(product.guarantee, 2, 1)},`,
     ``,
@@ -601,6 +614,34 @@ function main() {
       throw err;
     }
 
+    // MERCHANT CONFIG, validated in this same stage and for the same reason as
+    // --design: before preflight and before copy-template, so a bad config
+    // writes nothing to disk.
+    //
+    // READINESS. Absent config is NOT an error — a preview landing is allowed
+    // to exist without seller identity, and its legal pages say so plainly.
+    // But a config that is PRESENT and wrong (missing a required fact, an
+    // unfilled "[TU EMPRESA]", a malformed email) fails here: publishing a
+    // placeholder is worse than publishing nothing, because nothing blocks a
+    // deploy and a placeholder does not.
+    if (args.merchant !== undefined) {
+      if (!existsSync(args.merchant)) fail(`Merchant config not found: ${args.merchant}`, 'merchant-file-missing');
+      let merchantRaw;
+      try {
+        merchantRaw = JSON.parse(readFileSync(args.merchant, 'utf-8'));
+      } catch (err) {
+        fail(`--merchant file is not valid JSON: ${err.message}`, 'merchant-unparseable');
+      }
+      const issues = collectMerchantIssues(merchantRaw);
+      if (issues.length) {
+        fail(
+          `--merchant rejected: ${issues.map((i) => i.message).join(' | ')}`,
+          issues[0].code,
+        );
+      }
+      parsed.__merchant = normalizeMerchant(merchantRaw);
+    }
+
     // Explicit design mode is validated HERE, inside the existing `validate`
     // stage — deliberately NOT as a stage of its own. A separate stage would
     // be emitted on EVERY run, including legacy ones, changing the observable
@@ -790,6 +831,23 @@ function main() {
     writeFileSync(path.join(outDir, 'src/data/product.ts'), buildProductTs(input.product, args.shopifyHandle));
     writeFileSync(path.join(outDir, 'src/data/faq.ts'), buildFaqTs(input.faq));
     writeFileSync(path.join(outDir, 'src/data/testimonials.ts'), buildTestimonialsTs(input.testimonials));
+
+    // MERCHANT — written here rather than as its own stage, deliberately. It IS
+    // data, and a separate stage would be emitted on every run including the
+    // ones that pass no --merchant, changing the observable event sequence for
+    // every existing legacy generation.
+    //
+    // Without --merchant the template's own `export const merchant = null`
+    // survives untouched, which is the PREVIEW state: the landing builds, the
+    // legal pages are navigable, and each says the information is pending
+    // configuration instead of inventing a legal name.
+    if (input.__merchant) {
+      writeFileSync(
+        path.join(outDir, 'src/data/merchant.ts'),
+        "import type { Merchant } from '@/types/merchant';\n\n" +
+          `export const merchant: Merchant | null = ${serialize(input.__merchant)};\n`,
+      );
+    }
   });
 
   // Design System Fase 2. Emitted ONLY in explicit design mode — a legacy run

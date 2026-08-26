@@ -1,0 +1,36 @@
+---
+// Only `returnsWindowDays` and the contact email. Deliberately free of the
+// specific exclusions a complete returns policy usually carries: those depend
+// on facts nobody configured, and inventing them would be a false precision
+// worse than a generic paragraph.
+import LegalPage from '@/layouts/LegalPage.astro';
+import { merchant } from '@/data/merchant';
+
+// Same as index.astro: this is a static page, not a per-request function.
+export const prerender = true;
+---
+<LegalPage title="Devoluciones" intro="Plazo y procedimiento para devolver tu compra.">
+  {merchant && (
+    <>
+      <h2 class="text-lg font-bold">Plazo</h2>
+      <p>
+        Disponés de <strong>{merchant.returnsWindowDays} días</strong> desde la recepción
+        del pedido para solicitar la devolución.
+      </p>
+
+      <h2 class="text-lg font-bold">Cómo solicitarla</h2>
+      <p>
+        Escribí a{' '}
+        <a class="text-rust underline" href={`mailto:${merchant.contactEmail}`}>{merchant.contactEmail}</a>{' '}
+        indicando tu número de pedido y el motivo. Te responderemos con las instrucciones
+        de envío.
+      </p>
+
+      <h2 class="text-lg font-bold">Reembolso</h2>
+      <p>
+        Una vez recibido y comprobado el producto, el importe se reembolsa por el mismo
+        medio de pago utilizado en la compra.
+      </p>
+    </>
+  )}
+</LegalPage>

@@ -1,0 +1,13 @@
+// MERCHANT CONFIG for this landing — seller identity and commercial policy.
+//
+// NOT product content and NEVER agent-written. generate-landing.mjs overwrites
+// this file from the JSON passed to `--merchant`; without that flag it stays
+// `null` and the landing is in PREVIEW: it builds, it is navigable, and every
+// legal page says plainly that the information is pending configuration.
+//
+// `null` is the honest default. A template shipping a fake legal name would be
+// the one failure mode this whole layer exists to prevent — an unfilled
+// placeholder does not block a deploy, it publishes.
+import type { Merchant } from '@/types/merchant';
+
+export const merchant: Merchant | null = null;

@@ -1,0 +1,51 @@
+---
+// Derived from merchant identity, the configured jurisdiction and the REAL
+// commercial flow (Shopify cart -> SumUp payment). `country` is stated
+// explicitly by the merchant; it is never inferred from the 21% rate hardcoded
+// in lib/sumup/settle.ts, which is a tax constant, not a legal identity.
+import LegalPage from '@/layouts/LegalPage.astro';
+import { merchant } from '@/data/merchant';
+
+// Same as index.astro: this is a static page, not a per-request function.
+export const prerender = true;
+---
+<LegalPage title="Términos y condiciones" intro="Condiciones aplicables a las compras realizadas en esta tienda.">
+  {merchant && (
+    <>
+      <h2 class="text-lg font-bold">Titular</h2>
+      <p>
+        Esta tienda es operada por {merchant.legalName}, con identificación fiscal
+        {' '}{merchant.taxId} y domicilio en {merchant.address}.
+      </p>
+
+      <h2 class="text-lg font-bold">Proceso de compra</h2>
+      <p>
+        Seleccionás producto, variante y pack, y confirmás el pedido en el proceso de compra.
+        El carrito se gestiona a través de Shopify y el pago se procesa a través de SumUp.
+        El contrato se perfecciona cuando el pago se confirma.
+      </p>
+
+      <h2 class="text-lg font-bold">Precios</h2>
+      <p>
+        Los precios mostrados están expresados en la moneda indicada en el producto e
+        incluyen los impuestos aplicables. El importe final, incluidos los gastos de envío
+        si corresponden, se muestra antes de confirmar el pedido.
+      </p>
+
+      <h2 class="text-lg font-bold">Devoluciones</h2>
+      <p>
+        Las condiciones de devolución se detallan en la página de <a class="text-rust underline" href="/legal/devoluciones">Devoluciones</a>.
+      </p>
+
+      <h2 class="text-lg font-bold">Legislación aplicable</h2>
+      <p>
+        Estas condiciones se rigen por la legislación de {merchant.country}.
+      </p>
+
+      <h2 class="text-lg font-bold">Contacto</h2>
+      <p>
+        <a class="text-rust underline" href={`mailto:${merchant.contactEmail}`}>{merchant.contactEmail}</a>
+      </p>
+    </>
+  )}
+</LegalPage>

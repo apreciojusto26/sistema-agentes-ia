@@ -1,0 +1,25 @@
+---
+// Every fact here comes from merchant config. No phone: the config has none,
+// and inventing a support line is exactly what this layer forbids.
+import LegalPage from '@/layouts/LegalPage.astro';
+import { merchant } from '@/data/merchant';
+
+// Same as index.astro: this is a static page, not a per-request function.
+export const prerender = true;
+---
+<LegalPage title="Contacto" intro="Cómo comunicarte con el vendedor responsable de esta tienda.">
+  {merchant && (
+    <>
+      <h2 class="text-lg font-bold">Datos del vendedor</h2>
+      <dl class="space-y-2">
+        <div><dt class="inline font-semibold">Denominación: </dt><dd class="inline">{merchant.legalName}</dd></div>
+        <div><dt class="inline font-semibold">Domicilio: </dt><dd class="inline">{merchant.address}</dd></div>
+        <div><dt class="inline font-semibold">Correo electrónico: </dt><dd class="inline"><a class="text-rust underline" href={`mailto:${merchant.contactEmail}`}>{merchant.contactEmail}</a></dd></div>
+      </dl>
+      <p>
+        El correo electrónico es el canal de atención de esta tienda. Escribinos desde
+        la dirección que usaste en tu pedido para que podamos identificarlo.
+      </p>
+    </>
+  )}
+</LegalPage>

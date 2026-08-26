@@ -1,0 +1,65 @@
+---
+// Shared shell for every legal page. Same Base layout, same Container, same
+// tokens and typography as the landing — these are pages of the same site, not
+// generic documents bolted on.
+//
+// It also owns the ONE preview state: when `merchant` is null the page renders
+// its title and a clearly-marked technical notice instead of inventing facts.
+// That notice can only appear in preview, because validate blocks READY on a
+// missing merchant config (see scripts/lib/merchant.mjs).
+import Base from '@/layouts/Base.astro';
+import Container from '@/components/ui/Container.astro';
+import UtilityBar from '@/components/sections/01-utility-bar.astro';
+import SiteHeader from '@/components/sections/02-site-header.astro';
+import SiteFooter from '@/components/sections/14-site-footer.astro';
+import { product } from '@/data/product';
+import { merchant } from '@/data/merchant';
+
+// NOTE: `prerender` cannot live here — Astro reads it from the PAGE module
+// only. Each page under pages/legal/ exports it itself; a version of this that
+// declared it in the layout produced seven SSR routes and zero static files.
+
+interface Props {
+  title: string;
+  /** One line under the h1. Never a legal claim — just what the page covers. */
+  intro: string;
+}
+
+const { title, intro } = Astro.props;
+const configured = merchant !== null;
+---
+
+<Base title={`${title} — ${product.brand}`} description={intro}>
+  <UtilityBar />
+  <SiteHeader />
+
+  <main class="py-12 md:py-16">
+    <Container class="max-w-3xl">
+      <p class="text-eyebrow font-bold uppercase text-rust">Información legal</p>
+      <h1 class="mt-1 text-display md:text-4xl">{title}</h1>
+      <p class="mt-3 text-base text-steel">{intro}</p>
+
+      {
+        configured ? (
+          <div class="mt-8 space-y-6 text-sm leading-relaxed text-graphite">
+            <slot />
+          </div>
+        ) : (
+          <div class="mt-8 rounded-card border border-graphite/15 bg-bone-dim p-5">
+            <p class="font-semibold text-graphite">Información legal pendiente de configuración</p>
+            <p class="mt-2 text-sm text-steel">
+              Esta landing está en modo vista previa. Los datos identificativos del vendedor
+              todavía no se han configurado, y esta página no muestra información inventada.
+            </p>
+          </div>
+        )
+      }
+
+      <p class="mt-10 border-t border-graphite/10 pt-6 text-xs text-steel">
+        Última actualización: {new Date().getFullYear()}.
+      </p>
+    </Container>
+  </main>
+
+  <SiteFooter />
+</Base>

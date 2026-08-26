@@ -1,0 +1,51 @@
+---
+// POLICY, not consent. These are two different things and this page is only
+// the first: it documents the storage and third parties that were verified in
+// the code, and it deliberately does NOT claim a preference centre exists,
+// because none does.
+//
+// INTERNAL NOTE, NOT RENDERED: `Cookie consent & analytics audit` is still
+// pending. Google Analytics and Microsoft Clarity are loaded from Base.astro
+// gated only by `import.meta.env.PROD` and a configured id — there is no
+// consent gate before them. That is a compliance question, not a copy
+// question, and it belongs to that audit rather than to this page.
+import LegalPage from '@/layouts/LegalPage.astro';
+import { merchant } from '@/data/merchant';
+
+// Same as index.astro: this is a static page, not a per-request function.
+export const prerender = true;
+---
+<LegalPage title="Política de cookies" intro="Qué almacena esta tienda en tu navegador y qué terceros intervienen.">
+  {merchant && (
+    <>
+      <h2 class="text-lg font-bold">Almacenamiento propio</h2>
+      <p>
+        Esta tienda guarda en el almacenamiento local de tu navegador un único dato:
+        el <strong>identificador de tu carrito</strong>. Sirve para que tu selección siga
+        disponible si cerrás la pestaña y volvés. No contiene datos personales ni de pago.
+      </p>
+
+      <h2 class="text-lg font-bold">Cookies de terceros</h2>
+      <p>Durante la compra y la navegación pueden intervenir estos servicios:</p>
+      <ul class="list-disc space-y-1 pl-5">
+        <li><strong>Shopify</strong>: necesarias para el carrito y el proceso de compra.</li>
+        <li><strong>SumUp</strong>: necesarias para procesar el pago.</li>
+        <li><strong>Google Analytics</strong>: analítica de uso, cuando está configurada.</li>
+        <li><strong>Microsoft Clarity</strong>: analítica de uso, cuando está configurada.</li>
+      </ul>
+
+      <h2 class="text-lg font-bold">Cómo gestionarlas</h2>
+      <p>
+        Podés bloquear o eliminar cookies y borrar el almacenamiento local desde la
+        configuración de tu navegador. Ten en cuenta que bloquear las de Shopify o SumUp
+        impide completar una compra.
+      </p>
+
+      <h2 class="text-lg font-bold">Contacto</h2>
+      <p>
+        Para cualquier duda escribí a{' '}
+        <a class="text-rust underline" href={`mailto:${merchant.contactEmail}`}>{merchant.contactEmail}</a>.
+      </p>
+    </>
+  )}
+</LegalPage>

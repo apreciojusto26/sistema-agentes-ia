@@ -1,0 +1,9 @@
+{
+  "legalName": "FIXTURE DE TEST — Comercio Ficticio SL",
+  "taxId": "B99999999",
+  "address": "Calle de Prueba 000, 00000 Ciudad Ficticia",
+  "contactEmail": "fixture@test.invalid",
+  "country": "País Ficticio",
+  "returnsWindowDays": 14,
+  "carrierName": "Transportista Ficticio"
+}

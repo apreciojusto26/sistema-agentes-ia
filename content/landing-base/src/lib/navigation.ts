@@ -26,13 +26,23 @@ export const SECTION_ANCHORS = {
 export type SectionAnchor = (typeof SECTION_ANCHORS)[keyof typeof SECTION_ANCHORS];
 
 /**
- * PENDING ROUTES. These labels have no page yet, so they keep the placeholder
- * they have always had rather than pointing at a 404 — a dead anchor is inert,
- * a broken route is a worse regression than the one being fixed. The legal
- * pages and their real hrefs land together in the very next commit; nothing
- * here is meant to survive it.
+ * Legal routes. Every one is a REAL page under src/pages/legal/; there is no
+ * entry here that does not resolve, and a contract test proves it by reading
+ * the filesystem rather than trusting this list.
+ *
+ * These were placeholders for exactly one commit — the anchor contract landed
+ * first, and pointing at pages that did not exist yet would have traded ten
+ * dead anchors for seven 404s.
  */
-const PENDING = '#';
+export const LEGAL_ROUTES = {
+  shipping: '/legal/envios',
+  returns: '/legal/devoluciones',
+  contact: '/legal/contacto',
+  terms: '/legal/terminos',
+  privacy: '/legal/privacidad',
+  cookies: '/legal/cookies',
+  notice: '/legal/aviso-legal',
+} as const;
 
 export interface NavLink {
   label: string;
@@ -55,18 +65,18 @@ export const FOOTER_COLUMNS: ReadonlyArray<{ title: string; links: readonly NavL
   {
     title: 'Ayuda',
     links: [
-      { label: 'Envíos', href: PENDING },
-      { label: 'Devoluciones', href: PENDING },
-      { label: 'Contacto', href: PENDING },
+      { label: 'Envíos', href: LEGAL_ROUTES.shipping },
+      { label: 'Devoluciones', href: LEGAL_ROUTES.returns },
+      { label: 'Contacto', href: LEGAL_ROUTES.contact },
     ],
   },
   {
     title: 'Legal',
     links: [
-      { label: 'Términos y condiciones', href: PENDING },
-      { label: 'Privacidad', href: PENDING },
-      { label: 'Cookies', href: PENDING },
-      { label: 'Aviso legal', href: PENDING },
+      { label: 'Términos y condiciones', href: LEGAL_ROUTES.terms },
+      { label: 'Privacidad', href: LEGAL_ROUTES.privacy },
+      { label: 'Cookies', href: LEGAL_ROUTES.cookies },
+      { label: 'Aviso legal', href: LEGAL_ROUTES.notice },
     ],
   },
 ];

@@ -1,0 +1,73 @@
+---
+// AUDITED AGAINST THE CODE, not against a template. Everything named below was
+// verified in this repository:
+//
+//   localStorage   stores.cart.ts keeps ONE key: the Shopify cart identifier.
+//                  No sessionStorage anywhere.
+//   checkout form  CheckoutForm.tsx collects email (type=email) and phone
+//                  (type=tel) plus the shipping address.
+//   Shopify        cart creation, line updates and checkout (lib/shopify/*).
+//   SumUp          payment processing (lib/sumup/*).
+//   analytics      Base.astro loads Google Analytics 4 and Microsoft Clarity
+//                  when their ids are configured and the build is production.
+//
+// Nothing else is claimed. In particular this page does NOT say "no compartimos
+// datos con terceros" — Shopify, SumUp, Google and Microsoft all receive data,
+// and saying otherwise would be the fabrication this layer exists to stop.
+import LegalPage from '@/layouts/LegalPage.astro';
+import { merchant } from '@/data/merchant';
+
+// Same as index.astro: this is a static page, not a per-request function.
+export const prerender = true;
+---
+<LegalPage title="Política de privacidad" intro="Qué datos trata esta tienda, con qué finalidad y con quién se comparten.">
+  {merchant && (
+    <>
+      <h2 class="text-lg font-bold">Responsable del tratamiento</h2>
+      <p>
+        {merchant.legalName}, con domicilio en {merchant.address}. Contacto en materia de
+        protección de datos:{' '}
+        <a class="text-rust underline" href={`mailto:${merchant.dataControllerEmail}`}>{merchant.dataControllerEmail}</a>.
+      </p>
+
+      <h2 class="text-lg font-bold">Datos que se tratan</h2>
+      <ul class="list-disc space-y-1 pl-5">
+        <li><strong>Datos de contacto y envío</strong>: correo electrónico, teléfono y dirección, facilitados por vos en el proceso de compra.</li>
+        <li><strong>Datos del pedido</strong>: producto, variante, cantidad e importe.</li>
+        <li><strong>Identificador de carrito</strong>: se guarda en el almacenamiento local de tu navegador para que tu carrito siga disponible si volvés a la página.</li>
+        <li><strong>Datos de navegación</strong>: si las herramientas de analítica están activas, se recogen datos de uso del sitio.</li>
+      </ul>
+
+      <h2 class="text-lg font-bold">Finalidades</h2>
+      <p>
+        Tramitar y entregar tu pedido, gestionar el cobro, atender consultas y devoluciones,
+        y analizar el uso del sitio para mejorarlo.
+      </p>
+
+      <h2 class="text-lg font-bold">Terceros que intervienen</h2>
+      <p>
+        Esta tienda no opera sola. Intervienen los siguientes proveedores, cada uno con su
+        propia política de privacidad:
+      </p>
+      <ul class="list-disc space-y-1 pl-5">
+        <li><strong>Shopify</strong>: gestión del carrito y del proceso de compra.</li>
+        <li><strong>SumUp</strong>: procesamiento del pago.</li>
+        <li><strong>Google Analytics</strong> y <strong>Microsoft Clarity</strong>: analítica de uso, cuando están configuradas.</li>
+      </ul>
+
+      <h2 class="text-lg font-bold">Conservación</h2>
+      <p>
+        Los datos del pedido se conservan durante los plazos exigidos por la normativa
+        mercantil y fiscal aplicable. El identificador de carrito permanece en tu navegador
+        hasta que finalizás la compra o borrás los datos del sitio.
+      </p>
+
+      <h2 class="text-lg font-bold">Tus derechos</h2>
+      <p>
+        Podés solicitar acceso, rectificación, supresión, oposición, limitación y
+        portabilidad de tus datos escribiendo a{' '}
+        <a class="text-rust underline" href={`mailto:${merchant.dataControllerEmail}`}>{merchant.dataControllerEmail}</a>.
+      </p>
+    </>
+  )}
+</LegalPage>

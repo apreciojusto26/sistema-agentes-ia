@@ -1,0 +1,39 @@
+---
+// Identification of the site owner. This is the page `taxId` exists for.
+// Country is stated by the merchant, never derived.
+import LegalPage from '@/layouts/LegalPage.astro';
+import { merchant } from '@/data/merchant';
+
+// Same as index.astro: this is a static page, not a per-request function.
+export const prerender = true;
+---
+<LegalPage title="Aviso legal" intro="Datos identificativos del titular de este sitio.">
+  {merchant && (
+    <>
+      <h2 class="text-lg font-bold">Titular del sitio</h2>
+      <dl class="space-y-2">
+        <div><dt class="inline font-semibold">Denominación: </dt><dd class="inline">{merchant.legalName}</dd></div>
+        <div><dt class="inline font-semibold">Identificación fiscal: </dt><dd class="inline">{merchant.taxId}</dd></div>
+        <div><dt class="inline font-semibold">Domicilio: </dt><dd class="inline">{merchant.address}</dd></div>
+        <div><dt class="inline font-semibold">Correo electrónico: </dt><dd class="inline"><a class="text-rust underline" href={`mailto:${merchant.contactEmail}`}>{merchant.contactEmail}</a></dd></div>
+        <div><dt class="inline font-semibold">Jurisdicción: </dt><dd class="inline">{merchant.country}</dd></div>
+      </dl>
+
+      <h2 class="text-lg font-bold">Objeto</h2>
+      <p>
+        Este sitio tiene por objeto la venta en línea del producto que en él se describe.
+      </p>
+
+      <h2 class="text-lg font-bold">Propiedad intelectual</h2>
+      <p>
+        Los contenidos de este sitio pertenecen a su titular o se utilizan con autorización.
+      </p>
+
+      <h2 class="text-lg font-bold">Protección de datos</h2>
+      <p>
+        El tratamiento de datos personales se detalla en la{' '}
+        <a class="text-rust underline" href="/legal/privacidad">Política de privacidad</a>.
+      </p>
+    </>
+  )}
+</LegalPage>
