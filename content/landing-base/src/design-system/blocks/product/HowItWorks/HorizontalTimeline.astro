@@ -28,13 +28,14 @@
 // NEITHER hydrates anything — Media.astro is a plain Astro component — so the
 // difference between them is purely compositional.
 import Container from '@/components/ui/Container.astro';
+import { SECTION_ANCHORS } from '@/lib/navigation';
 import Media from '@/components/ui/Media.astro';
 import { howItWorksSteps, STEPS_EYEBROW, STEPS_HEADING } from './steps';
 
 const steps = howItWorksSteps('horizontal-timeline');
 ---
 
-<section class="bg-bone-dim py-12 md:py-16">
+<section id={SECTION_ANCHORS.HowItWorks} class="bg-bone-dim py-12 md:py-16">
   <Container>
     <p class="text-eyebrow font-bold uppercase text-rust">{STEPS_EYEBROW}</p>
     <h2 class="mt-1 text-display md:text-4xl lg:text-5xl">{STEPS_HEADING}</h2>

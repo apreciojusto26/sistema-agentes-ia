@@ -1,21 +1,11 @@
 ---
+// The footer used to keep LABELS here and render every one of them as
+// `<a href="#">` — one href in the whole file, ten dead links on every
+// landing. Both halves now come from lib/navigation.ts, which the anchored
+// SECTIONS import too, so a label can never point at an id nothing emits.
 import Container from '@/components/ui/Container.astro';
 import { product } from '@/data/product';
-
-const columns = [
-  {
-    title: 'Producto',
-    links: ['Cómo funciona', 'Preguntas frecuentes', 'Garantía'],
-  },
-  {
-    title: 'Ayuda',
-    links: ['Envíos', 'Devoluciones', 'Contacto'],
-  },
-  {
-    title: 'Legal',
-    links: ['Términos y condiciones', 'Privacidad'],
-  },
-];
+import { FOOTER_COLUMNS } from '@/lib/navigation';
 ---
 
 <footer class="bg-graphite py-10 text-xs text-bone/70">
@@ -27,14 +17,14 @@ const columns = [
         </span>
       </div>
       {
-        columns.map((column) => (
+        FOOTER_COLUMNS.map((column) => (
           <div>
             <p class="mb-2 font-semibold text-bone">{column.title}</p>
             <ul class="space-y-1.5">
               {column.links.map((link) => (
                 <li>
-                  <a href="#" class="hover:text-bone">
-                    {link}
+                  <a href={link.href} class="hover:text-bone">
+                    {link.label}
                   </a>
                 </li>
               ))}

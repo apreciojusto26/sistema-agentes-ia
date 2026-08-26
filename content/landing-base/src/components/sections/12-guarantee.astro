@@ -1,5 +1,6 @@
 ---
 import Container from '@/components/ui/Container.astro';
+import { SECTION_ANCHORS } from '@/lib/navigation';
 import { ICONS } from '@/lib/icons';
 import { product } from '@/data/product';
 
@@ -7,7 +8,7 @@ const shield = ICONS.shield;
 const { guarantee } = product;
 ---
 
-<section class="bg-gold-tint py-12 md:py-16">
+<section id={SECTION_ANCHORS.Guarantee} class="bg-gold-tint py-12 md:py-16">
   <Container class="text-center">
     <img src="/sello-garantia.webp" width="112" height="112" alt={`Sello de garantía de ${guarantee.days} días`} class="mx-auto size-28" loading="lazy" decoding="async" />
 

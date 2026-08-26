@@ -94,8 +94,12 @@ const FIXTURE_SHA256: Record<string, string> = {
   ReviewsReel: '8798bb813a5e2a1f4d1899cb9b15693cf447cdf2bee68dd69a15192009db6a54',
   GalleryStrip: 'f18d975cb8ad1823cd2183c64dab53336f3c586ad92a131310f576ca35019964',
   UgcStrip: '9bb05f6abfaf8135f8062dd9dea9695e6c4f9818df08ce4a2e9a1805c5645bcf',
-  Faq: '491435a05003fb23e82e9f1d848287df0a8ef6938fd02e090b899f24ac537c93',
-  HowItWorks: 'aec423d4517857dd125c1c3f8735e4360d5beb9a92d00edb079aab437a6fbf2a',
+  // UPDATED CONSCIOUSLY by the navigation-contract change. The diff is one
+  // line: the section gained `id="faq"`. The footer used to render every
+  // link as href="#" because no section had an id to point at.
+  Faq: '7d4a94646399174b4035d8e5c3413fc82d6c26035f6c3c74c83b62d7f14698d5',
+  // UPDATED CONSCIOUSLY by the same change — one line, `id="how-it-works"`.
+  HowItWorks: '85a004130b46b012a18ec69d5a34f718ec714ce48d8acbafe0488a7474e61146',
   // UPDATED CONSCIOUSLY by the generated-landing completeness phase. The old
   // value (851eb3fc…) froze a REAL DEFECT: the heading was the template
   // literal `${brand} vs. lámparas decorativas comunes`, so every landing
