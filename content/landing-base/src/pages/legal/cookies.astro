@@ -1,44 +1,93 @@
 ---
-// POLICY, not consent. These are two different things and this page is only
-// the first: it documents the storage and third parties that were verified in
-// the code, and it deliberately does NOT claim a preference centre exists,
-// because none does.
+// POLICY, not consent — two different things, and this page is the first.
+// Everything below was verified in this repository; nothing is inherited from
+// a template.
 //
-// INTERNAL NOTE, NOT RENDERED: `Cookie consent & analytics audit` is still
-// pending. Google Analytics and Microsoft Clarity are loaded from Base.astro
-// gated only by `import.meta.env.PROD` and a configured id — there is no
-// consent gate before them. That is a compliance question, not a copy
-// question, and it belongs to that audit rather than to this page.
+// TERMINOLOGY IS DELIBERATE. "Cookies" is the colloquial title, but the page
+// separates the three mechanisms because they behave differently and expire
+// differently: cookies (third-party, not ours), localStorage (persists until
+// cleared) and sessionStorage (dies with the tab). Calling
+// `astravibe:offerEndsAt` a cookie would be wrong, and its omission from the
+// first version of this page is exactly what a vague heading hides.
+//
+// NO INVENTED DURATIONS. We state what the code guarantees — localStorage until
+// cleared or checkout, sessionStorage until the tab closes — and we do not
+// claim retention periods for Shopify, SumUp, Google or Microsoft, because we
+// do not set them.
 import LegalPage from '@/layouts/LegalPage.astro';
 import { merchant } from '@/data/merchant';
+import { MANAGE_COOKIES_HREF } from '@/lib/navigation';
 
 // Same as index.astro: this is a static page, not a per-request function.
 export const prerender = true;
 ---
-<LegalPage title="Política de cookies" intro="Qué almacena esta tienda en tu navegador y qué terceros intervienen.">
+<LegalPage title="Política de cookies" intro="Qué almacena esta tienda en tu navegador, qué terceros intervienen y cómo controlarlo.">
   {merchant && (
     <>
       <h2 class="text-lg font-bold">Almacenamiento propio</h2>
       <p>
-        Esta tienda guarda en el almacenamiento local de tu navegador un único dato:
-        el <strong>identificador de tu carrito</strong>. Sirve para que tu selección siga
-        disponible si cerrás la pestaña y volvés. No contiene datos personales ni de pago.
+        Esta tienda no instala cookies propias. Utiliza dos elementos de almacenamiento
+        local del navegador, ambos necesarios para que el sitio funcione:
       </p>
-
-      <h2 class="text-lg font-bold">Cookies de terceros</h2>
-      <p>Durante la compra y la navegación pueden intervenir estos servicios:</p>
-      <ul class="list-disc space-y-1 pl-5">
-        <li><strong>Shopify</strong>: necesarias para el carrito y el proceso de compra.</li>
-        <li><strong>SumUp</strong>: necesarias para procesar el pago.</li>
-        <li><strong>Google Analytics</strong>: analítica de uso, cuando está configurada.</li>
-        <li><strong>Microsoft Clarity</strong>: analítica de uso, cuando está configurada.</li>
+      <ul class="list-disc space-y-2 pl-5">
+        <li>
+          <strong>Identificador de carrito</strong> (<code class="text-xs">localStorage</code>).
+          Guarda la referencia de tu carrito para que tu selección siga disponible si volvés
+          a la página. Permanece hasta que finalizás la compra o borrás los datos del sitio.
+          No contiene datos personales ni de pago.
+        </li>
+        <li>
+          <strong>Fin de la oferta</strong> (<code class="text-xs">sessionStorage</code>).
+          Guarda el momento en que termina la cuenta atrás mostrada en la barra superior,
+          para que no se reinicie al navegar. Se borra al cerrar la pestaña y no se envía
+          a ningún servidor.
+        </li>
       </ul>
 
-      <h2 class="text-lg font-bold">Cómo gestionarlas</h2>
+      <h2 class="text-lg font-bold">Preferencia de consentimiento</h2>
       <p>
-        Podés bloquear o eliminar cookies y borrar el almacenamiento local desde la
-        configuración de tu navegador. Ten en cuenta que bloquear las de Shopify o SumUp
-        impide completar una compra.
+        Cuando elegís si aceptar o rechazar la analítica, tu decisión se guarda en el
+        <code class="text-xs">localStorage</code> de tu navegador para no volver a
+        preguntártelo en cada visita. Permanece hasta que la cambiás o borrás los datos
+        del sitio.
+      </p>
+
+      <h2 class="text-lg font-bold">Analítica — sólo con tu permiso</h2>
+      <p>
+        <strong>No cargamos ninguna herramienta de analítica hasta que la aceptás.</strong>
+        Si no aceptás, sus scripts no se descargan y no se envía ninguna petición a sus
+        servidores. Si aceptás, se cargan:
+      </p>
+      <ul class="list-disc space-y-1 pl-5">
+        <li><strong>Google Analytics</strong> — medición de uso del sitio.</li>
+        <li><strong>Microsoft Clarity</strong> — análisis de uso e interacción.</li>
+      </ul>
+      <p>
+        Ambos son servicios de terceros con sus propias políticas y su propio
+        almacenamiento en tu navegador.
+      </p>
+
+      <h2 class="text-lg font-bold">Servicios necesarios para comprar</h2>
+      <p>
+        Al añadir un producto al carrito o completar la compra intervienen
+        <strong>Shopify</strong> (carrito y proceso de compra) y <strong>SumUp</strong>
+        (procesamiento del pago), con el almacenamiento que cada uno necesite para
+        operar. Sin ellos no es posible completar un pedido, por lo que no forman parte
+        de la elección de analítica.
+      </p>
+
+      <h2 class="text-lg font-bold">Cambiar o retirar tu decisión</h2>
+      <p>
+        Podés cambiarla en cualquier momento desde
+        {' '}<a class="text-rust underline" href={MANAGE_COOKIES_HREF}>Gestionar cookies</a>,
+        en el pie de página. Si retirás el permiso, la página se recarga y la analítica
+        deja de cargarse a partir de ese momento.
+      </p>
+      <p>
+        Ten en cuenta que retirar el permiso <strong>detiene la recogida futura</strong>,
+        pero no elimina por sí solo el almacenamiento que esos servicios ya hubieran creado
+        en tu navegador mientras estuvieron activos. Podés borrarlo desde la configuración
+        de tu navegador, junto con el resto de datos del sitio.
       </p>
 
       <h2 class="text-lg font-bold">Contacto</h2>
