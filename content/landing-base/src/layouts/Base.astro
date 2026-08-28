@@ -1,4 +1,20 @@
 ---
+// NO ANALYTICS TAG IS EMITTED BY THIS LAYOUT ANY MORE.
+//
+// GA4 and Microsoft Clarity used to be inserted straight into the <head>
+// below, gated only by `import.meta.env.PROD && <id configured>` — so a
+// production landing loaded both, and fired view_item, on first paint with no
+// interaction and no consent. Clarity is a session recorder.
+//
+// They are now injected by lib/analytics-loader.ts, and only after the visitor
+// accepts. The UI that lets someone accept lands in the very next commit;
+// until it does, analytics simply never loads.
+//
+// AND THIS NOTE LIVES IN THE FRONTMATTER, NOT BESIDE THE ELEMENT: Astro passes
+// `<!-- -->` straight through to the rendered DOM, so an HTML comment here
+// would ship this paragraph into every generated landing. It did, until a
+// build grep caught the word `view_item` still in the output — coming from the
+// comment that explains its removal.
 import '@/styles/global.css';
 // Imported AFTER global.css so the family/density scopes land later in the
 // cascade. Kept out of global.css on purpose — see that file's header: the
@@ -6,7 +22,6 @@ import '@/styles/global.css';
 // whole of global.css, so redeclaring them there would weaken its
 // fail-closed check.
 import '@/styles/design-system.css';
-import { getSecret } from 'astro:env/server';
 import { design } from '@/data/design';
 
 interface Props {
@@ -17,9 +32,8 @@ interface Props {
 const { title, description } = Astro.props;
 const ogImage = new URL('/og-cover.png', Astro.site ?? Astro.url).toString();
 
-// Gated to prod so local/preview traffic doesn't pollute GA4/Clarity data.
-const gaId = import.meta.env.PROD ? getSecret('PUBLIC_GA_MEASUREMENT_ID') : undefined;
-const clarityId = import.meta.env.PROD ? getSecret('PUBLIC_CLARITY_PROJECT_ID') : undefined;
+// The GA4 / Clarity ids are no longer read here: lib/analytics-loader.ts
+// reads them from PUBLIC_ env in the browser, after consent.
 ---
 
 <!doctype html>
@@ -48,39 +62,6 @@ const clarityId = import.meta.env.PROD ? getSecret('PUBLIC_CLARITY_PROJECT_ID') 
 
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 
-    {gaId && (
-      <>
-        <script is:inline async src={`https://www.googletagmanager.com/gtag/js?id=${gaId}`}></script>
-        <script is:inline define:vars={{ gaId }}>
-          window.dataLayer = window.dataLayer || [];
-          function gtag() {
-            dataLayer.push(arguments);
-          }
-          // define:vars wraps this script in an IIFE, so `gtag` is scoped to
-          // it — exposed explicitly so lib/analytics.ts can reach it.
-          window.gtag = gtag;
-          gtag('js', new Date());
-          gtag('config', gaId);
-        </script>
-      </>
-    )}
-
-    {clarityId && (
-      <script is:inline define:vars={{ clarityId }}>
-        (function (c, l, a, r, i, t, y) {
-          c[a] =
-            c[a] ||
-            function () {
-              (c[a].q = c[a].q || []).push(arguments);
-            };
-          t = l.createElement(r);
-          t.async = 1;
-          t.src = 'https://www.clarity.ms/tag/' + i;
-          y = l.getElementsByTagName(r)[0];
-          y.parentNode.insertBefore(t, y);
-        })(window, document, 'clarity', 'script', clarityId);
-      </script>
-    )}
   </head>
   <!-- Design System Fase 3: the DesignSpec's `design.family` / `design.density`
        become real CSS scopes here. global.css redefines @theme tokens under

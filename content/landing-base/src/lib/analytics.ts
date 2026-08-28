@@ -1,13 +1,22 @@
 /**
- * Thin wrapper around GA4's gtag — Base.astro exposes `window.gtag` only
- * when PUBLIC_GA_MEASUREMENT_ID is set (prod-only, see astro:env schema).
- * No-ops everywhere else (dev, preview, GA unset) instead of throwing.
+ * Thin wrapper around GA4's gtag.
+ *
+ * `window.gtag` is now published ONLY by lib/analytics-loader.ts, and only
+ * after the visitor accepts analytics — Base.astro no longer emits the tag
+ * itself. So this function's existing guard became the consent gate for every
+ * event call site for free: with no consent there is no `gtag`, and every
+ * trackEvent() is a no-op. add_to_cart, begin_checkout and purchase needed no
+ * changes at all.
+ *
+ * It also means consent is NOT retrospective: an event that no-oped before
+ * acceptance is gone, not queued. That is deliberate — see analytics-loader.
  */
 type GtagFn = (...args: unknown[]) => void;
 
 declare global {
   interface Window {
     gtag?: GtagFn;
+    dataLayer?: unknown[];
   }
 }
 

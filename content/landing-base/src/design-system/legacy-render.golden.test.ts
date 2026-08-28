@@ -47,7 +47,13 @@ describe('legacy runtime golden at 2074c93', () => {
       new URL('./test-fixtures/LegacyIndex2074c93.astro', import.meta.url),
     );
     const hash = createHash('sha256').update(readFileSync(fixturePath)).digest('hex');
-    expect(hash).toBe('5cccf3305947f505290acec2b4da9486028d6ebc3f9122847a2d0f71f697426a');
+    // UPDATED CONSCIOUSLY, ONCE, by the cookie-consent phase. The fixture's
+    // section composition is unchanged; only the page-level analytics chrome
+    // moved — the inline window.gtag('view_item') block became the ViewItem
+    // island — and the SAME change was applied to index.astro in the same
+    // commit. See the fixture's own header for why leaving the old block would
+    // have pinned an un-consented analytics event as a requirement.
+    expect(hash).toBe('a398a3fa8262f1253623be845decfb51b45d00c2f114775c9ddd16f1e4af4e5f');
   });
 
   test('the default DesignSpec renders byte-identically to the static legacy page', async () => {

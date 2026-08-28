@@ -1,5 +1,22 @@
 ---
+// UPDATED CONSCIOUSLY, ONCE, by the cookie-consent phase.
+//
+// This fixture is index.astro frozen at HEAD 2074c93, and its job is proving
+// that the default DesignSpec still composes the SECTIONS the pre-registry
+// page composed. That job is untouched: every section import and the shell
+// order below are exactly as they were.
+//
+// What changed is page-level analytics chrome, which this fixture happened to
+// carry: the `is:inline` window.gtag('view_item') block that ran on load. It
+// is now the ViewItem island, which registers the payload and lets
+// lib/analytics-loader.ts decide whether consent permits sending it. Leaving
+// the old block here would have made this test demand that the legacy page
+// keep firing an un-consented analytics event forever.
+//
+// The section composition invariant is unchanged. Only the analytics chrome
+// moved, in both files, identically.
 import Base from '@/layouts/Base.astro';
+import { ViewItem } from '@/components/islands/ViewItem';
 import UtilityBar from '@/components/sections/01-utility-bar.astro';
 import SiteHeader from '@/components/sections/02-site-header.astro';
 import Hero from '@/components/sections/03-hero.astro';
@@ -52,24 +69,12 @@ const defaultVariant = commerce.variants.find((v) => v.id === commerce.defaultVa
   <CartDrawer client:load commerce={commerce} />
 
   {defaultVariant && (
-    // is:inline can't `import` lib/analytics.ts, so this calls window.gtag
-    // directly — Base.astro only defines it when GA is actually enabled.
-    <script
-      is:inline
-      define:vars={{
-        itemId: defaultVariant.id,
-        itemName: commerce.title,
-        price: defaultVariant.unitPriceCents / 100,
-        currency: commerce.currencyCode,
-      }}
-    >
-      if (typeof window.gtag === 'function') {
-        window.gtag('event', 'view_item', {
-          currency: currency,
-          value: price,
-          items: [{ item_id: itemId, item_name: itemName, price: price, quantity: 1 }],
-        });
-      }
-    </script>
+    <ViewItem
+      client:idle
+      itemId={defaultVariant.id}
+      itemName={commerce.title}
+      price={defaultVariant.unitPriceCents / 100}
+      currency={commerce.currencyCode}
+    />
   )}
 </Base>

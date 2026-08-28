@@ -1,5 +1,6 @@
 ---
 import Base from '@/layouts/Base.astro';
+import { ViewItem } from '@/components/islands/ViewItem';
 import UtilityBar from '@/components/sections/01-utility-bar.astro';
 import SiteHeader from '@/components/sections/02-site-header.astro';
 import SiteFooter from '@/components/sections/14-site-footer.astro';
@@ -86,24 +87,12 @@ const defaultVariant = commerce.variants.find((v) => v.id === commerce.defaultVa
   <CartDrawer client:load commerce={commerce} />
 
   {defaultVariant && (
-    // is:inline can't `import` lib/analytics.ts, so this calls window.gtag
-    // directly — Base.astro only defines it when GA is actually enabled.
-    <script
-      is:inline
-      define:vars={{
-        itemId: defaultVariant.id,
-        itemName: commerce.title,
-        price: defaultVariant.unitPriceCents / 100,
-        currency: commerce.currencyCode,
-      }}
-    >
-      if (typeof window.gtag === 'function') {
-        window.gtag('event', 'view_item', {
-          currency: currency,
-          value: price,
-          items: [{ item_id: itemId, item_name: itemName, price: price, quantity: 1 }],
-        });
-      }
-    </script>
+    <ViewItem
+      client:idle
+      itemId={defaultVariant.id}
+      itemName={commerce.title}
+      price={defaultVariant.unitPriceCents / 100}
+      currency={commerce.currencyCode}
+    />
   )}
 </Base>
