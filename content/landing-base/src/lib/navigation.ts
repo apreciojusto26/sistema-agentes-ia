@@ -44,6 +44,13 @@ export const LEGAL_ROUTES = {
   notice: '/legal/aviso-legal',
 } as const;
 
+/**
+ * The footer's "manage cookies" control. A real href so it is a link for
+ * keyboard and screen readers, intercepted by the consent island; it also
+ * degrades to the policy page if the island never mounts.
+ */
+export const MANAGE_COOKIES_HREF = '/legal/cookies#preferencias';
+
 export interface NavLink {
   label: string;
   href: string;
@@ -77,6 +84,11 @@ export const FOOTER_COLUMNS: ReadonlyArray<{ title: string; links: readonly NavL
       { label: 'Privacidad', href: LEGAL_ROUTES.privacy },
       { label: 'Cookies', href: LEGAL_ROUTES.cookies },
       { label: 'Aviso legal', href: LEGAL_ROUTES.notice },
+      // Not a route: reopens the preferences panel so a decision can be
+      // CHANGED. Linking to /legal/cookies instead would explain the choice
+      // without offering it, which is the complaint people have about most
+      // cookie footers.
+      { label: 'Gestionar cookies', href: MANAGE_COOKIES_HREF },
     ],
   },
 ];

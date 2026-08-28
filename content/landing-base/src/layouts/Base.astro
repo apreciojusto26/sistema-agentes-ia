@@ -16,6 +16,7 @@
 // build grep caught the word `view_item` still in the output — coming from the
 // comment that explains its removal.
 import '@/styles/global.css';
+import { ConsentGate } from '@/components/islands/ConsentGate';
 // Imported AFTER global.css so the family/density scopes land later in the
 // cascade. Kept out of global.css on purpose — see that file's header: the
 // generator's patchThemeBlock() regex-matches token declarations across the
@@ -71,5 +72,6 @@ const ogImage = new URL('/og-cover.png', Astro.site ?? Astro.url).toString();
        the rendered markup is a pure function of the spec. -->
   <body data-design-family={design.design.family} data-density={design.design.density}>
     <slot />
+    <ConsentGate client:idle />
   </body>
 </html>
