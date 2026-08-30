@@ -1,0 +1,89 @@
+---
+// DESIGN SYSTEM building block — socialProof/FeaturedTestimonial/default.
+//
+// ONE composition, ONE dial. This capability used to exist TWICE in the
+// registry: `socialProof/FeaturedTestimonial/default` (the legacy section) and
+// `socialProof/FeaturedQuote/default` (a block with a `tone` prop). Both were
+// born of the same Fase 2 decision at 19f60d5 that also created
+// `hero/ProductHero/split` — "deliberately given NEW type names rather than
+// re-pointing a legacy key".
+//
+// Unlike Hero, though, the two were NOT different compositions. Rendered
+// against the same frozen data they differed by a background class, three
+// colour tokens and the ORDER of two classes on one paragraph. Same tags, same
+// nesting, same element count. By this system's own rule — variant chooses a
+// composition, propsSchema dials one that already exists — that is a PROP.
+//
+// So there is no `quote` variant. There is one composition with three tones,
+// and FeaturedQuote is gone from the registry entirely.
+//
+// WHY `plain` EXISTS. It is not a preventive enum value. The legacy section
+// renders with NO background at all, and neither `light` nor `muted` could
+// express that — so without `plain` the historical composition would have
+// become unreachable and the legacy path would have silently gained a surface.
+// `plain` is what keeps the migration byte-preserving.
+//
+// EVERY TONE IS A COMPLETE CLASS STRING, not a base plus a token. Tailwind v4
+// scans source text, so each literal must be whole; and writing them out in
+// full is also what lets `plain` reproduce the legacy attribute EXACTLY,
+// including class order. The three literals below differ only in colour, which
+// is the evidence that `tone` is a dial.
+import { testimonials } from '@/data/testimonials';
+import { reviewerDisplayName } from '@/lib/reviewer-identity';
+
+interface Props {
+  tone?: 'plain' | 'light' | 'muted';
+}
+
+// `plain` is the default deliberately: an omitted prop must reproduce the
+// legacy render, never introduce styling nobody asked for. The legacy shim
+// relies on this and so does every DesignSpec that omits props.
+const { tone = 'plain' } = Astro.props;
+
+const SECTION = {
+  plain: 'py-12 text-center md:py-16',
+  light: 'py-12 text-center md:py-16 bg-surface',
+  muted: 'py-12 text-center md:py-16 bg-bone-dim',
+} as const;
+
+const QUOTE_MARK = {
+  plain: 'font-display text-6xl text-rust/20',
+  light: 'font-display text-6xl text-rust/20',
+  muted: 'font-display text-6xl text-graphite/15',
+} as const;
+
+const BODY = {
+  plain: 'text-xl leading-snug text-graphite md:text-2xl',
+  light: 'text-xl leading-snug text-graphite md:text-2xl',
+  muted: 'text-xl leading-snug text-graphite-soft md:text-2xl',
+} as const;
+
+const section = SECTION[tone];
+const quoteMark = QUOTE_MARK[tone];
+const body = BODY[tone];
+
+// The SAME selector the legacy section always used. `reviewerDisplayName`
+// resolves a masked marketplace author to "Cliente" without destroying the raw
+// value in src/data/testimonials.ts — the mask is provenance.
+const featured = testimonials.find((t) => t.variant === 'quote');
+---
+
+{
+  featured && (
+    <section class={section}>
+      <div class="mx-auto w-full max-w-[36rem] px-5 lg:max-w-[42rem]">
+        <p class={quoteMark} aria-hidden="true">
+          &rdquo;
+        </p>
+        <p class={body}>{featured.body}</p>
+
+        <div class="mt-6 flex items-center justify-center">
+          <div class="text-left">
+            <p class="text-sm font-bold text-graphite">{reviewerDisplayName(featured.author)}</p>
+
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}

@@ -15,7 +15,7 @@
     },
     {
       "category": "socialProof",
-      "type": "FeaturedQuote",
+      "type": "FeaturedTestimonial",
       "variant": "default",
       "order": 1,
       "props": { "tone": "muted" }

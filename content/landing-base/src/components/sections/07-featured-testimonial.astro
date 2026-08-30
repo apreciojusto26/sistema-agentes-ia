@@ -1,26 +1,23 @@
 ---
-import { testimonials } from '@/data/testimonials';
-import { reviewerDisplayName } from '@/lib/reviewer-identity';
-
-const featured = testimonials.find((t) => t.variant === 'quote');
+// LEGACY PATH SHIM — kept deliberately, not dead code.
+//
+// The composition this file used to hold moved to
+// @/design-system/blocks/social-proof/FeaturedTestimonial/Default.astro when
+// socialProof/FeaturedTestimonial absorbed socialProof/FeaturedQuote. The
+// registry now points at the block; nothing resolves this path through the
+// registry any more.
+//
+// It survives because design-system/test-fixtures/LegacyIndex2074c93.astro is
+// BYTE-LOCKED to index.astro at HEAD 2074c93 and imports this module
+// statically. legacy-render.golden.test.ts renders that fixture against the
+// live default-DesignSpec page and requires the two to be byte-identical.
+//
+// `tone="plain"` is passed EXPLICITLY even though it is also the block's
+// default. The legacy path is the one thing that must never move if someone
+// later argues about which default is friendlier; writing it down here means
+// that argument cannot reach this render by accident.
+// Do not re-add markup here. Edit the block.
+import FeaturedTestimonial from '@/design-system/blocks/social-proof/FeaturedTestimonial/Default.astro';
 ---
 
-{
-  featured && (
-    <section class="py-12 text-center md:py-16">
-      <div class="mx-auto w-full max-w-[36rem] px-5 lg:max-w-[42rem]">
-        <p class="font-display text-6xl text-rust/20" aria-hidden="true">
-          &rdquo;
-        </p>
-        <p class="text-xl leading-snug text-graphite md:text-2xl">{featured.body}</p>
-
-        <div class="mt-6 flex items-center justify-center">
-          <div class="text-left">
-            <p class="text-sm font-bold text-graphite">{reviewerDisplayName(featured.author)}</p>
-
-          </div>
-        </div>
-      </div>
-    </section>
-  )
-}
+<FeaturedTestimonial tone="plain" />

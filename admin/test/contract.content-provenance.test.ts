@@ -71,7 +71,7 @@ describe('purchase verification cannot be fabricated', () => {
     // Not a CSS check — a source check across every renderer.
     const files = [
       'content/landing-base/src/components/sections/07-featured-testimonial.astro',
-      'content/landing-base/src/design-system/blocks/social-proof/FeaturedQuote/Default.astro',
+      'content/landing-base/src/design-system/blocks/social-proof/FeaturedTestimonial/Default.astro',
       'content/landing-base/src/design-system/blocks/social-proof/ReviewsReel/Grid.astro',
       'content/landing-base/src/components/islands/ReviewCarousel.tsx',
     ];
@@ -119,15 +119,33 @@ describe('every renderer goes through the ONE reviewer identity helper', () => {
   // page source — visible text said "Cliente" while view-source said
   // otherwise. It therefore receives names ALREADY resolved by reel-reviews.ts,
   // and the guard follows the resolution to where it actually happens.
+  //
+  // socialProof/FeaturedTestimonial appears ONCE now, at its block. It used to
+  // appear twice — once at the legacy section, once at FeaturedQuote — and the
+  // two have been merged into a single capability. The legacy section is a
+  // one-line shim; pointing a MUST-CONTAIN assertion at it would have been the
+  // green-but-empty failure mode this suite exists to prevent, so the shim gets
+  // the opposite guard instead, right below: it must read no testimonial at all.
   const RENDERERS = [
-    ['FeaturedTestimonial', 'content/landing-base/src/components/sections/07-featured-testimonial.astro'],
-    ['FeaturedQuote', 'content/landing-base/src/design-system/blocks/social-proof/FeaturedQuote/Default.astro'],
+    ['FeaturedTestimonial', 'content/landing-base/src/design-system/blocks/social-proof/FeaturedTestimonial/Default.astro'],
     ['ReviewsReel/Grid', 'content/landing-base/src/design-system/blocks/social-proof/ReviewsReel/Grid.astro'],
     ['ReviewsReel/Carousel (via reel-reviews)', 'content/landing-base/src/design-system/blocks/social-proof/ReviewsReel/reel-reviews.ts'],
   ] as const;
 
   test.each(RENDERERS)('%s resolves through reviewerDisplayName', (_n, f) => {
     expect(read(f)).toMatch(/reviewerDisplayName/);
+  });
+
+  test('the FeaturedTestimonial shim renders no reviewer of its own', () => {
+    // The inverse guard. This file must DELEGATE, not resolve: if markup ever
+    // came back to it, it could reach an author without the helper and the
+    // sweep above would never see it.
+    const shim = read('content/landing-base/src/components/sections/07-featured-testimonial.astro');
+    expect(shim, 'the shim selects testimonials again').not.toMatch(/testimonials/);
+    expect(shim, 'the shim reads an author again').not.toMatch(/\.author\b/);
+    expect(shim, 'the shim no longer delegates to the block').toMatch(
+      /blocks\/social-proof\/FeaturedTestimonial\/Default\.astro/,
+    );
   });
 
   test.each(RENDERERS)('%s renders NO raw author', (name, f) => {

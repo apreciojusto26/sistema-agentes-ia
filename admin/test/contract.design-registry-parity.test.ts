@@ -152,6 +152,15 @@ describe('design registry parity — build-time ↔ runtime', () => {
         // block. That is exactly why it has to be listed here — the default
         // spec is unchanged, so nothing else would have noticed.
         'hero/Hero/default',
+        // socialProof/FeaturedTestimonial/default is the THIRD, and the only
+        // one whose key did not move at all — not even the variant. It absorbed
+        // socialProof/FeaturedQuote, so the composition behind this key is now a
+        // block with a `tone` prop, while src/data/design.ts still names the
+        // very same type and variant and still passes NO props. The default
+        // therefore has to be `plain`, and that is not taken on trust: the
+        // FeaturedTestimonial row in historical-markup.golden.test.ts renders
+        // this exact path and compares it to the 4732910 markup byte-for-byte.
+        'socialProof/FeaturedTestimonial/default',
         // conversion/BuyBox/card is the second of these that kept its key shape
         // partially: the type stayed 'BuyBox' but the variant moved from
         // 'default' to 'card', so src/data/design.ts DID change — one line,

@@ -79,6 +79,7 @@ import HowItWorks from '@/components/sections/06-how-it-works.astro';
 import Comparison from '@/components/sections/11-comparison.astro';
 import Hero from '@/components/sections/03-hero.astro';
 import BuyBox from '@/components/sections/05-buy-box.astro';
+import FeaturedTestimonial from '@/components/sections/07-featured-testimonial.astro';
 // hero/Hero/split has no legacy section path — it was born in the design
 // system — so it is reached directly. Both align values are frozen: `align` is
 // a PROP that dials one composition, and the golden has to pin both settings of
@@ -121,6 +122,29 @@ const FIXTURE_SHA256: Record<string, string> = {
   // is also independent proof that e1bf155's buy-action extraction preserved
   // the markup.
   BuyBox: '15eefa905197041ec745bb672796d9d1d3f43d15db637153c111213117e2e434',
+  // socialProof/FeaturedTestimonial, frozen BEFORE its conversion, rendered in
+  // a worktree checked out at 4732910. This one is LITERALLY the 4732910
+  // markup — no derivation, no reconciliation — and that outcome was earned
+  // rather than assumed.
+  //
+  // It was not obvious it would be. 8f26043 (the content-integrity phase)
+  // changed this exact section twice: it dropped a `Compra verificada` badge
+  // that rendered off a fabricated `verified` flag, and it routed the author
+  // through reviewerDisplayName() so a masked marketplace handle like `Y***t`
+  // shows as `Cliente`. A historical fixture that resurrected either one would
+  // have re-armed a defect in the name of byte compatibility.
+  //
+  // It does not, because GOLDEN_DATA's quote testimonial carries no `verified`
+  // and no `location`, and its author is unmasked — so the 4732910 component
+  // and today's block agree on it byte-for-byte, and the two integrity fixes
+  // stay covered where they belong (ReviewsReel's fixture pins `location`;
+  // reviewer-identity has its own tests). Both invariants hold at once.
+  //
+  // The derivation was RUN before it was claimed: rendered against a probe
+  // carrying `verified: true`, `location` and a masked author, the 4732910
+  // output differed from today's by exactly the badge and exactly the author
+  // string, and by nothing structural. Same tags, same nesting, same count.
+  FeaturedTestimonial: '7c5bdc383d264f7dd7400417bd842f4cff41ab6c8de5a2079725d98673a24741',
 };
 
 /** [fixture name, component, baseline commit, props]. */
@@ -135,6 +159,9 @@ const CASES = [
   ['HeroSplitLeft', HeroSplit, '19f60d5 + sentinel fix', { align: 'left' }],
   ['HeroSplitCenter', HeroSplit, '19f60d5 + sentinel fix', { align: 'center' }],
   ['BuyBox', BuyBox, '4732910', {}],
+  // Reached through the SHIM, which passes tone="plain" — so this row pins the
+  // whole legacy path, not just the block's default.
+  ['FeaturedTestimonial', FeaturedTestimonial, '4732910', {}],
 ] as const;
 
 const fixturePath = (name: string) => fileURLToPath(new URL(`./${name}.html`, import.meta.url));
@@ -174,7 +201,7 @@ describe('historical markup golden (references: 4732910, 19f60d5)', () => {
     expect(Object.keys(FIXTURE_SHA256).sort()).toEqual(
       [
         'Comparison', 'Faq', 'GalleryStrip', 'HowItWorks', 'ReviewsReel', 'UgcStrip',
-        'Hero', 'HeroSplitLeft', 'HeroSplitCenter', 'BuyBox',
+        'Hero', 'HeroSplitLeft', 'HeroSplitCenter', 'BuyBox', 'FeaturedTestimonial',
       ].sort(),
     );
     // Every fixture is also actually RENDERED. A sha entry with no CASES row
@@ -196,7 +223,7 @@ describe('historical markup golden (references: 4732910, 19f60d5)', () => {
         .toBe(true);
     }
     // No OTHER frozen reference grew one — the sentinel belongs to the hero.
-    for (const name of ['Comparison', 'Faq', 'GalleryStrip', 'HowItWorks', 'ReviewsReel', 'UgcStrip', 'BuyBox']) {
+    for (const name of ['Comparison', 'Faq', 'GalleryStrip', 'HowItWorks', 'ReviewsReel', 'UgcStrip', 'BuyBox', 'FeaturedTestimonial']) {
       expect(readFileSync(fixturePath(name), 'utf-8'), `${name} grew a hero sentinel`)
         .not.toContain('hero-end');
     }

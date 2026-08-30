@@ -359,7 +359,8 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
     // Asserted by identity, not just by length: a bare length check would go
     // green if a legacy capability were swapped for a block.
     const LEGACY_KEYS = [
-      'socialProof/FeaturedTestimonial/default',
+      // 'socialProof/FeaturedTestimonial/default' LEFT this list: it is a block
+      // now, and 07-featured-testimonial.astro is a shim.
       'conversion/Guarantee/default',
       'socialProof/RealResults/default',
     ];
@@ -373,7 +374,14 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
       // The first hero composition with NO legacy ancestor — proof the unified
       // capability can grow a genuinely new variant without a new type.
       'hero/Hero/editorial',
-      'socialProof/FeaturedQuote/default',
+      // socialProof/FeaturedTestimonial is the mirror image of hero/Hero above.
+      // Hero absorbed a second TYPE and kept both compositions as variants;
+      // this one absorbed 'socialProof/FeaturedQuote/default' and kept a single
+      // composition, because the two were never structurally different. The
+      // difference between them is a `tone` prop — plain | light | muted — and
+      // blocks.render.test.ts fails if those three ever stop emitting an
+      // identical tag sequence.
+      'socialProof/FeaturedTestimonial/default',
       'conversion/ProductGuarantee/default',
       // Structural variants v1: socialProof/ReviewsReel LEFT the legacy list.
       // Its composition moved into these two blocks and
@@ -413,8 +421,12 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
     const keyOf = (e: { category: string; type: string; variant: string }) =>
       `${e.category}/${e.type}/${e.variant}`;
 
-    test('registers exactly the 3 legacy sections plus the 21 building blocks', () => {
-      expect(registryModule.REGISTRY).toHaveLength(24);
+    // 24 -> 23, and this is the FIRST phase in which that number went DOWN.
+    // Every earlier one added capabilities; this one deleted a duplicate. The
+    // block count is unchanged at 21 because FeaturedQuote left and
+    // FeaturedTestimonial arrived in its place; the legacy count is what fell.
+    test('registers exactly the 2 legacy sections plus the 21 building blocks', () => {
+      expect(registryModule.REGISTRY).toHaveLength(23);
       expect(registryModule.REGISTRY.map(keyOf)).toEqual([...LEGACY_KEYS, ...BLOCK_KEYS]);
     });
 

@@ -15,7 +15,7 @@ import { experimental_AstroContainer as AstroContainer } from 'astro/container';
 
 import HeroSplit from './hero/Hero/Split.astro';
 import HeroDefault from './hero/Hero/Default.astro';
-import FeaturedQuoteDefault from './social-proof/FeaturedQuote/Default.astro';
+import FeaturedTestimonialDefault from './social-proof/FeaturedTestimonial/Default.astro';
 import ProductGuaranteeDefault from './conversion/ProductGuarantee/Default.astro';
 
 const container = await AstroContainer.create();
@@ -60,22 +60,69 @@ describe('Hero/split — align is a REAL rendering difference, NOT a variant', (
   });
 });
 
-describe('FeaturedQuote/default — tone is a REAL rendering difference', () => {
-  test('tone="light" and tone="muted" emit different markup', async () => {
-    const light = await render(FeaturedQuoteDefault, { tone: 'light' });
-    const muted = await render(FeaturedQuoteDefault, { tone: 'muted' });
+describe('FeaturedTestimonial/default — tone is a PROP, and this is the proof', () => {
+  const TONES = ['plain', 'light', 'muted'] as const;
 
-    expect(light).not.toBe(muted);
-    expect(light).toContain('bg-surface');
-    expect(muted).toContain('bg-bone-dim');
-    expect(light).not.toContain('bg-bone-dim');
-    expect(muted).not.toContain('bg-surface');
+  // The INVERSE of the Hero evidence above. There, two prop values had to
+  // produce visibly different markup to earn the `align` prop. Here the burden
+  // runs the other way: `tone` earns its place as a prop only if the three
+  // values are the SAME composition with a dial turned. If they were not, this
+  // capability would owe the registry three variants, not one.
+  //
+  // socialProof/FeaturedQuote used to be that second capability. It is gone.
+  const skeleton = (html: string) => (html.match(/<[a-z][a-z0-9-]*/gi) ?? []).join(' ');
+
+  test('all three tones emit an IDENTICAL tag sequence', async () => {
+    const skeletons = await Promise.all(
+      TONES.map(async (tone) => skeleton(await render(FeaturedTestimonialDefault, { tone }))),
+    );
+    // THE EMPTY-RENDER TRAP, GUARDED FIRST. This block renders nothing at all
+    // when no quote testimonial is selected — and three empty strings are also
+    // "identical". Without this, a broken selector would turn the assertion
+    // below into a green test that proves nothing.
+    for (const s of skeletons) {
+      expect(s.startsWith('<section'), `empty render: ${s}`).toBe(true);
+      expect(s.split(' ').length, `suspiciously small render: ${s}`).toBeGreaterThan(4);
+    }
+
+    // Same tags, same order, same count — nesting included, because the
+    // sequence of open tags encodes the tree for markup with no reordering.
+    expect(new Set(skeletons).size, `tone changed the structure: ${skeletons.join(' | ')}`).toBe(1);
   });
 
-  test('emits no undefined class for either tone', async () => {
-    for (const tone of ['light', 'muted']) {
-      const out = await render(FeaturedQuoteDefault, { tone });
+  test('the ONLY thing tone moves is the class attribute', async () => {
+    const stripped = await Promise.all(
+      TONES.map(async (tone) =>
+        (await render(FeaturedTestimonialDefault, { tone })).replace(/ class="[^"]*"/g, ''),
+      ),
+    );
+    expect(new Set(stripped).size, 'tone changed something other than classes').toBe(1);
+  });
+
+  test('each tone still emits its own surface, with no leakage', async () => {
+    const [plain, light, muted] = await Promise.all(
+      TONES.map((tone) => render(FeaturedTestimonialDefault, { tone })),
+    );
+
+    // `plain` draws NO background. This is the whole reason it exists: the
+    // legacy section had none, and neither of the other two could say so.
+    expect(plain).not.toContain('bg-surface');
+    expect(plain).not.toContain('bg-bone-dim');
+
+    expect(light).toContain('bg-surface');
+    expect(light).not.toContain('bg-bone-dim');
+    expect(muted).toContain('bg-bone-dim');
+    expect(muted).not.toContain('bg-surface');
+
+    // …and they are genuinely three renders, not one aliased three ways.
+    expect(new Set([plain, light, muted]).size).toBe(3);
+  });
+
+  test('emits no undefined class for any tone', async () => {
+    for (const tone of TONES) {
+      const out = await render(FeaturedTestimonialDefault, { tone });
       expect(out, `tone=${tone}`).not.toContain('undefined');
+      expect(out, `tone=${tone}`).not.toContain('class=""');
     }
   });
 });
@@ -108,7 +155,7 @@ describe('every block defaults to a valid variant when no prop is supplied', () 
   test.each([
     ['Hero/default', HeroDefault],
     ['Hero/split', HeroSplit],
-    ['FeaturedQuote/default', FeaturedQuoteDefault],
+    ['FeaturedTestimonial/default', FeaturedTestimonialDefault],
     ['ProductGuarantee/default', ProductGuaranteeDefault],
   ])('%s renders with no props', async (_name, Component) => {
     const out = await render(Component, {});

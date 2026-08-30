@@ -230,6 +230,28 @@ describe('scope-boundaries (Batch G — machine-checkable, spec R14)', () => {
     // buy-action.contract.test.ts, and
     // design-system/blocks/conversion/BuyBox/variants.render.test.ts.
     //
+    // `content/landing-base/src/components/sections/07-featured-testimonial.astro`
+    // is the NINTH file under this arrangement, and the only one so far that
+    // shrank the registry instead of growing it. socialProof/FeaturedTestimonial
+    // ABSORBED socialProof/FeaturedQuote — one composition, one variant, and a
+    // `tone` prop with three values — so this file became a one-line shim and
+    // blocks/social-proof/FeaturedQuote/ was deleted outright.
+    //
+    // The tone enum gained `plain`, and that is what makes this shim safe: the
+    // legacy section drew NO background, which neither `light` nor `muted`
+    // could express. Without it the historical composition would have become
+    // unreachable and every legacy generation would have quietly gained a
+    // surface. `plain` is also the block's default, so an omitted prop cannot
+    // drift either.
+    //
+    // Guards: FeaturedTestimonial.html — LITERALLY the 4732910 render, produced
+    // in a worktree at that commit rather than re-derived from today's code —
+    // plus legacy-render.golden.test.ts and the structural evidence in
+    // design-system/blocks/blocks.render.test.ts, which fails if the three
+    // tones ever stop emitting an identical tag sequence. That last one is the
+    // inverse of the Hero evidence above: `align` had to CHANGE the markup to
+    // earn its prop; `tone` has to leave the structure alone to keep its own.
+    //
     // NO PATH IS EXEMPTED HERE, ON PURPOSE. This assertion measures WORKING
     // TREE dirtiness (`git status --porcelain`), not history, so once that
     // change is committed these files are clean again and the boundary holds
@@ -522,12 +544,33 @@ describe('scope-boundaries (Batch G — machine-checkable, spec R14)', () => {
         "+export const TESTIMONIAL_ALL_FIELDS = ['id', 'author', 'rating', 'date', 'title', 'body', 'variant'];",
       ];
 
+      // FOURTH authorised diff — the FeaturedTestimonial/FeaturedQuote merge.
+      // ONE comment line, and it is a documentation REPAIR, not a contract
+      // change: no constant moves, no field is added or removed, and
+      // TESTIMONIAL_VARIANTS is untouched.
+      //
+      // This block claims each variant is "backed by a real selector in a real
+      // component — verified repo-wide". socialProof/FeaturedQuote was absorbed
+      // into socialProof/FeaturedTestimonial and its file deleted, so the line
+      // named a path that no longer exists. A comment whose whole authority is
+      // "verified repo-wide" cannot be allowed to point at a deleted file; the
+      // selector itself is unchanged and still lives in the surviving block.
+      const EXPECTED_FEATURED_TESTIMONIAL_MERGE_DIFF_LINES = [
+        "- *              social-proof/FeaturedQuote/Default.astro  (same selector)",
+        "+ *              social-proof/FeaturedTestimonial/Default.astro (same selector)",
+      ];
+
       // EXACTLY one of the reviewed sequences. Not a union, not a superset:
       // a partially-applied or reworded version of either is a different line
       // sequence and still fails, exactly as the all-or-nothing check did.
       expect(
 
-        [EXPECTED_PRODUCT_ID_DIFF_LINES, EXPECTED_DESIGN_INTEGRITY_DIFF_LINES, EXPECTED_COMPLETENESS_DIFF_LINES],
+        [
+          EXPECTED_PRODUCT_ID_DIFF_LINES,
+          EXPECTED_DESIGN_INTEGRITY_DIFF_LINES,
+          EXPECTED_COMPLETENESS_DIFF_LINES,
+          EXPECTED_FEATURED_TESTIMONIAL_MERGE_DIFF_LINES,
+        ],
         'content-contract.mjs diff matches no reviewed change',
       ).toContainEqual(diffLines);
     });

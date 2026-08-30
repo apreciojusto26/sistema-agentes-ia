@@ -97,7 +97,6 @@ export const REGISTRY = [
   // protects — they are read and rendered, never modified). The others were
   // promoted onto the variant axis one capability at a time; their old paths
   // survive as shims, which is why this list only shrinks.
-  legacy('socialProof', 'FeaturedTestimonial', '@/components/sections/07-featured-testimonial.astro', ['testimonials:quote']),
   legacy('conversion', 'Guarantee', '@/components/sections/12-guarantee.astro'),
   legacy('socialProof', 'RealResults', '@/components/sections/13-real-results.astro', ['product.ugc']),
 
@@ -172,8 +171,30 @@ export const REGISTRY = [
   // three images to two to one on its own rather than leaning on a
   // `product.gallery>=3` grammar that does not exist.
   block('hero', 'Hero', 'editorial', '@/design-system/blocks/hero/Hero/Editorial.astro', {}, ['product.gallery']),
-  block('socialProof', 'FeaturedQuote', 'default', '@/design-system/blocks/social-proof/FeaturedQuote/Default.astro', {
-    tone: { type: 'string', enum: ['light', 'muted'] },
+  // socialProof/FeaturedTestimonial — the capability that got MERGED rather
+  // than extended, and the mirror image of what hero/Hero did.
+  //
+  // Two entries used to stand here. `socialProof/FeaturedTestimonial/default`
+  // was the legacy section; `socialProof/FeaturedQuote/default` was a block
+  // with a `tone` prop, born at 19f60d5 out of the same "give it a NEW type
+  // name" reflex that produced `hero/ProductHero/split`. Hero's fix was to
+  // collapse two types into one type with two VARIANTS, because collage and
+  // framed-shot are genuinely different compositions. This one collapses two
+  // types into one type with one variant and a PROP, because they were not.
+  //
+  // That was measured, not eyeballed. Rendered against the same frozen input,
+  // the two differed by a background class, three colour tokens and the order
+  // of two classes on one paragraph — same tags, same nesting, same element
+  // count. A dial, by this registry's own rule.
+  //
+  // `plain` is in the enum for a load-bearing reason: the legacy section draws
+  // NO background, and neither `light` nor `muted` could say that. Without it
+  // the historical composition would have become unreachable and every legacy
+  // generation would have quietly gained a surface. It is also the default, so
+  // an omitted prop reproduces the legacy render exactly — proven byte-for-byte
+  // by the FeaturedTestimonial row in historical-markup.golden.test.ts.
+  block('socialProof', 'FeaturedTestimonial', 'default', '@/design-system/blocks/social-proof/FeaturedTestimonial/Default.astro', {
+    tone: { type: 'string', enum: ['plain', 'light', 'muted'] },
   }, ['testimonials:quote']),
   block('conversion', 'ProductGuarantee', 'default', '@/design-system/blocks/conversion/ProductGuarantee/Default.astro', {
     tone: { type: 'string', enum: ['gold', 'plain'] },
@@ -307,7 +328,7 @@ export const REGISTRY = [
   // change to a commerce-adjacent section, dressed up as a refactor. BuyBox
   // keeps its tiles verbatim; this capability is opt-in through a DesignSpec,
   // exactly the arrangement conversion/ProductGuarantee and
-  // socialProof/FeaturedQuote already have beside their legacy counterparts.
+  // conversion/ProductGuarantee already has beside its legacy counterpart.
   //
   // Consequence, stated plainly: Benefits has NO historical golden, because it
   // has no history. Freezing today's output as a "historical" reference would

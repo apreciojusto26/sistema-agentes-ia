@@ -49,7 +49,7 @@ export const TESTIMONIAL_REQUIRED_FIELDS = ['id', 'author', 'rating', 'date', 'b
  * backed by a real selector in a real component — verified repo-wide:
  *
  *   'quote' -> 07-featured-testimonial.astro          `.find(t => t.variant === 'quote')`
- *              social-proof/FeaturedQuote/Default.astro  (same selector)
+ *              social-proof/FeaturedTestimonial/Default.astro (same selector)
  *   'reel'  -> 10-reviews-reel.astro                  `.filter(t => t.variant === 'reel')`
  *
  * `'card'` USED TO BE HERE and was removed: no component in the template or in
