@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { STORAGE_KEYS, LEGACY_STORAGE_KEYS, readMigrating, writeMigrating } from '@/lib/storage-keys';
 import { formatCountdown, formatCountdownIso } from '@/lib/format';
 
 interface CountdownTimerProps {
@@ -8,11 +9,15 @@ interface CountdownTimerProps {
   tone?: 'bar' | 'box';
 }
 
-const STORAGE_KEY = 'astravibe:offerEndsAt';
+// Neutral key, same reasoning as commerce:cartId. sessionStorage, so the
+// blast radius of a rename is one tab — migrated anyway, because a countdown
+// that restarts mid-visit looks like a bug to the person watching it.
+const STORAGE_KEY = STORAGE_KEYS.offerEndsAt;
+const LEGACY_STORAGE_KEY = LEGACY_STORAGE_KEYS.offerEndsAt;
 
 function readOrSeedEndsAt(durationMinutes: number): number {
   try {
-    const stored = window.sessionStorage.getItem(STORAGE_KEY);
+    const stored = readMigrating(window.sessionStorage, STORAGE_KEY, LEGACY_STORAGE_KEY);
     if (stored) {
       const parsed = Number(stored);
       if (Number.isFinite(parsed) && parsed > Date.now()) {
@@ -25,7 +30,7 @@ function readOrSeedEndsAt(durationMinutes: number): number {
 
   const endsAt = Date.now() + durationMinutes * 60_000;
   try {
-    window.sessionStorage.setItem(STORAGE_KEY, String(endsAt));
+    writeMigrating(window.sessionStorage, STORAGE_KEY, LEGACY_STORAGE_KEY, String(endsAt));
   } catch {
     // ignore write failures
   }

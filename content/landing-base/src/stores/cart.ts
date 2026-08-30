@@ -5,8 +5,15 @@ import { product } from '@/data/product';
 import { $selectedPackId, $selectedVariantId } from '@/stores/checkout';
 import type { PricePack } from '@/types/content';
 import { centsToUnits, trackEvent } from '@/lib/analytics';
+import {
+  STORAGE_KEYS, LEGACY_STORAGE_KEYS, readMigrating, writeMigrating, clearMigrating,
+} from '@/lib/storage-keys';
 
-const KEY = 'astravibe:cartId';
+// Neutral, purpose-named. The old `astravibe:cartId` hardcoded the star
+// projector's brand into every landing this system generates; a returning
+// buyer's cart is migrated across once, then the legacy key is deleted.
+const KEY = STORAGE_KEYS.cartId;
+const LEGACY_KEY = LEGACY_STORAGE_KEYS.cartId;
 const DEBOUNCE_MS = 400;
 
 export const $cart = atom<CartSnapshot | null>(null);
@@ -102,7 +109,7 @@ async function mutate(variantId: string, quantity: number): Promise<void> {
     // PriceRow, drawer) treat `cart !== null` as "authoritative price" and
     // would render "0,00 €" + the compareAt strike (reported bug).
     if (!snapshot.line) {
-      localStorage.removeItem(KEY);
+      clearMigrating(localStorage, KEY, LEGACY_KEY);
       $cart.set(null);
     } else {
       $cart.set(snapshot);
@@ -157,7 +164,7 @@ export function checkout(): void {
  * end-of-flow reset, not a data-integrity guard.
  */
 export function clearCart(): void {
-  localStorage.removeItem(KEY);
+  clearMigrating(localStorage, KEY, LEGACY_KEY);
   $cart.set(null);
   $cartStatus.set('idle');
 }
@@ -173,18 +180,18 @@ export function pruneStaleLine(knownVariantIds: ReadonlySet<string>): void {
   const cart = $cart.get();
   if (!cart?.line) return;
   if (!knownVariantIds.has(cart.line.variantId)) {
-    localStorage.removeItem(KEY);
+    clearMigrating(localStorage, KEY, LEGACY_KEY);
     $cart.set(null);
     $cartStatus.set('idle');
   }
 }
 
 function persist(id: string): void {
-  localStorage.setItem(KEY, id);
+  writeMigrating(localStorage, KEY, LEGACY_KEY, id);
 }
 
 async function restore(): Promise<void> {
-  const id = localStorage.getItem(KEY);
+  const id = readMigrating(localStorage, KEY, LEGACY_KEY);
   if (!id) return;
 
   $cartStatus.set('restoring');
@@ -193,7 +200,7 @@ async function restore(): Promise<void> {
     if (!snapshot || !snapshot.line) {
       // Expired, already checked out, or cart line removed (empty cart) —
       // reset rather than rehydrate a snapshot with totalCents 0.
-      localStorage.removeItem(KEY);
+      clearMigrating(localStorage, KEY, LEGACY_KEY);
       $cartStatus.set('idle');
       return;
     }
