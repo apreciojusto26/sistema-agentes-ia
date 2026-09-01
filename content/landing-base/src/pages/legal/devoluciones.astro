@@ -5,6 +5,7 @@
 // worse than a generic paragraph.
 import LegalPage from '@/layouts/LegalPage.astro';
 import { merchant } from '@/data/merchant';
+import { policy, returnShippingLine } from '@/lib/policy';
 
 // Same as index.astro: this is a static page, not a per-request function.
 export const prerender = true;
@@ -26,11 +27,8 @@ export const prerender = true;
         de envío.
       </p>
 
-      <h2 class="text-lg font-bold">Reembolso</h2>
-      <p>
-        Una vez recibido y comprobado el producto, el importe se reembolsa por el mismo
-        medio de pago utilizado en la compra.
-      </p>
+      <h2 class="text-lg font-bold">Coste del envío de devolución</h2>
+      <p>{policy && returnShippingLine(policy)}</p>
     </>
   )}
 </LegalPage>

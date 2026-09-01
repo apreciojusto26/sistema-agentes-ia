@@ -1,8 +1,20 @@
 ---
 import { CountdownTimer } from '@/components/islands/CountdownTimer';
 import { product } from '@/data/product';
+import { policy, policyTickerItems } from '@/lib/policy';
 
-const ticker = product.trustTicker;
+// THE POLICY HALF OF THIS TICKER IS DERIVED, NOT GENERATED.
+//
+// This bar is sticky on EVERY page, legal pages included, and the Content Agent
+// used to write the whole array. That is how /legal/devoluciones ended up
+// displaying "Garantía de 30 días" in its own header while its body, correctly
+// reading merchant config, said "Disponés de 14 días" — a landing contradicting
+// itself on one screen.
+//
+// Concatenated at the render site rather than merged into one array upstream,
+// so there is no single field a model could write a policy claim into.
+// product.trustTicker is product copy now; the contract and the prompt say so.
+const ticker = [...(policy ? policyTickerItems(policy) : []), ...product.trustTicker];
 ---
 
 <div class="sticky top-0 z-50 flex h-9 items-center gap-6 overflow-hidden bg-graphite px-5 text-[0.75rem] text-bone">

@@ -11,6 +11,7 @@
 //      Content Agent output (it is not in content.json), it is template copy,
 //      and it belongs to the capability rather than to one composition.
 import { faq } from '@/data/faq';
+import { policy, policyFaq } from '@/lib/policy';
 import type { FaqItem } from '@/types/content';
 
 /** Section framing. Declared once so both variants are provably identical here. */
@@ -29,6 +30,10 @@ export function faqItems(composedBy: string): FaqItem[] {
   // even where the template's own literal never is.
   const items: FaqItem[] = [...faq];
 
+  // The emptiness guard checks the PRODUCT half only, deliberately. That is
+  // what requiresData: ["faq"] promises upstream, and appending derived policy
+  // answers must not become a way for a landing with zero generated questions
+  // to slip past the gate looking full.
   if (items.length === 0) {
     throw new Error(
       `Faq (variant "${composedBy}") was composed into this landing, but src/data/faq.ts ` +
@@ -43,5 +48,20 @@ export function faqItems(composedBy: string): FaqItem[] {
     );
   }
 
-  return items;
+  // POLICY FAQ, APPENDED FROM FACTS.
+  //
+  // The generated array used to answer "¿Qué garantía tiene?" with free prose
+  // carrying its own number — "30 días de garantía de devolución… te devolvemos
+  // el importe" — while merchant config said 14. That answer was the hardest
+  // contradiction to fix, because the number lived inside a sentence rather
+  // than in a field.
+  //
+  // It is not detected and reconciled afterwards; it is no longer generated.
+  // The content contract and the system instruction put returns, shipping and
+  // guarantees outside the Product FAQ's scope, and the answers below are built
+  // from merchant config. The two halves cannot contradict each other because
+  // they cannot both answer the same question.
+  //
+  // In preview (no merchant) there are no policy facts and nothing is appended.
+  return policy ? [...items, ...policyFaq(policy)] : items;
 }

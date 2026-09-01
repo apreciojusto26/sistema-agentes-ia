@@ -23,22 +23,33 @@
 // AND IT WAS WORSE THAN THE OTHER TWO. Both types carried
 // id={SECTION_ANCHORS.Guarantee}, so a DesignSpec naming both validated, built,
 // and shipped a page with TWO id="guarantee" elements repeating the same
-// promise word for word — with the footer's href="#guarantee" resolving to
+// promise word for word, with the footer's href="#guarantee" resolving to
 // whichever came first. Deleting the duplicate type is what fixes that; no
 // incompatibleWith rule was added, because the combination is no longer
 // expressible by the catalogue at all.
 //
-// GOLD IS THE LEGACY SURFACE, and this block is byte-identical to
-// 12-guarantee.astro when tone="gold". That required two deliberate choices,
-// both of which resolve in the LEGACY baseline's favour rather than the
-// block's:
+// WHAT THIS SECTION SAYS NOW COMES FROM MERCHANT CONFIG, NOT FROM THE MODEL.
+// It used to read product.guarantee — days, title, text and a points list, all
+// written by the Content Agent with no source behind any of it. It asserted
+// "Garantía de 30 días" while merchant.returnsWindowDays said 14, and it
+// promised "Reembolso completo, sin preguntas", conditions nobody configured.
+// Facts now arrive through lib/policy.ts and the words are derived from them.
 //
-//   1. The section literal keeps the legacy class ORDER (`bg-gold-tint` first).
-//   2. The gold heading carries NO colour class. ProductGuarantee had added
-//      `text-graphite` here, which global.css already applies to `body` — a
-//      no-op that would nonetheless have changed the byte output of every
-//      legacy generation. The markup introduced later does not get to overrule
-//      the baseline it derived from.
+// THE RETURNS WINDOW IS NOT CALLED A GUARANTEE. They are different promises:
+// one is how long you have to send it back, the other is an additional
+// commitment the merchant may or may not have made. The heading says
+// "Devoluciones durante N días"; a guarantee line appears ONLY when
+// commercialGuaranteeDays is configured, and its absence means absence.
+//
+// THE GOLD SEAL IMAGE IS GONE. public/sello-garantia.webp has "GARANTIA 30
+// DIAS" baked into its pixels — inspected, not inferred from the filename — so
+// it contradicted any merchant whose window was not 30 and could never be
+// derived from config. It is replaced by ICONS.shield, the primitive the points
+// row already used: no number, no policy claim, nothing to keep in sync.
+//
+// PREVIEW renders NOTHING here. With no merchant there are no policy facts, and
+// a guarantee section with no facts is decoration that invites a default. The
+// legal pages already degrade this way.
 //
 // Every tone is a COMPLETE class string, never a base plus an appended token.
 // Tailwind v4 scans source text, so each literal must be whole (ADR-4); and
@@ -47,13 +58,18 @@
 import Container from '@/components/ui/Container.astro';
 import { SECTION_ANCHORS } from '@/lib/navigation';
 import { ICONS } from '@/lib/icons';
-import { product } from '@/data/product';
+import {
+  policy,
+  returnsHeadline,
+  returnShippingLine,
+  commercialGuaranteeHeadline,
+} from '@/lib/policy';
 
 interface Props {
   tone?: 'gold' | 'plain';
 }
 
-// `gold` is the default because it is the legacy render. An omitted prop must
+// `gold` is the default because it is the legacy surface. An omitted prop must
 // reproduce what shipped, never introduce a surface nobody asked for.
 const { tone = 'gold' } = Astro.props;
 
@@ -72,32 +88,46 @@ const ICON = {
   plain: 'size-6 text-steel',
 } as const;
 
+const CREST = {
+  gold: 'mx-auto size-20 text-gold',
+  plain: 'mx-auto size-20 text-steel',
+} as const;
+
 const section = SECTION[tone];
 const heading = HEADING[tone];
 const icon = ICON[tone];
+const crest = CREST[tone];
 
 const shield = ICONS.shield;
-const { guarantee } = product;
+
+// Derived once, so the section cannot disagree with itself. `guaranteeLine` is
+// null unless the merchant configured an additional commercial guarantee.
+const facts = policy;
+const headline = facts ? returnsHeadline(facts) : null;
+const shippingCost = facts ? returnShippingLine(facts) : null;
+const guaranteeLine = facts ? commercialGuaranteeHeadline(facts) : null;
 ---
 
-<section id={SECTION_ANCHORS.Guarantee} class={section}>
-  <Container class="text-center">
-    <img src="/sello-garantia.webp" width="112" height="112" alt={`Sello de garantía de ${guarantee.days} días`} class="mx-auto size-28" loading="lazy" decoding="async" />
+{
+  facts && (
+    <section id={SECTION_ANCHORS.Guarantee} class={section}>
+      <Container class="text-center">
+        <svg viewBox={shield.viewBox} class={crest} role="img" aria-label={headline}>
+          <path fill="currentColor" d={shield.path} />
+        </svg>
 
-    <h2 class={heading}>{guarantee.title}</h2>
-    <p class="mx-auto mt-2 max-w-md text-sm text-steel">{guarantee.text}</p>
+        <h2 class={heading}>{headline}</h2>
+        <p class="mx-auto mt-2 max-w-md text-sm text-steel">{shippingCost}</p>
 
-    <div class="mx-auto mt-8 grid max-w-lg grid-cols-1 gap-3 sm:grid-cols-3">
-      {
-        guarantee.points.map((point) => (
-          <div class="flex flex-col items-center gap-2 text-xs text-graphite">
+        {guaranteeLine && (
+          <div class="mx-auto mt-8 flex max-w-lg items-center justify-center gap-2 text-xs text-graphite">
             <svg viewBox={shield.viewBox} class={icon} aria-hidden="true">
               <path fill="currentColor" d={shield.path} />
             </svg>
-            <span>{point}</span>
+            <span>{guaranteeLine}</span>
           </div>
-        ))
-      }
-    </div>
-  </Container>
-</section>
+        )}
+      </Container>
+    </section>
+  )
+}

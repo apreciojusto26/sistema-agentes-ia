@@ -15,15 +15,11 @@
       "1": 1
     },
     "badges": [
-      "Envío 24-48h",
-      "Funda lavable",
-      "Garantía 30 días"
+      "Funda lavable"
     ],
     "trustTicker": [
-      "Envío gratis desde 29€",
       "Pago 100% seguro",
-      "+200 reseñas de 5 estrellas",
-      "Garantía de 30 días"
+      "+200 reseñas de 5 estrellas"
     ],
     "offer": {
       "durationMinutes": 15,
@@ -192,20 +188,6 @@
         "rival": "Solo boca arriba"
       }
     ],
-    "guarantee": {
-      "days": 30,
-      "title": "Garantía de 30 días",
-      "text": "Si NubeCalma no supera tus expectativas, te devolvemos el dinero. Sin vueltas.",
-      "points": [
-        "Devolución simple dentro de los 30 días",
-        "Reembolso completo, sin preguntas",
-        "Atención al cliente en español"
-      ]
-    },
-    "shipping": {
-      "etaLabel": "Envío en 24-48h",
-      "freeOverCents": 2900
-    },
     "ugc": [
       {
         "asset": "ugc-01",
@@ -247,11 +229,6 @@
       "id": "postura",
       "question": "¿Sirve para dormir de costado?",
       "answer": "Sí, el diseño de doble curva se adapta a cualquier postura: boca arriba, de costado o boca abajo."
-    },
-    {
-      "id": "garantia",
-      "question": "¿Qué garantía tiene?",
-      "answer": "NubeCalma tiene 30 días de garantía de devolución. Si no cumple tus expectativas, te devolvemos el importe."
     }
   ],
   "testimonials": [

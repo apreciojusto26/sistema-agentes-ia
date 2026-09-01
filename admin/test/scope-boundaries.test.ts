@@ -281,6 +281,28 @@ describe('scope-boundaries (Batch G — machine-checkable, spec R14)', () => {
     // renderer.integration.test.ts; and the structural evidence in
     // blocks.render.test.ts.
     //
+    // `content/landing-base/src/components/sections/01-utility-bar.astro` is
+    // the ELEVENTH file under this arrangement, and the first that is not a
+    // design-system conversion at all.
+    //
+    // Its trust ticker is sticky on EVERY page of the landing, legal pages
+    // included, and the Content Agent used to write the whole array. That is
+    // how /legal/devoluciones ended up displaying "Garantía de 30 días" in its
+    // own header while its body, correctly reading merchant.returnsWindowDays,
+    // said "Disponés de 14 días" — one page contradicting itself on one screen.
+    //
+    // The policy half of the ticker is derived from merchant config now, through
+    // the same lib/policy.ts builders that Guarantee, BuyBox, the policy FAQ and
+    // the legal pages use. product.trustTicker keeps the product copy. The two
+    // are concatenated at the render site rather than merged upstream, so no
+    // single array exists for a model to write a policy claim into.
+    //
+    // Guards: contract.commercial-policy.test.ts (no renderer may read
+    // product.guarantee or product.shipping, every policy surface goes through
+    // lib/policy, no shipped asset carries a baked policy), lib/policy.test.ts,
+    // and the Guarantee / BuyBox / Faq historical goldens, all three updated by
+    // hand with the removed claim and its deterministic replacement written out.
+    //
     // NO PATH IS EXEMPTED HERE, ON PURPOSE. This assertion measures WORKING
     // TREE dirtiness (`git status --porcelain`), not history, so once that
     // change is committed these files are clean again and the boundary holds
@@ -589,6 +611,60 @@ describe('scope-boundaries (Batch G — machine-checkable, spec R14)', () => {
         "+ *              social-proof/FeaturedTestimonial/Default.astro (same selector)",
       ];
 
+      // FIFTH authorised diff — commercial policy consistency.
+      //
+      // `guarantee` and `shipping` LEAVE ALLOWED_PRODUCT_FIELDS. Like the third
+      // diff above, every line of this is a REMOVAL of a claim nobody
+      // configured, not a new capability:
+      //
+      //   - guarantee.{days,title,text,points}. CanonicalProduct carries no
+      //     guarantee signal, the system instruction had no rule about one, and
+      //     the only thing shaping the output was the few-shot's `days: 30`.
+      //     Meanwhile merchant.returnsWindowDays said 14, so a landing asserted
+      //     "Garantía de 30 días" above a returns page reading "14 días" — and
+      //     the trust ticker put the 30 into the header of that very page.
+      //     The object also promised conditions no field states at all
+      //     ("Reembolso completo, sin preguntas").
+      //
+      //   - shipping.etaLabel. Same shape: product-normalizer.mjs has no
+      //     shipping signal, so every "Envío en 24-48h" came from the example
+      //     too. It is merchant.shippingEtaLabel now.
+      //
+      //   - shipping.freeOverCents. REQUIRED of the model, invented, and
+      //     rendered by NOTHING — the same dead-field class as `verified` and
+      //     `location` before it.
+      //
+      // `badges` and `trustTicker` deliberately STAY. The policy half of both
+      // is derived in lib/policy.ts and concatenated at the render site, so the
+      // model keeps its product copy and has no array to write a policy claim
+      // into.
+      const EXPECTED_POLICY_CONSISTENCY_DIFF_LINES = [
+        "+// `guarantee` and `shipping` WERE here and are both gone (commercial policy",
+        "+// consistency). Neither was ever a product fact:",
+        "+//",
+        "+//   guarantee.{days,title,text,points} \u2014 CanonicalProduct carries no guarantee",
+        "+//     signal, the system instruction had no rule about one, and the only thing",
+        "+//     shaping the output was the few-shot example's `days: 30`. Meanwhile",
+        "+//     merchant.returnsWindowDays said 14. The whole object was the model",
+        "+//     writing the merchant's commercial policy for it, including conditions",
+        "+//     nobody configured (\"Reembolso completo, sin preguntas\").",
+        "+//",
+        "+//   shipping.etaLabel \u2014 same story. product-normalizer.mjs has no shipping",
+        "+//     signal at all, so every \"Env\u00edo en 24-48h\" came from the example too. It",
+        "+//     is merchant.shippingEtaLabel now.",
+        "+//",
+        "+//   shipping.freeOverCents \u2014 REQUIRED of the model, invented, and rendered by",
+        "+//     NOTHING. Same dead-field class as `verified` and `location` before it.",
+        "+//     Removed rather than kept \"just in case\"; the free-shipping claim still",
+        "+//     reached visitors, but through trustTicker prose, not this field.",
+        "+//",
+        "+// `badges` and `trustTicker` STAY, and are now product-only. The policy half of",
+        "+// both is derived in landing-base/src/lib/policy.ts and concatenated at the",
+        "+// render site, so the model has no array to write a policy claim into.",
+        "-  'guarantee', 'shipping', 'ugc', 'cta', 'variantGroupLabel', 'errors',",
+        "+  'ugc', 'cta', 'variantGroupLabel', 'errors',",
+      ];
+
       // EXACTLY one of the reviewed sequences. Not a union, not a superset:
       // a partially-applied or reworded version of either is a different line
       // sequence and still fails, exactly as the all-or-nothing check did.
@@ -599,6 +675,7 @@ describe('scope-boundaries (Batch G — machine-checkable, spec R14)', () => {
           EXPECTED_DESIGN_INTEGRITY_DIFF_LINES,
           EXPECTED_COMPLETENESS_DIFF_LINES,
           EXPECTED_FEATURED_TESTIMONIAL_MERGE_DIFF_LINES,
+          EXPECTED_POLICY_CONSISTENCY_DIFF_LINES,
         ],
         'content-contract.mjs diff matches no reviewed change',
       ).toContainEqual(diffLines);

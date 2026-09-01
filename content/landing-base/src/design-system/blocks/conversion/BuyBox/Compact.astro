@@ -25,10 +25,21 @@ import { CompactBuySelector } from '@/components/islands/CompactBuySelector';
 import { getProductCommerce } from '@/lib/shopify/catalog';
 import Stars from '@/components/ui/Stars.astro';
 import { product } from '@/data/product';
+import { policy, returnsHeadline, shippingLine } from '@/lib/policy';
 import { buyBoxDisplay, BUYBOX_SCARCITY_LABEL, BUYBOX_GIFT_LABEL } from './buy-box-data';
 
 const commerce = await getProductCommerce();
 const { giftThresholdUnits, ratingLabel, ratingCountLabel } = buyBoxDisplay('compact');
+
+// POLICY COPY, DERIVED. These two lines used to read
+// product.shipping.etaLabel and product.guarantee.title — both written by
+// the Content Agent with nothing behind them, and both contradicted by the
+// legal pages. They come from merchant config now, through the same
+// builders the Guarantee section and /legal/* use, so a landing cannot
+// promise one window here and another one two clicks away.
+// Presentation only: no commerce path reads these.
+const shippingEta = policy ? shippingLine(policy) : null;
+const returnsLine = policy ? returnsHeadline(policy) : null;
 ---
 
 <section id="buy" class="scroll-mt-14 mx-auto w-full max-w-[28rem] px-5 md:max-w-[42rem] lg:max-w-[64rem] py-8">
@@ -64,11 +75,11 @@ const { giftThresholdUnits, ratingLabel, ratingCountLabel } = buyBoxDisplay('com
     <p class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-steel">
       <span class="flex items-center gap-1.5">
         <svg viewBox="0 0 24 24" class="size-4 text-rust" aria-hidden="true"><path fill="currentColor" d="M3 6a1 1 0 011-1h9a1 1 0 011 1v3h2.5a1 1 0 01.8.4l2.5 3.33a1 1 0 01.2.6V16a1 1 0 01-1 1h-1.17a2.5 2.5 0 01-4.66 0H9.83a2.5 2.5 0 01-4.66 0H4a1 1 0 01-1-1V6z"/></svg>
-        {product.shipping.etaLabel}
+        {shippingEta}
       </span>
       <span class="flex items-center gap-1.5">
         <svg viewBox="0 0 24 24" class="size-4 text-gold" aria-hidden="true"><path fill="currentColor" d="M12 2l8 3.5v5.25c0 5.06-3.4 9.62-8 11.25-4.6-1.63-8-6.19-8-11.25V5.5L12 2z"/></svg>
-        {product.guarantee.title}
+        {returnsLine}
       </span>
     </p>
   </div>

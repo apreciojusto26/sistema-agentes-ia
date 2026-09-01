@@ -426,7 +426,13 @@ describe('Group D — scripts/lib/content-contract.mjs unit tests (no spawn)', (
     // 23 -> 24: `comparisonRival` joined the whitelist so the Comparison
     // heading could stop being a template literal about decorative lamps.
     expect(ALLOWED_PRODUCT_FIELDS).toContain('comparisonRival');
-    expect(ALLOWED_PRODUCT_FIELDS.length).toBe(24);
+    // 24 -> 22: `guarantee` and `shipping` LEFT. Neither was a product fact —
+    // CanonicalProduct carries no guarantee and no shipping signal, so both were
+    // the model writing the merchant's commercial policy for it, contradicting
+    // merchant config on every landing. They are merchant fields now.
+    expect(ALLOWED_PRODUCT_FIELDS).not.toContain('guarantee');
+    expect(ALLOWED_PRODUCT_FIELDS).not.toContain('shipping');
+    expect(ALLOWED_PRODUCT_FIELDS.length).toBe(22);
   });
 });
 

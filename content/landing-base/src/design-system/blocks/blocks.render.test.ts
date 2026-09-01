@@ -10,8 +10,35 @@
 // The blocks import no commerce module (verified: only @/components/ui/*,
 // @/lib/icons and @/data/*), so unlike index.astro they render here without
 // PUBLIC_SHOPIFY_* being configured.
-import { describe, test, expect } from 'vitest';
+import { describe, test, expect, vi } from 'vitest';
 import { experimental_AstroContainer as AstroContainer } from 'astro/container';
+
+// conversion/Guarantee reads merchant config through lib/policy.ts. A frozen
+// merchant is mocked here so the tone evidence below is about PRESENTATION;
+// the no-merchant case is its own test further down.
+//
+// vi.hoisted, not a plain const: vi.mock is hoisted above every other statement
+// in the file, so a factory closing over a normal top-level binding throws
+// "Cannot access before initialization".
+//
+// `commercialGuaranteeDays: null` on purpose — absent is the default state, and
+// the optional guarantee line has its own case.
+const MERCHANT = vi.hoisted(() => ({
+  current: {
+    legalName: 'Test Merchant',
+    taxId: 'B00000000',
+    address: 'Test address',
+    contactEmail: 'test@merchant.invalid',
+    country: 'Testland',
+    returnsWindowDays: 14,
+    carrierName: 'Test Carrier',
+    shippingEtaLabel: 'Test eta',
+    returnShippingPaidBy: 'customer' as const,
+    dataControllerEmail: 'test@merchant.invalid',
+    commercialGuaranteeDays: null as number | null,
+  },
+}));
+vi.mock('@/data/merchant', () => ({ merchant: MERCHANT.current }));
 
 import HeroSplit from './hero/Hero/Split.astro';
 import HeroDefault from './hero/Hero/Default.astro';
@@ -156,16 +183,25 @@ describe('Guarantee/default — tone is a PROP, and this is the proof', () => {
     expect(new Set(stripped).size, 'tone changed something other than classes').toBe(1);
   });
 
-  test('every tone keeps the anchor, the seal and all three shield icons', async () => {
+  test('every tone keeps the anchor, the crest and the SAME policy facts', async () => {
     // The parts that are NOT design. A tone that dropped the anchor would break
-    // the footer link; one that dropped an icon would be a composition change
-    // wearing a prop's clothes.
+    // the footer link; one that changed a number would mean the dial had
+    // reached the facts, which is the whole thing this phase separated.
+    //
+    // The old version of this test asserted the gold seal image. That asset is
+    // deleted: public/sello-garantia.webp had "GARANTIA 30 DIAS" baked into its
+    // pixels, so it contradicted any merchant whose window was not 30. The
+    // crest is ICONS.shield now, labelled from the same fact as the heading.
     for (const tone of TONES) {
       const out = await render(GuaranteeDefault, { tone });
       expect(out.split('id="guarantee"').length - 1, `${tone}: anchor count`).toBe(1);
-      expect(out, `${tone}: seal`).toContain('/sello-garantia.webp');
-      expect(out.split('<path').length - 1, `${tone}: shield count`).toBe(3);
-      expect(out.split('aria-hidden').length - 1, `${tone}: aria-hidden count`).toBe(3);
+      expect(out, `${tone}: crest`).toContain('role="img"');
+      expect(out, `${tone}: no baked-policy asset`).not.toContain('sello-garantia');
+      expect(out, `${tone}: returns window`).toContain('Devoluciones durante 14 días');
+      expect(out, `${tone}: return shipping`).toContain('corre a cargo del comprador');
+      // Nothing calls the returns window a guarantee, and no unconfigured
+      // guarantee appears.
+      expect(out, `${tone}: invented guarantee`).not.toMatch(/Garantía de \d+ días/);
     }
   });
 
@@ -182,17 +218,17 @@ describe('Guarantee/default — tone is a PROP, and this is the proof', () => {
     // BOTH tones, because it is not part of the dial at all.
     const SECTION_GOLD = '<section id="guarantee" class="bg-gold-tint py-12 md:py-16">';
     const SECTION_PLAIN = '<section id="guarantee" class="py-12 md:py-16 bg-bone">';
-    const ICON_GOLD = 'class="size-6 text-gold"';
-    const ICON_PLAIN = 'class="size-6 text-steel"';
+    const ICON_GOLD = 'class="mx-auto size-20 text-gold"';
+    const ICON_PLAIN = 'class="mx-auto size-20 text-steel"';
 
     expect(gold).toContain(SECTION_GOLD);
     expect(gold).not.toContain(SECTION_PLAIN);
-    expect(gold.split(ICON_GOLD).length - 1).toBe(3);
+    expect(gold.split(ICON_GOLD).length - 1).toBe(1);
     expect(gold).not.toContain(ICON_PLAIN);
 
     expect(plain).toContain(SECTION_PLAIN);
     expect(plain).not.toContain(SECTION_GOLD);
-    expect(plain.split(ICON_PLAIN).length - 1).toBe(3);
+    expect(plain.split(ICON_PLAIN).length - 1).toBe(1);
     expect(plain).not.toContain(ICON_GOLD);
 
     // `gold` is the LEGACY surface, so its heading carries no colour class at
@@ -213,6 +249,43 @@ describe('Guarantee/default — tone is a PROP, and this is the proof', () => {
       expect(out, `tone=${tone}`).not.toContain('undefined');
       expect(out, `tone=${tone}`).not.toContain('class=""');
     }
+  });
+});
+
+describe('Guarantee renders policy facts, never invented ones', () => {
+  test('an OPTIONAL commercial guarantee appears only when configured', async () => {
+    // Absent is the default and means absent — never 30. The section says
+    // nothing about a guarantee unless the merchant configured one.
+    const without = await render(GuaranteeDefault, {});
+    expect(without).not.toMatch(/Garantía de/);
+
+    // vi.doMock, not a mutation of the hoisted object: the hoisted factory's
+    // result is cached, so changing what it closes over does not survive a
+    // resetModules. doMock re-registers the module for the next import.
+    vi.resetModules();
+    vi.doMock('@/data/merchant', () => ({
+      merchant: { ...MERCHANT.current, commercialGuaranteeDays: 60 },
+    }));
+    const GuaranteeWith = (await import('./conversion/Guarantee/Default.astro')).default;
+    const withGuarantee = await render(GuaranteeWith, {});
+    vi.doUnmock('@/data/merchant');
+    vi.resetModules();
+
+    expect(withGuarantee).toContain('Garantía de 60 días');
+    // …and it is stated ALONGSIDE the returns window, not instead of it.
+    expect(withGuarantee).toContain('Devoluciones durante 14 días');
+  });
+
+  test('with NO merchant it renders NOTHING — preview never invents a policy', async () => {
+    vi.resetModules();
+    vi.doMock('@/data/merchant', () => ({ merchant: null }));
+    const Preview = (await import('./conversion/Guarantee/Default.astro')).default;
+    const out = await render(Preview, {});
+    vi.doUnmock('@/data/merchant');
+    vi.resetModules();
+
+    expect(out.trim(), 'preview invented a guarantee section').toBe('');
+    expect(out).not.toMatch(/\d+ días/);
   });
 });
 

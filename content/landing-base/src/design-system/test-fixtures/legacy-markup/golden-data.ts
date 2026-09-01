@@ -83,7 +83,6 @@ export const GOLDEN_DATA = {
       noDiscount: 'Golden no-discount notice.',
       generic: 'Golden generic error.',
     },
-    shipping: { etaLabel: 'Golden shipping eta', freeOverCents: 2900 },
     guarantee: { days: 30, title: 'Golden guarantee title', text: 'Golden guarantee text.', points: ['Golden point one', 'Golden point two', 'Golden point three'] },
     benefits: [
       { id: 'g-b1', icon: 'check', title: 'Golden benefit one', text: 'Golden benefit one text.' },
@@ -114,6 +113,27 @@ export const GOLDEN_DATA = {
       { feature: 'Golden feature text', ours: 'Golden ours text', rival: 'Golden rival text' },
     ] as ComparisonRow[],
     comparisonRival: 'golden rival category',
+  },
+  // FROZEN MERCHANT, added by the commercial-policy phase. Guarantee, BuyBox,
+  // the Faq policy half and the trust ticker all read merchant config through
+  // lib/policy.ts now, so a golden without one would render every policy
+  // surface empty and prove nothing about them.
+  //
+  // `commercialGuaranteeDays` is deliberately ABSENT: the default state is a
+  // merchant who has configured no additional guarantee, and the goldens should
+  // freeze that state rather than the decorated one.
+  merchant: {
+    legalName: 'Golden Merchant SL',
+    taxId: 'B00000000',
+    address: 'Golden address 1',
+    contactEmail: 'golden@merchant.invalid',
+    country: 'Golden Country',
+    returnsWindowDays: 14,
+    carrierName: 'Golden Carrier',
+    shippingEtaLabel: 'Golden shipping eta',
+    returnShippingPaidBy: 'customer' as const,
+    dataControllerEmail: 'golden@merchant.invalid',
+    commercialGuaranteeDays: null,
   },
   testimonials: [
     { id: 'g-quote', author: 'Golden Quote', rating: 5, date: '2026-01-01', title: 'Golden title', body: 'Golden quote body.', variant: 'quote' },

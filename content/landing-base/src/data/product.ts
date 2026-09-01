@@ -42,13 +42,17 @@ export const product = {
     1: 1,
   },
 
-  badges: ['Envío 24-48h', 'Pila incluida', 'Garantía 30 días'],
+  // PRODUCT badges only. 'Envío 24-48h' and 'Garantía 30 días' used to sit
+  // here; both are merchant policy and are derived in lib/policy.ts now.
+  badges: ['Pila incluida', '24 películas deslizables', 'USB-C'],
 
+  // PRODUCT ticker copy only. The policy half — returns window, delivery
+  // estimate, commercial guarantee — is prepended by 01-utility-bar.astro from
+  // lib/policy.ts. 'Envío gratis desde 29€' and 'Garantía de 30 días' were here
+  // and are gone: neither was configured anywhere.
   trustTicker: [
-    'Envío gratis desde 29€',
     'Pago 100% seguro',
     '+120 reseñas de 5 estrellas',
-    'Garantía de 30 días',
     '24 películas deslizables',
   ],
 
@@ -208,21 +212,7 @@ export const product = {
   // earth competed with a decorative lamp.
   comparisonRival: 'lámparas decorativas comunes',
 
-  guarantee: {
-    days: 30,
-    title: 'Garantía de 30 días',
-    text: 'Si AstraVibe no supera tus expectativas, te devolvemos el dinero. Sin vueltas.',
-    points: [
-      'Devolución simple dentro de los 30 días',
-      'Reembolso completo, sin preguntas',
-      'Atención al cliente en español',
-    ],
-  },
 
-  shipping: {
-    etaLabel: 'Envío en 24-48h',
-    freeOverCents: 2900,
-  },
 
   ugc: [
     { asset: 'ugc-01', alt: 'Efecto vía láctea de AstraVibe sobre una superficie en penumbra', ratio: '9/16' },

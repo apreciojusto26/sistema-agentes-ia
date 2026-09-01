@@ -22,12 +22,34 @@
 
 import { isProductId } from './product-id.cjs';
 
+// `guarantee` and `shipping` WERE here and are both gone (commercial policy
+// consistency). Neither was ever a product fact:
+//
+//   guarantee.{days,title,text,points} — CanonicalProduct carries no guarantee
+//     signal, the system instruction had no rule about one, and the only thing
+//     shaping the output was the few-shot example's `days: 30`. Meanwhile
+//     merchant.returnsWindowDays said 14. The whole object was the model
+//     writing the merchant's commercial policy for it, including conditions
+//     nobody configured ("Reembolso completo, sin preguntas").
+//
+//   shipping.etaLabel — same story. product-normalizer.mjs has no shipping
+//     signal at all, so every "Envío en 24-48h" came from the example too. It
+//     is merchant.shippingEtaLabel now.
+//
+//   shipping.freeOverCents — REQUIRED of the model, invented, and rendered by
+//     NOTHING. Same dead-field class as `verified` and `location` before it.
+//     Removed rather than kept "just in case"; the free-shipping claim still
+//     reached visitors, but through trustTicker prose, not this field.
+//
+// `badges` and `trustTicker` STAY, and are now product-only. The policy half of
+// both is derived in landing-base/src/lib/policy.ts and concatenated at the
+// render site, so the model has no array to write a policy claim into.
 export const ALLOWED_PRODUCT_FIELDS = [
   'brand', 'name', 'tagline', 'subtagline',
   'ratingAverage', 'ratingCount', 'ratingBreakdown',
   'badges', 'trustTicker', 'offer', 'benefits', 'heroPills',
   'specs', 'packs', 'gallery', 'steps', 'comparison', 'comparisonRival',
-  'guarantee', 'shipping', 'ugc', 'cta', 'variantGroupLabel', 'errors',
+  'ugc', 'cta', 'variantGroupLabel', 'errors',
 ];
 // errors has a sane default (translation-only field) so it's not required input.
 export const REQUIRED_PRODUCT_FIELDS = ALLOWED_PRODUCT_FIELDS.filter((f) => f !== 'errors');

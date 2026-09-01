@@ -270,9 +270,7 @@ function buildProductTs(product, shopifyHandle) {
     // replaced was a template literal about decorative lamps.
     `  comparisonRival: ${serialize(product.comparisonRival, 2, 1)},`,
     ``,
-    `  guarantee: ${serialize(product.guarantee, 2, 1)},`,
     ``,
-    `  shipping: ${serialize(product.shipping, 2, 1)},`,
     ``,
     `  ugc: ${serialize(product.ugc, 2, 1)},`,
     ``,

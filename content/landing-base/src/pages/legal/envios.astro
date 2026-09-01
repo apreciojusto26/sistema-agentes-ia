@@ -1,10 +1,14 @@
 ---
-// Carrier from merchant config; the delivery estimate from product content
-// (`product.shipping.etaLabel`), which is where it already lived. No free
-// shipping claim, no "24/48 h" — neither is configured anywhere.
+// Carrier AND delivery estimate both from merchant config now.
+//
+// The estimate used to come from `product.shipping.etaLabel`, described here as
+// "where it already lived". It lived there without a source: the scraper
+// supplies no shipping signal, so every estimate was copied from the Content
+// Agent's few-shot example. This page then presented it as "una estimación del
+// transportista" — an attribution nobody could support, since the carrier never
+// said it. Both the field and that sentence are gone.
 import LegalPage from '@/layouts/LegalPage.astro';
 import { merchant } from '@/data/merchant';
-import { product } from '@/data/product';
 
 // Same as index.astro: this is a static page, not a per-request function.
 export const prerender = true;
@@ -17,8 +21,9 @@ export const prerender = true;
 
       <h2 class="text-lg font-bold">Plazo de entrega</h2>
       <p>
-        El plazo estimado para este producto es: <strong>{product.shipping.etaLabel}</strong>.
-        Es una estimación del transportista y puede variar según el destino.
+        El plazo de entrega indicado por la tienda es:
+        <strong>{merchant.shippingEtaLabel}</strong>. Es una estimación y puede variar
+        según el destino.
       </p>
 
       <h2 class="text-lg font-bold">Incidencias</h2>

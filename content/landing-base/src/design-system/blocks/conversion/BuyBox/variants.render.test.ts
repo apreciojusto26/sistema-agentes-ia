@@ -23,6 +23,12 @@ import { GOLDEN_DATA } from '@/design-system/test-fixtures/legacy-markup/golden-
 
 vi.mock('@/lib/shopify/catalog', () => ({ getProductCommerce: async () => GOLDEN_DATA.commerce }));
 vi.mock('@/data/product', () => ({ product: GOLDEN_DATA.product }));
+// Both variants state the shipping estimate and the returns window in their
+// trust rows. Those used to be product.shipping.etaLabel and
+// product.guarantee.title — model-written, and contradicted by the legal pages.
+// They come from merchant config through lib/policy.ts now, so this spec needs
+// one configured; with none, both rows correctly render nothing.
+vi.mock('@/data/merchant', () => ({ merchant: GOLDEN_DATA.merchant }));
 vi.mock('@/stores/cart', async (orig) => {
   const actual = await orig<typeof import('@/stores/cart')>();
   return { ...actual, checkout: vi.fn(), syncCartLine: vi.fn() };
@@ -40,6 +46,7 @@ import { BundleSelector } from '@/components/islands/BundleSelector';
 import { CompactBuySelector } from '@/components/islands/CompactBuySelector';
 
 const P = GOLDEN_DATA.product;
+const M = GOLDEN_DATA.merchant;
 const C = GOLDEN_DATA.commerce;
 const V1 = C.variants[0]!.id;
 const V2 = C.variants[1]!.id;
@@ -93,10 +100,13 @@ describe('card and compact are different compositions', () => {
       expect(card).toContain(logo);
       expect(compact, `compact kept the ${logo} logo`).not.toContain(logo);
     }
-    // Both still state shipping and guarantee — condensing is not dropping.
+    // Both still state the shipping estimate and the returns window —
+    // condensing is not dropping. Asserted against MERCHANT config, which is
+    // where those two facts live now, so this also fails if a variant ever goes
+    // back to reading generated copy.
     for (const html of [card, compact]) {
-      expect(html).toContain(P.shipping.etaLabel);
-      expect(html).toContain(P.guarantee.title);
+      expect(html).toContain(M.shippingEtaLabel);
+      expect(html).toContain(`Devoluciones durante ${M.returnsWindowDays} días`);
     }
   });
 

@@ -10,6 +10,25 @@ vi.mock('@/data/design', async () => ({
   design: (await import('../../../../admin/test/fixtures/design-spec/building-blocks.json')).default,
 }));
 
+// conversion/Guarantee reads merchant config through lib/policy.ts. Without a
+// merchant the section renders nothing at all — the deliberate preview state —
+// so this integration spec configures one.
+vi.mock('@/data/merchant', () => ({
+  merchant: {
+    legalName: 'Fixture Merchant',
+    taxId: 'B0',
+    address: 'A',
+    contactEmail: 'f@test.invalid',
+    country: 'C',
+    returnsWindowDays: 14,
+    carrierName: 'Fixture Carrier',
+    shippingEtaLabel: 'Fixture eta',
+    returnShippingPaidBy: 'customer',
+    dataControllerEmail: 'f@test.invalid',
+    commercialGuaranteeDays: null,
+  },
+}));
+
 vi.mock('@/lib/shopify/catalog', () => ({
   getProductCommerce: async () => ({
     handle: 'fixture',
@@ -49,6 +68,9 @@ describe('DesignSpec -> index.astro -> registry -> building blocks', () => {
     // capabilities rendered that image, so the indexOf would happily return
     // whichever came first. Now the anchored section tag with its tone-specific
     // surface names one capability, one tone, one element.
+    //
+    // That asset is gone entirely since — it had "GARANTIA 30 DIAS" baked into
+    // its pixels — which is why nothing here can go back to matching on it.
     const GUARANTEE_PLAIN = '<section id="guarantee" class="py-12 md:py-16 bg-bone">';
 
     const productHero = html.indexOf('lg:grid lg:grid-cols-2 lg:items-center lg:gap-10');

@@ -111,6 +111,29 @@ export function buildSystemInstruction() {
     'el carrusel oscuro de reseñas. Si falta una, esa sección queda visiblemente vacía. Escribí 1 "quote" y 3 o 4 "reel".',
     '',
     'NUNCA incluyas un campo "commerce" en product — los precios y el handle de la tienda no los generás vos.',
+    '',
+    // POLICY SCOPE. The strongest guard is structural — `guarantee` and
+    // `shipping` are gone from ALLOWED_PRODUCT_FIELDS, so a policy object
+    // cannot be accepted even if written — but badges, trustTicker and the FAQ
+    // are free text, and free text was the actual contamination vector. Every
+    // policy claim a visitor could read came from one of those.
+    'NUNCA generes políticas comerciales. No son tuyas: las configura la tienda, no vos.',
+    'Eso incluye, en CUALQUIER campo (badges, trustTicker, faq, benefits, cta, tagline):',
+    '  - plazos o ventanas de devolución ("30 días", "devolución en X días");',
+    '  - garantías comerciales o de satisfacción;',
+    '  - condiciones de reembolso ("reembolso completo", "sin preguntas", "te devolvemos el dinero");',
+    '  - plazos o costes de envío ("envío en 24-48h", "envío gratis desde X");',
+    '  - quién paga la devolución;',
+    '  - derechos legales por país.',
+    'La landing ya muestra esos datos por su cuenta, tomados de la configuración de la tienda.',
+    'Si los escribís vos, la página se contradice a sí misma.',
+    '',
+    'El FAQ que generás es de PRODUCTO: uso, materiales, compatibilidad, mantenimiento,',
+    'funcionamiento, dudas sobre el producto en sí. Las preguntas sobre devoluciones, envíos',
+    'y garantía se responden solas con los datos de la tienda — no las incluyas.',
+    '',
+    'Podés escribir tono de confianza ("Compra con tranquilidad") siempre que no agregue',
+    'ningún hecho comercial nuevo: sin cifras, sin plazos, sin condiciones.',
     'Usá siempre un tono cercano en español rioplatense, orientado a beneficios: cada benefit debe enmarcar un',
     'pain point real del producto como algo que este producto resuelve, no solo listar características.',
     '',

@@ -68,6 +68,10 @@ vi.mock('@/lib/shopify/catalog', () => ({
 vi.mock('@/data/product', () => ({ product: GOLDEN_DATA.product }));
 vi.mock('@/data/testimonials', () => ({ testimonials: GOLDEN_DATA.testimonials }));
 vi.mock('@/data/faq', () => ({ faq: GOLDEN_DATA.faq }));
+// Commercial-policy phase: Guarantee, BuyBox and the Faq policy half read
+// merchant config through lib/policy.ts. Without this mock every policy surface
+// would render empty here and the goldens would freeze the preview state.
+vi.mock('@/data/merchant', () => ({ merchant: GOLDEN_DATA.merchant }));
 
 // The CURRENT components, reached through the SHIMS — the same path a
 // generation without --design takes.
@@ -99,7 +103,17 @@ const FIXTURE_SHA256: Record<string, string> = {
   // UPDATED CONSCIOUSLY by the navigation-contract change. The diff is one
   // line: the section gained `id="faq"`. The footer used to render every
   // link as href="#" because no section had an id to point at.
-  Faq: '7d4a94646399174b4035d8e5c3413fc82d6c26035f6c3c74c83b62d7f14698d5',
+  // UPDATED CONSCIOUSLY by the commercial-policy phase. The generated FAQ used
+  // to answer "¿Qué garantía tiene?" with free prose carrying its own number —
+  // "30 días de garantía de devolución" — while merchant config said 14. That
+  // was the hardest contradiction in the landing, because the number lived
+  // inside a sentence rather than in a field.
+  //
+  // The diff is TWO policy entries APPENDED, built from merchant config by
+  // lib/policy.ts, plus the island uid that follows from the changed props. No
+  // generated question changed and none was removed: the product half of this
+  // fixture is byte-identical. The policy half is no longer generated at all.
+  Faq: 'e8a97cff0220738443af17564c4bb78d9620a5a4dc63b9960f44545b17c1fb2e',
   // UPDATED CONSCIOUSLY by the same change — one line, `id="how-it-works"`.
   HowItWorks: '85a004130b46b012a18ec69d5a34f718ec714ce48d8acbafe0488a7474e61146',
   // UPDATED CONSCIOUSLY by the generated-landing completeness phase. The old
@@ -122,7 +136,12 @@ const FIXTURE_SHA256: Record<string, string> = {
   // worktree checked out at 4732910 and compared: same sha256, zero drift. That
   // is also independent proof that e1bf155's buy-action extraction preserved
   // the markup.
-  BuyBox: '15eefa905197041ec745bb672796d9d1d3f43d15db637153c111213117e2e434',
+  // UPDATED CONSCIOUSLY by the commercial-policy phase. ONE line: the trust row
+  // that read `product.guarantee.title` ("Golden guarantee title") now reads the
+  // returns headline derived from merchant config. 135 elements before, 135
+  // after — this is a copy source change, not a composition change, and no
+  // commerce path was touched.
+  BuyBox: 'e0871d5cb8f2548874e9f70ddebb56850e4ab983ed28d0a1ff8070d4f58bb55e',
   // socialProof/FeaturedTestimonial, frozen BEFORE its conversion, rendered in
   // a worktree checked out at 4732910. This one is LITERALLY the 4732910
   // markup — no derivation, no reconciliation — and that outcome was earned
@@ -164,7 +183,29 @@ const FIXTURE_SHA256: Record<string, string> = {
   // The derivation was CLOSED, not merely described: the hand-edited file was
   // compared against a live render of the section at HEAD and came out
   // byte-identical, so nothing else moved between 4732910 and today.
-  Guarantee: 'ec65da9e3714f567556e591734c0425ed65b890165f4fd69b772aba8250c672d',
+  // UPDATED CONSCIOUSLY by the commercial-policy phase, and this is the one
+  // that changed shape rather than wording: 30 elements down to 10.
+  //
+  // WHAT LEFT, and why each was a claim nobody had configured:
+  //   - the <img> seal. public/sello-garantia.webp has "GARANTIA 30 DIAS" baked
+  //     into its pixels (inspected, not inferred from the filename), so it
+  //     contradicted any merchant whose window was not 30 and could never be
+  //     derived from config. The file is deleted; the crest is ICONS.shield now,
+  //     carrying role="img" and an aria-label built from the same fact as the
+  //     heading instead of the old alt's hardcoded day count.
+  //   - the three-column points row. Those were product.guarantee.points,
+  //     written by the model: "Reembolso completo, sin preguntas" and friends.
+  //     Conditions no merchant field states.
+  //   - the heading and body, which were product.guarantee.title / .text.
+  //
+  // WHAT ARRIVED: a heading derived from merchant.returnsWindowDays and a line
+  // stating who pays the return leg — the claim the page used to make by
+  // omission. It says "Devoluciones durante 14 días", NOT "garantía": the
+  // returns window and a commercial guarantee are different promises, and this
+  // fixture freezes a merchant who configured only the first.
+  //
+  // The taxonomy did not move. tone: gold | plain, one variant, same anchor.
+  Guarantee: '5446d42e765f68861f69ed937b63887b2103a8203e6a8ec4f137926acd566b74',
 };
 
 /** [fixture name, component, baseline commit, props]. */

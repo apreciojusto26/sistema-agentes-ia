@@ -90,12 +90,6 @@ export interface ComparisonRow {
   rival: boolean | string;
 }
 
-export interface Guarantee {
-  days: number;
-  title: string;
-  text: string;
-  points: string[];
-}
 
 export interface Testimonial {
   id: string;
@@ -157,8 +151,6 @@ export interface ProductContent {
    * Never a brand — a category.
    */
   comparisonRival: string;
-  guarantee: Guarantee;
-  shipping: { etaLabel: string; freeOverCents: number | null };
   ugc: MediaRef[]; // strip + RealResults grid
   cta: { primary: string; sticky: string; checkout: string; pending: string; soldOut: string };
   /** Customer-facing label for the 9-value variant option group. NOT `optionName`
