@@ -616,3 +616,67 @@ describe('design-system/section-layout.ts: the shared class lookups are literal 
     expect(SOURCE).toMatch(/'tight', 'standard', 'spacious'/);
   });
 });
+
+
+// --- the shared section header ---------------------------------------------
+
+describe('the section header lives in ONE primitive', () => {
+  // Eight capabilities used to emit this markup character for character —
+  // Faq x2, Benefits x2, Comparison x2, HowItWorks x2 — differing only in the
+  // data expression. The extraction was byte-identical: every frozen golden
+  // stayed green without a single hash being touched.
+  //
+  // This guard is scoped to the MIGRATED SET rather than swept repo-wide. The
+  // classes below appear legitimately elsewhere — Hero/Editorial uses
+  // text-eyebrow with its brand, ReviewsReel/Grid has its own near-variant, and
+  // BuyBox's h2 is a product title, not a section header. A repo-wide regex
+  // would fail on all three for no reason.
+  const MIGRATED = [
+    'conversion/Faq/Accordion',
+    'conversion/Faq/OpenList',
+    'product/Benefits/FeatureList',
+    'product/Benefits/IconGrid',
+    'product/Comparison/Cards',
+    'product/Comparison/Table',
+    'product/HowItWorks/HorizontalTimeline',
+    'product/HowItWorks/VerticalSteps',
+  ];
+
+  const EYEBROW_CLASSES = 'text-eyebrow font-bold uppercase text-rust';
+  const HEADING_CLASSES = 'mt-1 text-display md:text-4xl lg:text-5xl';
+
+  test.each(MIGRATED)('%s composes SectionHeader instead of copying it', (rel) => {
+    const src = readFileSync(
+      path.join(REPO_ROOT, `content/landing-base/src/design-system/blocks/${rel}.astro`),
+      'utf-8',
+    );
+
+    expect(src, `${rel} does not use the shared primitive`).toMatch(/<SectionHeader\b/);
+    expect(src, `${rel} copied the eyebrow markup back inline`).not.toContain(EYEBROW_CLASSES);
+    expect(src, `${rel} copied the heading markup back inline`).not.toContain(HEADING_CLASSES);
+  });
+
+  test('the primitive itself owns the markup, and nothing else', () => {
+    const src = readFileSync(
+      path.join(REPO_ROOT, 'content/landing-base/src/components/ui/SectionHeader.astro'),
+      'utf-8',
+    );
+    expect(src).toContain(EYEBROW_CLASSES);
+    expect(src).toContain(HEADING_CLASSES);
+
+    // API stays at the two values the existing markup interpolated. A prop
+    // added here would be designing variety this phase has no evidence for.
+    const props = [...src.matchAll(/^\s{2}(\w+)[?]?:/gm)].map((m) => m[1]);
+    expect(props.sort()).toEqual(['eyebrow', 'title']);
+  });
+
+  test('it is NOT a capability — the Design Agent still sees 21', () => {
+    // A presentation primitive composed BY blocks, never selected instead of
+    // one. If it ever entered the registry it would become addressable from a
+    // DesignSpec, which is a different thing entirely.
+    expect(
+      registry.REGISTRY.some((e: { component: string }) => e.component.includes('SectionHeader')),
+    ).toBe(false);
+    expect(registry.REGISTRY).toHaveLength(21);
+  });
+});

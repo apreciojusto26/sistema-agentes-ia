@@ -28,6 +28,7 @@ import {
   COMPARISON_RIVAL_LABEL,
   COMPARISON_FEATURE_LABEL,
 } from './comparison-rows';
+import SectionHeader from '@/components/ui/SectionHeader.astro';
 
 const rows = comparisonRows('table');
 const rowCount = rows.length;
@@ -45,8 +46,7 @@ const OURS_CELL_END = {
 
 <section class="bg-bone-dim py-12 md:py-16">
   <Container>
-    <p class="text-eyebrow font-bold uppercase text-rust">{COMPARISON_EYEBROW}</p>
-    <h2 class="mt-1 text-display md:text-4xl lg:text-5xl">{comparisonHeading(brand)}</h2>
+    <SectionHeader eyebrow={COMPARISON_EYEBROW} title={comparisonHeading(brand)} />
 
     <div class="mx-auto mt-6 grid max-w-4xl grid-cols-[1.3fr_1fr_1fr] overflow-hidden rounded-card text-sm">
       <div class="bg-surface p-3 font-semibold text-graphite">{COMPARISON_FEATURE_LABEL}</div>

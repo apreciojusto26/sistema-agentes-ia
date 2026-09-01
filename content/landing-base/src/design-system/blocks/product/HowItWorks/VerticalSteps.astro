@@ -35,14 +35,14 @@ import Container from '@/components/ui/Container.astro';
 import { SECTION_ANCHORS } from '@/lib/navigation';
 import Media from '@/components/ui/Media.astro';
 import { howItWorksSteps, STEPS_EYEBROW, STEPS_HEADING } from './steps';
+import SectionHeader from '@/components/ui/SectionHeader.astro';
 
 const steps = howItWorksSteps('vertical-steps');
 ---
 
 <section id={SECTION_ANCHORS.HowItWorks} class="bg-bone-dim py-12 md:py-16">
   <Container>
-    <p class="text-eyebrow font-bold uppercase text-rust">{STEPS_EYEBROW}</p>
-    <h2 class="mt-1 text-display md:text-4xl lg:text-5xl">{STEPS_HEADING}</h2>
+    <SectionHeader eyebrow={STEPS_EYEBROW} title={STEPS_HEADING} />
 
     <ol class="mx-auto mt-8 max-w-3xl space-y-6">
       {

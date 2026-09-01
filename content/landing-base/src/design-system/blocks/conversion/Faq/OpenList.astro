@@ -35,6 +35,7 @@ import Container from '@/components/ui/Container.astro';
 import { SECTION_ANCHORS } from '@/lib/navigation';
 import { faqItems, FAQ_EYEBROW, FAQ_HEADING } from './faq-items';
 import { rhythmClass, type SectionWidth, type SectionRhythm } from '@/design-system/section-layout';
+import SectionHeader from '@/components/ui/SectionHeader.astro';
 
 const items = faqItems('open-list');
 
@@ -59,8 +60,7 @@ const sectionRhythm = rhythmClass(rhythm, 'py-12 md:py-16');
 
 <section id={SECTION_ANCHORS.Faq} class={sectionRhythm}>
   <Container width={width}>
-    <p class="text-eyebrow font-bold uppercase text-rust">{FAQ_EYEBROW}</p>
-    <h2 class="mt-1 text-display md:text-4xl lg:text-5xl">{FAQ_HEADING}</h2>
+    <SectionHeader eyebrow={FAQ_EYEBROW} title={FAQ_HEADING} />
 
     <dl class="mx-auto mt-6 grid max-w-3xl grid-cols-1 gap-x-8 gap-y-6 md:max-w-5xl md:grid-cols-2">
       {

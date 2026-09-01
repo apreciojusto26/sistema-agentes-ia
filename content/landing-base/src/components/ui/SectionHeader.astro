@@ -1,0 +1,36 @@
+---
+// The section header eight capabilities were emitting character for character.
+//
+// MEASURED BEFORE EXTRACTING, not assumed. Across the 21 blocks there are seven
+// distinct heading signatures, but they are mostly "does this block have a
+// header at all": 6 have none, 4 have an h2 that is CONTENT rather than a
+// section header (BuyBox's product title, Guarantee's derived policy fact,
+// Hero's headline), and 10 have a real section header. Of those ten, EIGHT
+// emitted byte-identical markup — Faq x2, Benefits x2, Comparison x2,
+// HowItWorks x2 — differing only in the data expression.
+//
+// THIS IS A PURE REFACTOR. No new treatment, no alignment prop, no scale, no
+// supporting text, no variant. The API is exactly the two values the existing
+// markup interpolates and nothing else, because nothing else exists yet.
+// Designing an API for treatments we have not justified would be inventing
+// variety rather than removing duplication, and this phase only has evidence
+// for the second.
+//
+// IT IS NOT A CAPABILITY. It is not in the registry, not addressable from a
+// DesignSpec, and the Design Agent still sees exactly the same 21 capabilities.
+// A block composes it; nothing selects it.
+//
+// THE COPY STAYS WITH THE BLOCK. FAQ_EYEBROW, BENEFITS_EYEBROW,
+// COMPARISON_EYEBROW and STEPS_EYEBROW remain where they are: this primitive
+// must not learn that "Faq says Preguntas frecuentes". Data belongs to the
+// block, presentation belongs here.
+interface Props {
+  eyebrow: string;
+  title: string;
+}
+
+const { eyebrow, title } = Astro.props;
+---
+
+<p class="text-eyebrow font-bold uppercase text-rust">{eyebrow}</p>
+<h2 class="mt-1 text-display md:text-4xl lg:text-5xl">{title}</h2>

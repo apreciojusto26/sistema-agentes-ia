@@ -25,6 +25,7 @@ import { SECTION_ANCHORS } from '@/lib/navigation';
 import { FaqAccordion } from '@/components/islands/FaqAccordion';
 import { faqItems, FAQ_EYEBROW, FAQ_HEADING } from './faq-items';
 import { rhythmClass, type SectionWidth, type SectionRhythm } from '@/design-system/section-layout';
+import SectionHeader from '@/components/ui/SectionHeader.astro';
 
 const items = faqItems('accordion');
 
@@ -49,8 +50,7 @@ const sectionRhythm = rhythmClass(rhythm, 'py-12 md:py-16');
 
 <section id={SECTION_ANCHORS.Faq} class={sectionRhythm}>
   <Container width={width}>
-    <p class="text-eyebrow font-bold uppercase text-rust">{FAQ_EYEBROW}</p>
-    <h2 class="mt-1 text-display md:text-4xl lg:text-5xl">{FAQ_HEADING}</h2>
+    <SectionHeader eyebrow={FAQ_EYEBROW} title={FAQ_HEADING} />
 
     <div class="mx-auto mt-6 max-w-3xl">
       <FaqAccordion client:visible items={items} />
