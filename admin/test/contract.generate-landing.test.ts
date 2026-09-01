@@ -78,6 +78,11 @@ const OUT_DIR_DESIGN_ID_MISMATCH = path.join(REPO_ROOT, 'outputs', SLUG_DESIGN_I
 
 const MINIMAL_CONTENT_PATH = path.join(__dirname, 'fixtures/minimal-content.json');
 const INVALID_CONTENT_PATH = path.join(__dirname, 'fixtures/invalid-content.json');
+// Nine 1x1 JPEGs, one per template asset slot minimal-content.json references.
+// This directory was asserted by the test below since c8a15aa but NEVER
+// committed — verified against history, not just HEAD — so the test failed with
+// `--images directory not found` on every clean checkout. See
+// fixtures/images-fixture.md for why these filenames and why real JPEGs.
 const IMAGES_DIR = path.join(__dirname, 'fixtures/images');
 
 const minimalContent = JSON.parse(readFileSync(MINIMAL_CONTENT_PATH, 'utf-8'));
