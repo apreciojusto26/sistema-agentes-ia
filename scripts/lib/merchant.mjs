@@ -32,12 +32,40 @@
 //                        does not have a DPO. The fallback is stated on the
 //                        page, not hidden.
 //
-//   shippingEtaLabel     REMOVED — it already exists as `product.shipping.etaLabel`
+//   shippingEtaLabel     REQUIRED. THIS REVERSES AN EARLIER DECISION, recorded
+//                        rather than quietly rewritten. It used to say:
+//                        "REMOVED — it already exists as product.shipping.etaLabel
 //                        in the content contract. Adding a merchant copy would
 //                        create two sources of truth for one sentence, and the
-//                        per-product one is the more specific.
+//                        per-product one is the more specific."
 //
-// So: 7 required, 1 optional. Not nine "just in case".
+//                        The reasoning was sound and the premise was false. The
+//                        per-product one is not more specific, it is INVENTED:
+//                        product-normalizer.mjs carries no shipping signal at
+//                        all, so the scraper never supplies a delivery estimate.
+//                        Every "Envío en 24-48h" ever rendered was copied from
+//                        the few-shot example. There were never two sources of
+//                        truth for that sentence — there was one guess and one
+//                        empty slot.
+//
+//   returnShippingPaidBy REQUIRED  devoluciones. Who bears the cost of the
+//                        return leg. Modelled as an enum rather than a boolean
+//                        because "free returns" is a claim, not a default, and
+//                        the page previously implied it by saying nothing.
+//                        Exactly two values are publishable as a fact; a policy
+//                        that genuinely varies by reason cannot be stated in one
+//                        sentence, so it is not given a third enum value that
+//                        would render as a half-truth.
+//
+//   commercialGuaranteeDays  OPTIONAL. A satisfaction/money-back guarantee is
+//                        NOT the returns window and is not implied by it.
+//                        ABSENT MEANS ABSENT — the merchant has not configured
+//                        an additional commercial guarantee. It does not mean
+//                        30, and there is no default. This field exists because
+//                        the landing used to assert a 30-day "garantía" that no
+//                        one had configured, while the returns page said 14.
+//
+// So: 9 required, 2 optional.
 
 export const MERCHANT_REQUIRED_FIELDS = [
   'legalName',
@@ -47,9 +75,11 @@ export const MERCHANT_REQUIRED_FIELDS = [
   'country',
   'returnsWindowDays',
   'carrierName',
+  'shippingEtaLabel',
+  'returnShippingPaidBy',
 ];
 
-export const MERCHANT_OPTIONAL_FIELDS = ['dataControllerEmail'];
+export const MERCHANT_OPTIONAL_FIELDS = ['dataControllerEmail', 'commercialGuaranteeDays'];
 
 export const MERCHANT_ALL_FIELDS = [...MERCHANT_REQUIRED_FIELDS, ...MERCHANT_OPTIONAL_FIELDS];
 
@@ -62,8 +92,14 @@ export const MERCHANT_FIELD_PAGES = {
   country: 'terminos, aviso-legal',
   returnsWindowDays: 'devoluciones',
   carrierName: 'envios',
+  shippingEtaLabel: 'envios, y la trust copy de BuyBox',
+  returnShippingPaidBy: 'devoluciones',
   dataControllerEmail: 'privacidad',
+  commercialGuaranteeDays: 'la sección Guarantee, cuando el merchant la configura',
 };
+
+/** Who bears the cost of the return leg. Closed domain — see the field audit. */
+export const RETURN_SHIPPING_PAYERS = ['merchant', 'customer'];
 
 /** Values a merchant might paste from a template and that must never ship. */
 const PLACEHOLDER_PATTERNS = [
@@ -128,6 +164,32 @@ export function collectMerchantIssues(input) {
     }
   }
 
+  // An optional commercial guarantee is still a POSITIVE integer when present.
+  // Absent is the honest state; 0 or a fraction is a misconfiguration that would
+  // publish "garantía de 0 días".
+  if (input.commercialGuaranteeDays !== undefined && input.commercialGuaranteeDays !== null) {
+    const n = input.commercialGuaranteeDays;
+    if (!Number.isInteger(n) || n <= 0) {
+      issues.push({
+        code: 'merchant-field-invalid',
+        field: 'commercialGuaranteeDays',
+        message: `merchant.commercialGuaranteeDays must be a positive integer when present, got ${JSON.stringify(n)}`,
+      });
+    }
+  }
+
+  // Closed domain. A free string here would put whatever someone typed onto the
+  // returns page as a statement of who pays.
+  if (input.returnShippingPaidBy !== undefined) {
+    if (!RETURN_SHIPPING_PAYERS.includes(input.returnShippingPaidBy)) {
+      issues.push({
+        code: 'merchant-field-invalid',
+        field: 'returnShippingPaidBy',
+        message: `merchant.returnShippingPaidBy must be one of ${RETURN_SHIPPING_PAYERS.join(' | ')}, got ${JSON.stringify(input.returnShippingPaidBy)}`,
+      });
+    }
+  }
+
   for (const field of ['contactEmail', 'dataControllerEmail']) {
     const v = input[field];
     if (typeof v === 'string' && v.trim() !== '' && !/^[^@\s]+@[^@\s.]+\.[^@\s]+$/.test(v.trim())) {
@@ -186,6 +248,10 @@ export function normalizeMerchant(input) {
     contactEmail: input.contactEmail,
     country: input.country,
     returnsWindowDays: input.returnsWindowDays,
+    shippingEtaLabel: input.shippingEtaLabel,
+    returnShippingPaidBy: input.returnShippingPaidBy,
+    commercialGuaranteeDays:
+      input.commercialGuaranteeDays === undefined ? null : input.commercialGuaranteeDays,
     carrierName: input.carrierName,
     dataControllerEmail: input.dataControllerEmail ?? input.contactEmail,
   };

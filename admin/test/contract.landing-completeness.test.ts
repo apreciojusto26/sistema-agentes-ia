@@ -125,14 +125,32 @@ describe('every footer route is a real page', () => {
 // --- merchant facts --------------------------------------------------------
 
 describe('merchant facts are configured, never invented', () => {
-  test('the required set is the audited seven, not a defensive nine', () => {
+  test('the required set is audited, not defensive — and it GREW for a reason', () => {
     expect(merchantLib.MERCHANT_REQUIRED_FIELDS).toEqual([
       'legalName', 'taxId', 'address', 'contactEmail', 'country', 'returnsWindowDays', 'carrierName',
+      'shippingEtaLabel', 'returnShippingPaidBy',
     ]);
-    // shippingEtaLabel deliberately absent — product.shipping.etaLabel already
-    // holds it, and two sources for one sentence is how they drift.
-    expect(merchantLib.MERCHANT_ALL_FIELDS).not.toContain('shippingEtaLabel');
-    expect(merchantLib.MERCHANT_OPTIONAL_FIELDS).toEqual(['dataControllerEmail']);
+
+    // `shippingEtaLabel` USED TO BE ASSERTED ABSENT here, with the note
+    // "product.shipping.etaLabel already holds it, and two sources for one
+    // sentence is how they drift". The reasoning was sound and the premise was
+    // false: product-normalizer.mjs carries no shipping signal at all, so that
+    // field was never a second source of truth — it was a guess copied from the
+    // Content Agent's few-shot example. There was one empty slot, not two
+    // sources.
+    expect(merchantLib.MERCHANT_ALL_FIELDS).toContain('shippingEtaLabel');
+
+    // `returnShippingPaidBy` is REQUIRED because saying nothing about who pays
+    // the return leg reads as "free", which is a claim.
+    expect(merchantLib.RETURN_SHIPPING_PAYERS).toEqual(['merchant', 'customer']);
+
+    // `commercialGuaranteeDays` is OPTIONAL, and that is the point: a
+    // satisfaction guarantee is NOT the returns window and is not implied by
+    // it. Absent means the merchant configured none — never 30.
+    expect(merchantLib.MERCHANT_OPTIONAL_FIELDS).toEqual([
+      'dataControllerEmail', 'commercialGuaranteeDays',
+    ]);
+    expect(merchantLib.MERCHANT_REQUIRED_FIELDS).not.toContain('commercialGuaranteeDays');
   });
 
   test('an absent config is reported, not defaulted', () => {
