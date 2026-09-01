@@ -29,6 +29,7 @@
 import Container from '@/components/ui/Container.astro';
 import { PlaceholderShot } from '@/components/islands/parts/PlaceholderShot';
 import { galleryImages } from './gallery-images';
+import { rhythmClass, type SectionWidth, type SectionRhythm } from '@/design-system/section-layout';
 
 const images = await galleryImages('grid');
 // galleryImages() throws on an empty list, so there is always a lead image —
@@ -37,10 +38,28 @@ const images = await galleryImages('grid');
 // documented consequence of the guard instead of eight scattered `!`s.
 const lead = images[0]!;
 const rest = images.slice(1);
+
+// LAYOUT VOCABULARY (P0 vertical slice). `width` and `rhythm` arrive from the
+// SECTION INSTANCE in the DesignSpec, not from this capability's propsSchema:
+// how wide this section is and how much air it gets are properties of the page,
+// and this block genuinely does not care. See design-system/section-layout.ts.
+//
+// Unset renders byte-identically to before — `contained` and `standard` are the
+// literals this file already had.
+interface Props {
+  width?: SectionWidth;
+  rhythm?: SectionRhythm;
+}
+
+const { width, rhythm } = Astro.props;
+
+// The baseline is this block's own literal, so `standard` and an unset
+// rhythm both render exactly what it rendered before.
+const sectionRhythm = rhythmClass(rhythm, 'py-8 md:py-12');
 ---
 
-<section class="py-8 md:py-12">
-  <Container>
+<section class={sectionRhythm}>
+  <Container width={width}>
     <ul class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
       <li class="md:col-span-2 lg:col-span-3">
         {lead.placeholder ? (

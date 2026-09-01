@@ -164,7 +164,19 @@ const FIXTURE_SHA256: Record<string, string> = {
   // carrying `verified: true`, `location` and a masked author, the 4732910
   // output differed from today's by exactly the badge and exactly the author
   // string, and by nothing structural. Same tags, same nesting, same count.
-  FeaturedTestimonial: '7c5bdc383d264f7dd7400417bd842f4cff41ab6c8de5a2079725d98673a24741',
+  // UPDATED CONSCIOUSLY by the layout-vocabulary phase, and it is a pure class
+  // REORDER: `py-12 text-center md:py-16` became `py-12 md:py-16 text-center`.
+  // Nothing else in the fixture moved.
+  //
+  // Why it had to move at all: this block's tone lookup baked the vertical
+  // padding INTO its three surface literals, so tone and rhythm would have been
+  // fighting over one attribute. Splitting surface from rhythm is what lets a
+  // DesignSpec mark this section `spacious` without touching its tone — and the
+  // two halves can only be concatenated, not interleaved around `text-center`.
+  //
+  // The computed styles are unchanged: Tailwind resolves by stylesheet order,
+  // not by the order classes appear in the attribute.
+  FeaturedTestimonial: 'da45e4245f66db465a66d230996abc615995e9c53f09aec7e9f92f087ae3d984',
   // conversion/Guarantee, frozen BEFORE its conversion. This one is NOT the
   // raw 4732910 render, and the derivation is written down rather than
   // asserted, because 12-guarantee.astro did change after that commit.

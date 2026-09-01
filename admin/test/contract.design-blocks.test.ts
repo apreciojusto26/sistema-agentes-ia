@@ -475,6 +475,19 @@ describe('B2 — Tailwind classes are literal, never built by interpolation', ()
           continue;
         }
 
+        // A class produced by the SHARED layout vocabulary is a selection too,
+        // just one whose lookup lives in design-system/section-layout.ts rather
+        // than in this file. It is not an exemption: the test right after this
+        // one scans that module and fails if anything in it is built rather
+        // than literal, so the invariant holds — it simply holds in one place
+        // for the two values (width, rhythm) that every block shares.
+        //
+        // Keeping the lookup per-file would have meant duplicating the same
+        // enum into 21 blocks, which is the shape this vocabulary exists to
+        // remove.
+        const layoutRhs = consts.get(atom);
+        if (layoutRhs && /^(rhythmClass|containerClass)\(/.test(layoutRhs)) continue;
+
         expect(
           BARE_IDENTIFIER.test(atom),
           `class value \`${atom}\` is neither a complete literal, an \`as const\` lookup ` +
@@ -527,7 +540,20 @@ describe('R2 — registry prop enums and the component variant mappings cannot d
     }));
 
     // Direction 1 — no lookup may contain a key the registry does not declare.
+    // Direction 1 — no lookup may contain a key the registry does not declare.
     for (const [name, keys] of Object.entries(lookups)) {
+      // The LAYOUT VOCABULARY is a second legitimate key source. `width` and
+      // `rhythm` are declared and validated enums like any propsSchema one —
+      // they just live on the SECTION INSTANCE in design-contract.mjs instead
+      // of on the capability, because a Faq is the same Faq contained or wide.
+      // design-system/section-layout.ts is scanned by its own describe block
+      // below, so these keys are not going unguarded.
+      const LAYOUT_KEYS = [
+        ['contained', 'wide'],
+        ['tight', 'standard', 'spacious'],
+      ];
+      if (LAYOUT_KEYS.some((allowed) => keys.every((k) => allowed.includes(k)))) continue;
+
       const match = enums.find((e) => JSON.stringify(e.values) === JSON.stringify(keys));
       expect(
         match,
@@ -547,5 +573,46 @@ describe('R2 — registry prop enums and the component variant mappings cannot d
           `component covers those exact values — a value would resolve to undefined at render`,
       ).toBe(true);
     }
+  });
+});
+
+
+// --- the shared layout vocabulary, scanned like a block --------------------
+
+describe('design-system/section-layout.ts: the shared class lookups are literal too', () => {
+  // The blocks delegate `width` and `rhythm` here, so the B2 guarantee moves
+  // here with them. Same rule, same strictness, one file instead of 21.
+  const SOURCE = readFileSync(
+    path.join(REPO_ROOT, 'content/landing-base/src/design-system/section-layout.ts'),
+    'utf-8',
+  );
+
+  test('every value in every lookup is a COMPLETE class literal', () => {
+    const lookups = [...SOURCE.matchAll(/const\s+([A-Z_]+)\s*=\s*\{([\s\S]*?)\}\s*as const;/g)];
+    expect(lookups.length, 'no `as const` lookup found — the scanner is looking at the wrong shape')
+      .toBeGreaterThan(0);
+
+    for (const [, name, body] of lookups) {
+      const values = [...body.matchAll(/:\s*'([^']*)'/g)].map((m) => m[1]);
+      expect(values.length, `${name} has no values`).toBeGreaterThan(0);
+      for (const v of values) {
+        expect(v.includes('${'), `${name} interpolates: \`${v}\``).toBe(false);
+        expect(v.trim().length, `${name} has an empty class value`).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  test('no class name is BUILT anywhere in the module', () => {
+    const code = SOURCE.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+    expect(/`[^`]*\$\{/.test(code), 'a template literal builds a class name').toBe(false);
+    expect(/\+\s*(width|rhythm)\b/.test(code), 'a class name is concatenated').toBe(false);
+  });
+
+  test('the exported enums match the lookups they select from', () => {
+    // A value the contract accepts but no lookup can resolve would render an
+    // undefined class; one the lookup has but the contract rejects is dead.
+    expect(SOURCE).toMatch(/SECTION_WIDTHS/);
+    expect(SOURCE).toMatch(/SECTION_RHYTHMS/);
+    expect(SOURCE).toMatch(/'tight', 'standard', 'spacious'/);
   });
 });

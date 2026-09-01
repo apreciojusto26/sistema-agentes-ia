@@ -29,12 +29,31 @@
 // block selects nothing at render time, which is the strongest B2 state.
 import Container from '@/components/ui/Container.astro';
 import { benefitItems, benefitGlyph, BENEFITS_EYEBROW, BENEFITS_HEADING } from './benefit-items';
+import { rhythmClass, type SectionWidth, type SectionRhythm } from '@/design-system/section-layout';
 
 const items = benefitItems('icon-grid');
+
+// LAYOUT VOCABULARY (P0 vertical slice). `width` and `rhythm` arrive from the
+// SECTION INSTANCE in the DesignSpec, not from this capability's propsSchema:
+// how wide this section is and how much air it gets are properties of the page,
+// and this block genuinely does not care. See design-system/section-layout.ts.
+//
+// Unset renders byte-identically to before — `contained` and `standard` are the
+// literals this file already had.
+interface Props {
+  width?: SectionWidth;
+  rhythm?: SectionRhythm;
+}
+
+const { width, rhythm } = Astro.props;
+
+// The baseline is this block's own literal, so `standard` and an unset
+// rhythm both render exactly what it rendered before.
+const sectionRhythm = rhythmClass(rhythm, 'py-12 md:py-16');
 ---
 
-<section class="bg-bone-dim py-12 md:py-16">
-  <Container>
+<section class:list={['bg-bone-dim', sectionRhythm]}>
+  <Container width={width}>
     <p class="text-eyebrow font-bold uppercase text-rust">{BENEFITS_EYEBROW}</p>
     <h2 class="mt-1 text-display md:text-4xl lg:text-5xl">{BENEFITS_HEADING}</h2>
 

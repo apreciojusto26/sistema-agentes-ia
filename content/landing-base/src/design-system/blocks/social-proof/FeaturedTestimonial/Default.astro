@@ -30,20 +30,27 @@
 // is the evidence that `tone` is a dial.
 import { testimonials } from '@/data/testimonials';
 import { reviewerDisplayName } from '@/lib/reviewer-identity';
+import { rhythmClass, type SectionWidth, type SectionRhythm } from '@/design-system/section-layout';
 
 interface Props {
+  width?: SectionWidth;
+  rhythm?: SectionRhythm;
   tone?: 'plain' | 'light' | 'muted';
 }
 
 // `plain` is the default deliberately: an omitted prop must reproduce the
 // legacy render, never introduce styling nobody asked for. The legacy shim
 // relies on this and so does every DesignSpec that omits props.
-const { tone = 'plain' } = Astro.props;
+const { width, rhythm, tone = 'plain' } = Astro.props;
 
+// SURFACE ONLY. The vertical padding used to be baked into these three
+// literals; it moved out when the layout vocabulary arrived, because tone and
+// rhythm are different decisions and cannot both own the same attribute. The
+// composed output is unchanged for every existing spec — see sectionClass.
 const SECTION = {
-  plain: 'py-12 text-center md:py-16',
-  light: 'py-12 text-center md:py-16 bg-surface',
-  muted: 'py-12 text-center md:py-16 bg-bone-dim',
+  plain: 'text-center',
+  light: 'text-center bg-surface',
+  muted: 'text-center bg-bone-dim',
 } as const;
 
 const QUOTE_MARK = {
@@ -66,12 +73,27 @@ const body = BODY[tone];
 // resolves a masked marketplace author to "Cliente" without destroying the raw
 // value in src/data/testimonials.ts — the mask is provenance.
 const featured = testimonials.find((t) => t.variant === 'quote');
+
+// Baseline is the literal these tone lookups used to carry, so an unset
+// rhythm reproduces the previous output exactly.
+const sectionRhythm = rhythmClass(rhythm, 'py-12 md:py-16');
+
+// This block does NOT use <Container>: a pull-quote is deliberately narrower
+// than the page grid, and always has been. `wide` therefore means "as wide as
+// the page container" here rather than the extra-wide token — the vocabulary is
+// semantic, so a block is allowed to interpret it against its own baseline
+// instead of inheriting a width that would break the measure.
+const QUOTE_WIDTH = {
+  contained: 'mx-auto w-full max-w-[36rem] px-5 lg:max-w-[42rem]',
+  wide: 'mx-auto w-full max-w-[36rem] px-5 lg:max-w-[56rem]',
+} as const;
+const quoteWidth = QUOTE_WIDTH[width ?? 'contained'];
 ---
 
 {
   featured && (
-    <section class={section}>
-      <div class="mx-auto w-full max-w-[36rem] px-5 lg:max-w-[42rem]">
+    <section class:list={[sectionRhythm, section]}>
+      <div class={quoteWidth}>
         <p class={quoteMark} aria-hidden="true">
           &rdquo;
         </p>
