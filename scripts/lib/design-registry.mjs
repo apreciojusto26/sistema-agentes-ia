@@ -97,7 +97,6 @@ export const REGISTRY = [
   // protects — they are read and rendered, never modified). The others were
   // promoted onto the variant axis one capability at a time; their old paths
   // survive as shims, which is why this list only shrinks.
-  legacy('conversion', 'Guarantee', '@/components/sections/12-guarantee.astro'),
   legacy('socialProof', 'RealResults', '@/components/sections/13-real-results.astro', ['product.ugc']),
 
   // --- DESIGN SYSTEM building blocks (Fase 2 vertical slice) ---------------
@@ -196,7 +195,31 @@ export const REGISTRY = [
   block('socialProof', 'FeaturedTestimonial', 'default', '@/design-system/blocks/social-proof/FeaturedTestimonial/Default.astro', {
     tone: { type: 'string', enum: ['plain', 'light', 'muted'] },
   }, ['testimonials:quote']),
-  block('conversion', 'ProductGuarantee', 'default', '@/design-system/blocks/conversion/ProductGuarantee/Default.astro', {
+  // conversion/Guarantee — the THIRD and last of 19f60d5's duplicate types to
+  // be collapsed, and the one that was also shipping a real defect.
+  //
+  // `conversion/ProductGuarantee/default` stood beside this key as a separate
+  // capability with a `tone` prop. 19f60d5's own commit message described the
+  // arrangement as deliberate: "conversion/Guarantee/default keeps resolving
+  // next to conversion/ProductGuarantee/default". Rendered against the same
+  // frozen input the two emitted 30 elements each, the same tag sequence, the
+  // same non-class attributes, and byte-identical markup once class attributes
+  // were stripped. Colour tokens only — a dial.
+  //
+  // AND BOTH CARRIED id={SECTION_ANCHORS.Guarantee}. A DesignSpec naming both
+  // validated, built, and shipped a page with TWO id="guarantee" elements
+  // repeating the same guarantee word for word, with the footer's
+  // href="#guarantee" resolving to whichever came first. That combination is
+  // no longer expressible: the duplicate TYPE is gone, so nothing needs an
+  // incompatibleWith rule to forbid it.
+  //
+  // `gold` is the legacy surface and the default, byte-identical to
+  // 12-guarantee.astro. Two details had to resolve in the BASELINE's favour to
+  // get there: the section literal keeps the legacy class order, and the gold
+  // heading carries no colour class — ProductGuarantee had added
+  // `text-graphite`, which global.css already applies to `body`. A no-op that
+  // would still have changed the bytes of every legacy generation.
+  block('conversion', 'Guarantee', 'default', '@/design-system/blocks/conversion/Guarantee/Default.astro', {
     tone: { type: 'string', enum: ['gold', 'plain'] },
   }),
 
@@ -326,9 +349,14 @@ export const REGISTRY = [
   // byte-locked test-fixtures/LegacyIndex2074c93.astro, so moving those tiles
   // out would change what every legacy generation renders — a real behaviour
   // change to a commerce-adjacent section, dressed up as a refactor. BuyBox
-  // keeps its tiles verbatim; this capability is opt-in through a DesignSpec,
-  // exactly the arrangement conversion/ProductGuarantee and
-  // conversion/ProductGuarantee already has beside its legacy counterpart.
+  // keeps its tiles verbatim; this capability is opt-in through a DesignSpec.
+  //
+  // That used to be described here as "the arrangement conversion/
+  // ProductGuarantee and socialProof/FeaturedQuote already have beside their
+  // legacy counterparts". Both of those have since been merged INTO their
+  // legacy counterparts, so the comparison no longer holds and is recorded
+  // here rather than quietly deleted: Benefits is opt-in because it has no
+  // legacy section at all, not because it shadows one.
   //
   // Consequence, stated plainly: Benefits has NO historical golden, because it
   // has no history. Freezing today's output as a "historical" reference would

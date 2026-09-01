@@ -1,0 +1,103 @@
+---
+// DESIGN SYSTEM building block — conversion/Guarantee/default.
+//
+// THIRD and last of the 19f60d5 duplicate types to be collapsed, after
+// hero/ProductHero folded into hero/Hero and socialProof/FeaturedQuote folded
+// into socialProof/FeaturedTestimonial. That commit's own message named the
+// arrangement out loud: "conversion/Guarantee/default keeps resolving next to
+// conversion/ProductGuarantee/default". Two entries, one component.
+//
+// A NOTE ON THE PROSE ABOVE, because it cost an hour. An ASCII arrow written
+// as hyphen-then-greater-than, inside a frontmatter comment ABOVE `interface
+// Props`, silently breaks Astro's props inference: `Astro.props` degrades to
+// `any`, every lookup below becomes an implicit-any error, and `Props` reports
+// as unused. Isolated with a five-file minimal repro; the same characters are
+// harmless BELOW the interface, and the `<!-- -->` sequence in Hero/Split.astro
+// does not trigger it. Write "folded into" in this region, not the arrow.
+//
+// It was measured before it was merged. Rendered against the same frozen input
+// the legacy section and this block emitted 30 elements each, the same tag
+// sequence, and byte-identical markup once class attributes were stripped. The
+// only differences were colour tokens. A dial, not a composition.
+//
+// AND IT WAS WORSE THAN THE OTHER TWO. Both types carried
+// id={SECTION_ANCHORS.Guarantee}, so a DesignSpec naming both validated, built,
+// and shipped a page with TWO id="guarantee" elements repeating the same
+// promise word for word — with the footer's href="#guarantee" resolving to
+// whichever came first. Deleting the duplicate type is what fixes that; no
+// incompatibleWith rule was added, because the combination is no longer
+// expressible by the catalogue at all.
+//
+// GOLD IS THE LEGACY SURFACE, and this block is byte-identical to
+// 12-guarantee.astro when tone="gold". That required two deliberate choices,
+// both of which resolve in the LEGACY baseline's favour rather than the
+// block's:
+//
+//   1. The section literal keeps the legacy class ORDER (`bg-gold-tint` first).
+//   2. The gold heading carries NO colour class. ProductGuarantee had added
+//      `text-graphite` here, which global.css already applies to `body` — a
+//      no-op that would nonetheless have changed the byte output of every
+//      legacy generation. The markup introduced later does not get to overrule
+//      the baseline it derived from.
+//
+// Every tone is a COMPLETE class string, never a base plus an appended token.
+// Tailwind v4 scans source text, so each literal must be whole (ADR-4); and
+// writing them out in full is also what gives `gold` exact control over
+// attribute order.
+import Container from '@/components/ui/Container.astro';
+import { SECTION_ANCHORS } from '@/lib/navigation';
+import { ICONS } from '@/lib/icons';
+import { product } from '@/data/product';
+
+interface Props {
+  tone?: 'gold' | 'plain';
+}
+
+// `gold` is the default because it is the legacy render. An omitted prop must
+// reproduce what shipped, never introduce a surface nobody asked for.
+const { tone = 'gold' } = Astro.props;
+
+const SECTION = {
+  gold: 'bg-gold-tint py-12 md:py-16',
+  plain: 'py-12 md:py-16 bg-bone',
+} as const;
+
+const HEADING = {
+  gold: 'mt-4 text-display md:text-4xl',
+  plain: 'mt-4 text-display md:text-4xl text-graphite-soft',
+} as const;
+
+const ICON = {
+  gold: 'size-6 text-gold',
+  plain: 'size-6 text-steel',
+} as const;
+
+const section = SECTION[tone];
+const heading = HEADING[tone];
+const icon = ICON[tone];
+
+const shield = ICONS.shield;
+const { guarantee } = product;
+---
+
+<section id={SECTION_ANCHORS.Guarantee} class={section}>
+  <Container class="text-center">
+    <img src="/sello-garantia.webp" width="112" height="112" alt={`Sello de garantía de ${guarantee.days} días`} class="mx-auto size-28" loading="lazy" decoding="async" />
+
+    <h2 class={heading}>{guarantee.title}</h2>
+    <p class="mx-auto mt-2 max-w-md text-sm text-steel">{guarantee.text}</p>
+
+    <div class="mx-auto mt-8 grid max-w-lg grid-cols-1 gap-3 sm:grid-cols-3">
+      {
+        guarantee.points.map((point) => (
+          <div class="flex flex-col items-center gap-2 text-xs text-graphite">
+            <svg viewBox={shield.viewBox} class={icon} aria-hidden="true">
+              <path fill="currentColor" d={shield.path} />
+            </svg>
+            <span>{point}</span>
+          </div>
+        ))
+      }
+    </div>
+  </Container>
+</section>

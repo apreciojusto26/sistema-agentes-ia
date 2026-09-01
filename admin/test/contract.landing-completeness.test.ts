@@ -51,8 +51,9 @@ describe('navigation anchors are a contract, not a hopeful string', () => {
     ['HowItWorks/HorizontalTimeline', 'content/landing-base/src/design-system/blocks/product/HowItWorks/HorizontalTimeline.astro', 'HowItWorks'],
     ['Faq/Accordion', 'content/landing-base/src/design-system/blocks/conversion/Faq/Accordion.astro', 'Faq'],
     ['Faq/OpenList', 'content/landing-base/src/design-system/blocks/conversion/Faq/OpenList.astro', 'Faq'],
-    ['Guarantee (legacy)', 'content/landing-base/src/components/sections/12-guarantee.astro', 'Guarantee'],
-    ['ProductGuarantee', 'content/landing-base/src/design-system/blocks/conversion/ProductGuarantee/Default.astro', 'Guarantee'],
+    // Merged into one capability; the legacy section is a shim and carries no
+    // anchor of its own (guarded in contract.navigation.test.ts).
+    ['Guarantee', 'content/landing-base/src/design-system/blocks/conversion/Guarantee/Default.astro', 'Guarantee'],
   ])('%s emits its anchor from the shared constant', (_n, file, key) => {
     const src = read(file);
     expect(src).toContain(`id={SECTION_ANCHORS.${key}}`);

@@ -16,7 +16,7 @@ import { experimental_AstroContainer as AstroContainer } from 'astro/container';
 import HeroSplit from './hero/Hero/Split.astro';
 import HeroDefault from './hero/Hero/Default.astro';
 import FeaturedTestimonialDefault from './social-proof/FeaturedTestimonial/Default.astro';
-import ProductGuaranteeDefault from './conversion/ProductGuarantee/Default.astro';
+import GuaranteeDefault from './conversion/Guarantee/Default.astro';
 
 const container = await AstroContainer.create();
 
@@ -127,25 +127,92 @@ describe('FeaturedTestimonial/default — tone is a PROP, and this is the proof'
   });
 });
 
-describe('ProductGuarantee/default — tone is a REAL rendering difference', () => {
-  test('tone="gold" and tone="plain" emit different markup', async () => {
-    const gold = await render(ProductGuaranteeDefault, { tone: 'gold' });
-    const plain = await render(ProductGuaranteeDefault, { tone: 'plain' });
+describe('Guarantee/default — tone is a PROP, and this is the proof', () => {
+  const TONES = ['gold', 'plain'] as const;
 
-    expect(gold).not.toBe(plain);
-    expect(gold).toContain('bg-gold-tint');
-    expect(gold).toContain('text-gold');
-    expect(plain).toContain('bg-bone');
-    expect(plain).toContain('text-steel');
-    expect(gold).not.toContain('bg-bone ');
+  // Same burden as FeaturedTestimonial above, and for the same reason: this
+  // capability absorbed conversion/ProductGuarantee, so `tone` only keeps its
+  // place as a prop while the two values stay ONE composition.
+  const skeleton = (html: string) => (html.match(/<[a-z][a-z0-9-]*/gi) ?? []).join(' ');
+
+  test('both tones emit an IDENTICAL tag sequence', async () => {
+    const skeletons = await Promise.all(
+      TONES.map(async (tone) => skeleton(await render(GuaranteeDefault, { tone }))),
+    );
+    // Empty-render trap first: two empty strings are also identical.
+    for (const s of skeletons) {
+      expect(s.startsWith('<section'), `empty render: ${s}`).toBe(true);
+      expect(s.split(' ').length, `suspiciously small render: ${s}`).toBeGreaterThan(4);
+    }
+    expect(new Set(skeletons).size, `tone changed the structure: ${skeletons.join(' | ')}`).toBe(1);
   });
 
-  test('does NOT replace the legacy guarantee — it renders its own markup', async () => {
-    const out = await render(ProductGuaranteeDefault, { tone: 'gold' });
-    // Shares the guarantee data, but is a distinct component: a generation
-    // without --design still renders 12-guarantee.astro, never this one.
-    expect(out).toContain('<section');
-    expect(out).not.toContain('undefined');
+  test('the ONLY thing tone moves is the class attribute', async () => {
+    const stripped = await Promise.all(
+      TONES.map(async (tone) =>
+        (await render(GuaranteeDefault, { tone })).replace(/ class="[^"]*"/g, ''),
+      ),
+    );
+    expect(new Set(stripped).size, 'tone changed something other than classes').toBe(1);
+  });
+
+  test('every tone keeps the anchor, the seal and all three shield icons', async () => {
+    // The parts that are NOT design. A tone that dropped the anchor would break
+    // the footer link; one that dropped an icon would be a composition change
+    // wearing a prop's clothes.
+    for (const tone of TONES) {
+      const out = await render(GuaranteeDefault, { tone });
+      expect(out.split('id="guarantee"').length - 1, `${tone}: anchor count`).toBe(1);
+      expect(out, `${tone}: seal`).toContain('/sello-garantia.webp');
+      expect(out.split('<path').length - 1, `${tone}: shield count`).toBe(3);
+      expect(out.split('aria-hidden').length - 1, `${tone}: aria-hidden count`).toBe(3);
+    }
+  });
+
+  test('each tone emits its own surface, with no leakage', async () => {
+    // Awaited one at a time rather than destructured out of a Promise.all:
+    // under noUncheckedIndexedAccess that destructure types both as possibly
+    // undefined, and the `.split()` counts below are worth keeping typed.
+    const gold = await render(GuaranteeDefault, { tone: 'gold' });
+    const plain = await render(GuaranteeDefault, { tone: 'plain' });
+
+    // Asserted on the COMPLETE literals the block actually emits, not on bare
+    // tokens. A first pass here checked `not.toContain('text-steel')` for gold
+    // and was false on real data: the body paragraph is `text-sm text-steel` in
+    // BOTH tones, because it is not part of the dial at all.
+    const SECTION_GOLD = '<section id="guarantee" class="bg-gold-tint py-12 md:py-16">';
+    const SECTION_PLAIN = '<section id="guarantee" class="py-12 md:py-16 bg-bone">';
+    const ICON_GOLD = 'class="size-6 text-gold"';
+    const ICON_PLAIN = 'class="size-6 text-steel"';
+
+    expect(gold).toContain(SECTION_GOLD);
+    expect(gold).not.toContain(SECTION_PLAIN);
+    expect(gold.split(ICON_GOLD).length - 1).toBe(3);
+    expect(gold).not.toContain(ICON_PLAIN);
+
+    expect(plain).toContain(SECTION_PLAIN);
+    expect(plain).not.toContain(SECTION_GOLD);
+    expect(plain.split(ICON_PLAIN).length - 1).toBe(3);
+    expect(plain).not.toContain(ICON_GOLD);
+
+    // `gold` is the LEGACY surface, so its heading carries no colour class at
+    // all — global.css already applies text-graphite to body. ProductGuarantee
+    // had added it; re-adding it would change the bytes of every legacy
+    // generation, which is why the historical golden also pins this.
+    expect(gold, 'gold heading regained a redundant colour class').toContain(
+      '<h2 class="mt-4 text-display md:text-4xl">',
+    );
+    expect(gold).not.toContain('text-display md:text-4xl text-graphite"');
+
+    expect(gold).not.toBe(plain);
+  });
+
+  test('emits no undefined class for either tone', async () => {
+    for (const tone of TONES) {
+      const out = await render(GuaranteeDefault, { tone });
+      expect(out, `tone=${tone}`).not.toContain('undefined');
+      expect(out, `tone=${tone}`).not.toContain('class=""');
+    }
   });
 });
 
@@ -156,7 +223,7 @@ describe('every block defaults to a valid variant when no prop is supplied', () 
     ['Hero/default', HeroDefault],
     ['Hero/split', HeroSplit],
     ['FeaturedTestimonial/default', FeaturedTestimonialDefault],
-    ['ProductGuarantee/default', ProductGuaranteeDefault],
+    ['Guarantee/default', GuaranteeDefault],
   ])('%s renders with no props', async (_name, Component) => {
     const out = await render(Component, {});
     expect(out).toContain('<section');

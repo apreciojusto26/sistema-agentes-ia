@@ -80,6 +80,7 @@ import Comparison from '@/components/sections/11-comparison.astro';
 import Hero from '@/components/sections/03-hero.astro';
 import BuyBox from '@/components/sections/05-buy-box.astro';
 import FeaturedTestimonial from '@/components/sections/07-featured-testimonial.astro';
+import Guarantee from '@/components/sections/12-guarantee.astro';
 // hero/Hero/split has no legacy section path — it was born in the design
 // system — so it is reached directly. Both align values are frozen: `align` is
 // a PROP that dials one composition, and the golden has to pin both settings of
@@ -145,6 +146,25 @@ const FIXTURE_SHA256: Record<string, string> = {
   // output differed from today's by exactly the badge and exactly the author
   // string, and by nothing structural. Same tags, same nesting, same count.
   FeaturedTestimonial: '7c5bdc383d264f7dd7400417bd842f4cff41ab6c8de5a2079725d98673a24741',
+  // conversion/Guarantee, frozen BEFORE its conversion. This one is NOT the
+  // raw 4732910 render, and the derivation is written down rather than
+  // asserted, because 12-guarantee.astro did change after that commit.
+  //
+  //   4732910 render, produced in a worktree at that commit
+  //   + the ONE approved change 224a71b made to this section:
+  //       <section class="bg-gold-tint py-12 md:py-16">
+  //    -> <section id="guarantee" class="bg-gold-tint py-12 md:py-16">
+  //   = this fixture
+  //
+  // One attribute, applied BY HAND, same shape as the `id` Faq and HowItWorks
+  // received in the same navigation-contract change — and for the same reason:
+  // the footer used to render every link as href="#" because no section had an
+  // id to point at.
+  //
+  // The derivation was CLOSED, not merely described: the hand-edited file was
+  // compared against a live render of the section at HEAD and came out
+  // byte-identical, so nothing else moved between 4732910 and today.
+  Guarantee: 'ec65da9e3714f567556e591734c0425ed65b890165f4fd69b772aba8250c672d',
 };
 
 /** [fixture name, component, baseline commit, props]. */
@@ -162,6 +182,9 @@ const CASES = [
   // Reached through the SHIM, which passes tone="plain" — so this row pins the
   // whole legacy path, not just the block's default.
   ['FeaturedTestimonial', FeaturedTestimonial, '4732910', {}],
+  // Reached through the SHIM, which passes tone="gold" — so this row pins the
+  // whole legacy path, not just the block's default.
+  ['Guarantee', Guarantee, '4732910 + navigation id', {}],
 ] as const;
 
 const fixturePath = (name: string) => fileURLToPath(new URL(`./${name}.html`, import.meta.url));
@@ -201,12 +224,25 @@ describe('historical markup golden (references: 4732910, 19f60d5)', () => {
     expect(Object.keys(FIXTURE_SHA256).sort()).toEqual(
       [
         'Comparison', 'Faq', 'GalleryStrip', 'HowItWorks', 'ReviewsReel', 'UgcStrip',
-        'Hero', 'HeroSplitLeft', 'HeroSplitCenter', 'BuyBox', 'FeaturedTestimonial',
+        'Hero', 'HeroSplitLeft', 'HeroSplitCenter', 'BuyBox', 'FeaturedTestimonial', 'Guarantee',
       ].sort(),
     );
     // Every fixture is also actually RENDERED. A sha entry with no CASES row
     // would byte-lock a file nothing compares against.
     expect(CASES.map(([name]) => name).sort()).toEqual(Object.keys(FIXTURE_SHA256).sort());
+  });
+
+  test('EXACTLY ONE frozen reference carries id="guarantee", and it carries it once', () => {
+    // conversion/Guarantee and conversion/ProductGuarantee BOTH emitted this
+    // id, so a DesignSpec naming both shipped two of them and the footer's
+    // href="#guarantee" resolved to whichever came first. Merging the types
+    // made that unrepresentable; this pins it at the markup level, where a
+    // second capability growing the same anchor would show up.
+    const carriers = CASES.map(([name]) => name).filter((name) =>
+      readFileSync(fixturePath(name), 'utf-8').includes('id="guarantee"'),
+    );
+    expect(carriers).toEqual(['Guarantee']);
+    expect(readFileSync(fixturePath('Guarantee'), 'utf-8').split('id="guarantee"').length - 1).toBe(1);
   });
 
   test('EVERY frozen hero reference carries the sticky-CTA sentinel, exactly once', () => {
@@ -223,7 +259,7 @@ describe('historical markup golden (references: 4732910, 19f60d5)', () => {
         .toBe(true);
     }
     // No OTHER frozen reference grew one — the sentinel belongs to the hero.
-    for (const name of ['Comparison', 'Faq', 'GalleryStrip', 'HowItWorks', 'ReviewsReel', 'UgcStrip', 'BuyBox', 'FeaturedTestimonial']) {
+    for (const name of ['Comparison', 'Faq', 'GalleryStrip', 'HowItWorks', 'ReviewsReel', 'UgcStrip', 'BuyBox', 'FeaturedTestimonial', 'Guarantee']) {
       expect(readFileSync(fixturePath(name), 'utf-8'), `${name} grew a hero sentinel`)
         .not.toContain('hero-end');
     }

@@ -43,13 +43,31 @@ describe('DesignSpec -> index.astro -> registry -> building blocks', () => {
   test('renders the selected blocks, prop differences and DesignSpec order', async () => {
     const html = await container.renderToString(IndexPage);
 
+    // Each capability is located by something only IT can emit, never by a
+    // shared asset. `/sello-garantia.webp` used to stand in for the guarantee
+    // block, and that was a coincidence rather than an identification: two
+    // capabilities rendered that image, so the indexOf would happily return
+    // whichever came first. Now the anchored section tag with its tone-specific
+    // surface names one capability, one tone, one element.
+    const GUARANTEE_PLAIN = '<section id="guarantee" class="py-12 md:py-16 bg-bone">';
+
     const productHero = html.indexOf('lg:grid lg:grid-cols-2 lg:items-center lg:gap-10');
     const featuredQuote = html.indexOf('font-display text-6xl text-graphite/15');
-    const productGuarantee = html.indexOf('/sello-garantia.webp');
+    const guarantee = html.indexOf(GUARANTEE_PLAIN);
 
     expect(productHero).toBeGreaterThan(-1);
     expect(featuredQuote).toBeGreaterThan(productHero);
-    expect(productGuarantee).toBeGreaterThan(featuredQuote);
+    expect(guarantee).toBeGreaterThan(featuredQuote);
+
+    // …and it is UNAMBIGUOUS: exactly one match, and exactly one guarantee
+    // anchor in the whole page. A second capability growing this id — the
+    // defect that merging Guarantee and ProductGuarantee removed — fails here
+    // even if the ordering above still held.
+    expect(html.split(GUARANTEE_PLAIN).length - 1, 'guarantee block matched twice').toBe(1);
+    expect(html.split('id="guarantee"').length - 1, 'two guarantee anchors in one page').toBe(1);
+    expect(html, 'the gold surface leaked into a plain-tone spec').not.toContain(
+      '<section id="guarantee" class="bg-gold-tint py-12 md:py-16">',
+    );
 
     expect(html).toContain('text-center');
     expect(html).toContain('justify-center');

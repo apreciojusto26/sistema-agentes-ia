@@ -22,7 +22,7 @@
     },
     {
       "category": "conversion",
-      "type": "ProductGuarantee",
+      "type": "Guarantee",
       "variant": "default",
       "order": 2,
       "props": { "tone": "plain" }

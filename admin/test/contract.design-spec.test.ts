@@ -361,7 +361,9 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
     const LEGACY_KEYS = [
       // 'socialProof/FeaturedTestimonial/default' LEFT this list: it is a block
       // now, and 07-featured-testimonial.astro is a shim.
-      'conversion/Guarantee/default',
+      // 'conversion/Guarantee/default' left for the same reason one phase later,
+      // absorbing 'conversion/ProductGuarantee/default' on the way out. ONE
+      // legacy capability is left.
       'socialProof/RealResults/default',
     ];
     const BLOCK_KEYS = [
@@ -382,7 +384,11 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
       // blocks.render.test.ts fails if those three ever stop emitting an
       // identical tag sequence.
       'socialProof/FeaturedTestimonial/default',
-      'conversion/ProductGuarantee/default',
+      // conversion/Guarantee is the third and last of 19f60d5's duplicate
+      // types to be collapsed. Same shape as FeaturedTestimonial above: one
+      // composition, one variant, a `tone` dial — except this pair was also
+      // emitting two id="guarantee" elements when a spec named both.
+      'conversion/Guarantee/default',
       // Structural variants v1: socialProof/ReviewsReel LEFT the legacy list.
       // Its composition moved into these two blocks and
       // components/sections/10-reviews-reel.astro became a shim, so the byte-
@@ -421,12 +427,12 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
     const keyOf = (e: { category: string; type: string; variant: string }) =>
       `${e.category}/${e.type}/${e.variant}`;
 
-    // 24 -> 23, and this is the FIRST phase in which that number went DOWN.
-    // Every earlier one added capabilities; this one deleted a duplicate. The
-    // block count is unchanged at 21 because FeaturedQuote left and
-    // FeaturedTestimonial arrived in its place; the legacy count is what fell.
-    test('registers exactly the 2 legacy sections plus the 21 building blocks', () => {
-      expect(registryModule.REGISTRY).toHaveLength(23);
+    // 24 -> 23 -> 22. Two consecutive phases have now REMOVED a duplicate
+    // capability rather than adding one. Both times the block count held at 21
+    // (a duplicate left, the surviving type arrived as a block) and the legacy
+    // count is what fell: 3 -> 2 -> 1.
+    test('registers exactly the 1 legacy section plus the 21 building blocks', () => {
+      expect(registryModule.REGISTRY).toHaveLength(22);
       expect(registryModule.REGISTRY.map(keyOf)).toEqual([...LEGACY_KEYS, ...BLOCK_KEYS]);
     });
 
@@ -438,15 +444,33 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
       }
     });
 
-    // ProductGuarantee is an ADDITIONAL capability, never a replacement:
-    // a generation without --design must keep rendering 12-guarantee.astro.
-    test('conversion/Guarantee/default coexists with conversion/ProductGuarantee/default', () => {
-      expect(registryModule.resolveCapability('conversion', 'Guarantee', 'default')?.component).toBe(
-        '@/components/sections/12-guarantee.astro',
-      );
+    // INVERTED. This test used to assert that the two capabilities coexisted —
+    // "ProductGuarantee is an ADDITIONAL capability, never a replacement".
+    // That arrangement shipped a defect: both types emitted
+    // id={SECTION_ANCHORS.Guarantee}, so a DesignSpec naming both validated,
+    // built, and served two id="guarantee" elements repeating the same promise,
+    // with the footer's href="#guarantee" resolving to whichever came first.
+    //
+    // The types are merged. The combination is no longer expressible.
+    test('conversion/ProductGuarantee is GONE, and Guarantee resolves in its place', () => {
+      // NEGATIVE half.
       expect(
-        registryModule.resolveCapability('conversion', 'ProductGuarantee', 'default')?.component,
-      ).toBe('@/design-system/blocks/conversion/ProductGuarantee/Default.astro');
+        registryModule.resolveCapability('conversion', 'ProductGuarantee', 'default'),
+        'ProductGuarantee still registered',
+      ).toBeNull();
+
+      // POSITIVE half — without this the negative half above would stay green
+      // if `resolveCapability` broke and started returning null for everything.
+      const entry = registryModule.resolveCapability('conversion', 'Guarantee', 'default');
+      expect(entry, 'Guarantee no longer resolves').not.toBeNull();
+      expect(entry!.component).toBe('@/design-system/blocks/conversion/Guarantee/Default.astro');
+      expect(entry!.propsSchema.tone!.enum, 'tone lost a value').toEqual(['gold', 'plain']);
+
+      // …and no OTHER capability claims the guarantee anchor's territory.
+      const guaranteeish = registryModule.REGISTRY.filter((e: { type: string }) =>
+        /Guarantee/.test(e.type),
+      );
+      expect(guaranteeish.map((e: { type: string }) => e.type)).toEqual(['Guarantee']);
     });
 
     test('no shell component is addressable as a building block (agents.MD §5.3)', () => {

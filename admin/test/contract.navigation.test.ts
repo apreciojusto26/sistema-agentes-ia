@@ -44,12 +44,26 @@ describe('EVERY variant of an anchored capability emits its id', () => {
     ['Faq/OpenList', `${B}/design-system/blocks/conversion/Faq/OpenList.astro`, 'Faq'],
     ['HowItWorks/VerticalSteps', `${B}/design-system/blocks/product/HowItWorks/VerticalSteps.astro`, 'HowItWorks'],
     ['HowItWorks/HorizontalTimeline', `${B}/design-system/blocks/product/HowItWorks/HorizontalTimeline.astro`, 'HowItWorks'],
-    ['Guarantee (legacy)', `${B}/components/sections/12-guarantee.astro`, 'Guarantee'],
-    ['ProductGuarantee', `${B}/design-system/blocks/conversion/ProductGuarantee/Default.astro`, 'Guarantee'],
+    // ONE row now, not two. conversion/Guarantee absorbed
+    // conversion/ProductGuarantee, and 12-guarantee.astro is a one-line shim —
+    // pointing a MUST-CONTAIN assertion at it would be green-but-empty, so the
+    // shim gets the opposite guard in the test right below instead.
+    ['Guarantee', `${B}/design-system/blocks/conversion/Guarantee/Default.astro`, 'Guarantee'],
   ])('%s', (_n, file, key) => {
     const src = read(file);
     expect(src).toContain(`id={SECTION_ANCHORS.${key}}`);
     expect(src, 'anchor hardcoded instead of imported').not.toMatch(/id="(how-it-works|faq|guarantee)"/);
+  });
+
+  test('the Guarantee shim emits no anchor of its own', () => {
+    // The inverse guard. If markup ever came back to the shim it could grow a
+    // second id="guarantee", which is exactly the collision that merging the
+    // two capabilities removed.
+    const shim = read(`${B}/components/sections/12-guarantee.astro`);
+    expect(shim, 'the shim emits an anchor again').not.toMatch(/id=/);
+    expect(shim, 'the shim no longer delegates to the block').toContain(
+      'blocks/conversion/Guarantee/Default.astro',
+    );
   });
 
   test('a capability contributes exactly ONE target to a landing', () => {

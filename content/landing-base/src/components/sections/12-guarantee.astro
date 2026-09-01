@@ -1,31 +1,23 @@
 ---
-import Container from '@/components/ui/Container.astro';
-import { SECTION_ANCHORS } from '@/lib/navigation';
-import { ICONS } from '@/lib/icons';
-import { product } from '@/data/product';
-
-const shield = ICONS.shield;
-const { guarantee } = product;
+// LEGACY PATH SHIM — kept deliberately, not dead code.
+//
+// The composition this file used to hold moved to
+// @/design-system/blocks/conversion/Guarantee/Default.astro when
+// conversion/Guarantee absorbed conversion/ProductGuarantee. The registry now
+// points at the block; nothing resolves this path through the registry any
+// more.
+//
+// It survives because design-system/test-fixtures/LegacyIndex2074c93.astro is
+// BYTE-LOCKED to index.astro at HEAD 2074c93 and imports this module
+// statically. legacy-render.golden.test.ts renders that fixture against the
+// live default-DesignSpec page and requires the two to be byte-identical.
+//
+// `tone="gold"` is passed EXPLICITLY even though it is also the block's
+// default. Gold IS the legacy surface, and writing it down here means a later
+// argument about which default reads friendlier cannot reach this render by
+// accident.
+// Do not re-add markup here. Edit the block.
+import Guarantee from '@/design-system/blocks/conversion/Guarantee/Default.astro';
 ---
 
-<section id={SECTION_ANCHORS.Guarantee} class="bg-gold-tint py-12 md:py-16">
-  <Container class="text-center">
-    <img src="/sello-garantia.webp" width="112" height="112" alt={`Sello de garantía de ${guarantee.days} días`} class="mx-auto size-28" loading="lazy" decoding="async" />
-
-    <h2 class="mt-4 text-display md:text-4xl">{guarantee.title}</h2>
-    <p class="mx-auto mt-2 max-w-md text-sm text-steel">{guarantee.text}</p>
-
-    <div class="mx-auto mt-8 grid max-w-lg grid-cols-1 gap-3 sm:grid-cols-3">
-      {
-        guarantee.points.map((point) => (
-          <div class="flex flex-col items-center gap-2 text-xs text-graphite">
-            <svg viewBox={shield.viewBox} class="size-6 text-gold" aria-hidden="true">
-              <path fill="currentColor" d={shield.path} />
-            </svg>
-            <span>{point}</span>
-          </div>
-        ))
-      }
-    </div>
-  </Container>
-</section>
+<Guarantee tone="gold" />

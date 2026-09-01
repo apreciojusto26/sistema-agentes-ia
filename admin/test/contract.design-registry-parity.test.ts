@@ -161,6 +161,14 @@ describe('design registry parity — build-time ↔ runtime', () => {
         // FeaturedTestimonial row in historical-markup.golden.test.ts renders
         // this exact path and compares it to the 4732910 markup byte-for-byte.
         'socialProof/FeaturedTestimonial/default',
+        // conversion/Guarantee/default is the FOURTH, and like the one above it
+        // did not move its key at all. It absorbed conversion/ProductGuarantee,
+        // so this key now resolves to a block with a `tone` prop while
+        // src/data/design.ts still names the same type and variant and passes no
+        // props. The default therefore has to be `gold`, and the Guarantee row in
+        // historical-markup.golden.test.ts renders this exact path and compares
+        // it to the 4732910 markup plus its one approved navigation id.
+        'conversion/Guarantee/default',
         // conversion/BuyBox/card is the second of these that kept its key shape
         // partially: the type stayed 'BuyBox' but the variant moved from
         // 'default' to 'card', so src/data/design.ts DID change — one line,

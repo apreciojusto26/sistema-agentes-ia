@@ -252,6 +252,35 @@ describe('scope-boundaries (Batch G — machine-checkable, spec R14)', () => {
     // inverse of the Hero evidence above: `align` had to CHANGE the markup to
     // earn its prop; `tone` has to leave the structure alone to keep its own.
     //
+    // `content/landing-base/src/components/sections/12-guarantee.astro` is the
+    // TENTH file under this arrangement, and the one whose merge also FIXED a
+    // shipped defect rather than only removing a duplicate.
+    // conversion/Guarantee absorbed conversion/ProductGuarantee — one
+    // composition, one variant, a `tone` dial of gold | plain — and
+    // blocks/conversion/ProductGuarantee/ was deleted outright.
+    //
+    // Both types had carried id={SECTION_ANCHORS.Guarantee}. A DesignSpec
+    // naming both validated, built, and served a page with TWO id="guarantee"
+    // elements repeating the same guarantee word for word, with the footer's
+    // href="#guarantee" resolving to whichever came first. That was verified by
+    // generating and building such a landing, not inferred. Deleting the
+    // duplicate type is what makes the combination unrepresentable; no
+    // incompatibleWith rule was added, because there is nothing left to forbid.
+    //
+    // `gold` is the legacy surface AND the default, and two details resolved in
+    // the BASELINE's favour to keep it byte-identical: the section literal keeps
+    // the legacy class order, and the gold heading carries no colour class.
+    // ProductGuarantee had added `text-graphite` there, which global.css already
+    // applies to `body` — a visual no-op that would still have changed the bytes
+    // of every legacy generation.
+    //
+    // Guards: Guarantee.html, derived reproducibly as the 4732910 render plus
+    // the single `id` attribute 224a71b added, with the hand-edited result
+    // verified byte-identical to a live HEAD render; the anchor-collision
+    // assertions in historical-markup.golden.test.ts and
+    // renderer.integration.test.ts; and the structural evidence in
+    // blocks.render.test.ts.
+    //
     // NO PATH IS EXEMPTED HERE, ON PURPOSE. This assertion measures WORKING
     // TREE dirtiness (`git status --porcelain`), not history, so once that
     // change is committed these files are clean again and the boundary holds
