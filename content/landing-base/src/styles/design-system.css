@@ -176,3 +176,35 @@ body[data-design-family="luxury"] {
   --shadow-card:      0 2px 14px -6px rgb(20 22 26 / 0.20);
   --shadow-lift:      0 20px 44px -18px rgb(20 22 26 / 0.34);
 }
+
+/* LAYOUT VOCABULARY per family (P0).
+ *
+ * The second lever this file gains. Families already redefine colour, radius
+ * and shadow; now they also redefine what the layout words MEAN. A DesignSpec
+ * that marks a section `spacious` gets 7rem of air under `editorial` and 4.5rem
+ * under `ecommerce` — same spec, different page.
+ *
+ * Only families with a genuine opinion are listed. The rest inherit the
+ * baseline from global.css, exactly as `premium` inherits everything.
+ */
+body[data-design-family="editorial"] {
+  --section-tight:    clamp(1.5rem, 3vw, 2.5rem);
+  --section-spacious: clamp(5rem, 12vw, 9rem);
+  --content-wide: 92rem;
+}
+
+body[data-design-family="luxury"] {
+  --section-spacious: clamp(5rem, 11vw, 8.5rem);
+  --content-wide: 84rem;
+}
+
+body[data-design-family="ecommerce"] {
+  --section-tight:    clamp(1rem, 2vw, 1.5rem);
+  --section-spacious: clamp(2.5rem, 5vw, 4.5rem);
+  --content-wide: 84rem;
+}
+
+body[data-design-family="bold"] {
+  --section-spacious: clamp(4.5rem, 10vw, 8rem);
+  --content-wide: 96rem;
+}

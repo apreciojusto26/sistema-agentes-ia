@@ -1,11 +1,21 @@
 ---
+// The shared page container. It now takes a `width` from the LAYOUT VOCABULARY
+// rather than being one fixed max-width for every section on every landing.
+//
+// `contained` is the literal this file has always emitted, unchanged, so an
+// unset width renders byte-identically and every frozen golden stays green.
+import { containerClass, type SectionWidth } from '@/design-system/section-layout';
+
 interface Props {
   class?: string;
+  // `| undefined` explicitly: exactOptionalPropertyTypes is on, and callers
+  // forward a value that is genuinely optional at the section instance.
+  width?: SectionWidth | undefined;
 }
 
-const { class: className } = Astro.props;
+const { class: className, width } = Astro.props;
 ---
 
-<div class:list={['mx-auto w-full max-w-[28rem] px-5 md:max-w-[42rem] lg:max-w-[72rem] xl:max-w-[80rem]', className]}>
+<div class:list={[containerClass(width), className]}>
   <slot />
 </div>

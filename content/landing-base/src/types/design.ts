@@ -55,6 +55,12 @@ export interface RegistryEntry {
    * registries stay field-identical (the parity test asserts it).
    */
   requiresData: string[];
+  /**
+   * Which axes of the layout vocabulary this capability implements. Empty means
+   * a spec may not set `layout` on it at all — an expressed decision must take
+   * effect or fail validation, never be silently ignored.
+   */
+  layoutAxes: string[];
 }
 
 export interface DesignSpecSection {
@@ -65,6 +71,11 @@ export interface DesignSpecSection {
   order: number;
   /** Design decisions only, never content. Legacy sections accept none. */
   props?: Record<string, unknown>;
+  /**
+   * Compositional layout for THIS INSTANCE of the section — width and rhythm.
+   * Not a capability prop: a Faq is the same Faq contained or wide.
+   */
+  layout?: { width?: 'contained' | 'wide'; rhythm?: 'tight' | 'standard' | 'spacious' };
 }
 
 export interface DesignSpecTextToken {

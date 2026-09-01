@@ -38,6 +38,26 @@
   --shadow-sticky: 0 -8px 28px -12px rgb(30 33 36 / 0.22);
   --shadow-ring-white: 0 0 0 4px #FFFFFF;
 
+  /* LAYOUT VOCABULARY (P0). Semantic, never arbitrary.
+   *
+   * The DesignSpec chooses WHICH section is spacious; these decide WHAT
+   * spacious means, and design-system.css lets each family redefine that. So
+   * `spacious` is generous in editorial and moderate in ecommerce without the
+   * spec changing a character.
+   *
+   * `standard` and `contained` are DELIBERATELY ABSENT from this list. They are
+   * the template's existing literals (`py-12 md:py-16`, the current Container
+   * max-widths), reproduced verbatim in the lookups that consume them, so a
+   * section with no layout renders byte-identically to today and every frozen
+   * golden stays green. Only the NEW settings need a token.
+   *
+   * clamp() rather than a token per breakpoint: three variables instead of six,
+   * and the ramp is continuous instead of stepping at md.
+   */
+  --section-tight:    clamp(1.25rem, 3vw, 2rem);
+  --section-spacious: clamp(4rem, 9vw, 7rem);
+  --content-wide: 88rem;
+
   --breakpoint-xs: 22.5rem;
   --animate-marquee: marquee 26s linear infinite;
 }

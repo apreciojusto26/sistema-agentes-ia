@@ -65,7 +65,14 @@ const resolved = sections.map((section) => {
     );
   }
 
-  return { Component: mod.default as any, props: section.props ?? {} };
+  // LAYOUT rides on the section INSTANCE, so it is merged in here rather than
+  // coming out of the capability's propsSchema. A block that does not accept
+  // width/rhythm simply ignores them — this is the vertical slice, not a
+  // migration of all 21.
+  return {
+    Component: mod.default as any,
+    props: { ...(section.props ?? {}), ...(section.layout ?? {}) },
+  };
 });
 
 // Deliberately AFTER the section resolution: a malformed DesignSpec should

@@ -34,8 +34,20 @@ import type { RegistryEntry } from '../types/design';
 
 /**
  * A design-system building block. Declares no family/density restriction and no
- * incompatibility — none has been established. The only thing these add over
- * `legacy()` is a REAL props contract backed by a real rendering difference.
+ * incompatibility — none has been established. The only thing these add over a
+ * plain literal is a REAL props contract backed by a real rendering difference.
+ *
+ * `layoutAxes` declares which axes of the LAYOUT VOCABULARY this capability
+ * actually implements. It exists to close a silent no-op: a DesignSpec could
+ * otherwise say `layout: { width: "wide" }` on a block that never reads it, the
+ * spec would validate, and the decision would evaporate. An expressed decision
+ * must take effect or fail validation — never be ignored.
+ *
+ * A WRAPPER would not have worked. All 21 blocks own their own `<section>` and
+ * 20 own their own container, so markup injected around a block cannot change a
+ * max-width inside it. Declaring support per capability is the same shape
+ * `requiresData` already uses, and it lets the Design Agent be offered only the
+ * axes that will actually do something.
  */
 function block(
   category: string,
@@ -45,6 +57,7 @@ function block(
   propsSchema: RegistryEntry['propsSchema'],
   requiresData: string[] = [],
   incompatibleWith: string[] = [],
+  layoutAxes: string[] = [],
 ): RegistryEntry {
   return {
     category,
@@ -56,6 +69,7 @@ function block(
     densityAllowed: '*',
     incompatibleWith,
     requiresData,
+    layoutAxes,
   };
 }
 
@@ -171,7 +185,7 @@ export const REGISTRY: RegistryEntry[] = [
   // by the FeaturedTestimonial row in historical-markup.golden.test.ts.
   block('socialProof', 'FeaturedTestimonial', 'default', '@/design-system/blocks/social-proof/FeaturedTestimonial/Default.astro', {
     tone: { type: 'string', enum: ['plain', 'light', 'muted'] },
-  }, ['testimonials:quote']),
+  }, ['testimonials:quote'], [], ['width', 'rhythm']),
   // conversion/Guarantee — the THIRD and last of 19f60d5's duplicate types to
   // be collapsed, and the one that was also shipping a real defect.
   //
@@ -239,7 +253,7 @@ export const REGISTRY: RegistryEntry[] = [
   //   * strip vs grid cannot co-occur already — `section-duplicate-type`
   //     rejects a repeated type regardless of variant. [] stays.
   block('media', 'GalleryStrip', 'strip', '@/design-system/blocks/media/GalleryStrip/Strip.astro', {}, ['product.gallery']),
-  block('media', 'GalleryStrip', 'grid', '@/design-system/blocks/media/GalleryStrip/Grid.astro', {}, ['product.gallery']),
+  block('media', 'GalleryStrip', 'grid', '@/design-system/blocks/media/GalleryStrip/Grid.astro', {}, ['product.gallery'], [], ['width', 'rhythm']),
 
   // socialProof/UgcStrip — THIRD capability on the structural-variant axis.
   // Both variants read through blocks/social-proof/UgcStrip/ugc-items.ts,
@@ -274,8 +288,8 @@ export const REGISTRY: RegistryEntry[] = [
   //     definition list are both legible under all nine. '*' stays.
   //   * accordion vs open-list cannot co-occur already — `section-duplicate-type`
   //     rejects a repeated type regardless of variant. [] stays.
-  block('conversion', 'Faq', 'accordion', '@/design-system/blocks/conversion/Faq/Accordion.astro', {}, ['faq']),
-  block('conversion', 'Faq', 'open-list', '@/design-system/blocks/conversion/Faq/OpenList.astro', {}, ['faq']),
+  block('conversion', 'Faq', 'accordion', '@/design-system/blocks/conversion/Faq/Accordion.astro', {}, ['faq'], [], ['width', 'rhythm']),
+  block('conversion', 'Faq', 'open-list', '@/design-system/blocks/conversion/Faq/OpenList.astro', {}, ['faq'], [], ['width', 'rhythm']),
 
   // product/HowItWorks — FIFTH capability on the structural-variant axis, and
   // the first in `product`. Both variants read through
@@ -361,8 +375,8 @@ export const REGISTRY: RegistryEntry[] = [
   // Neither declares props. The composition IS the variant, and neither has a
   // dial worth exposing: an `icon` position or a `density` here would be
   // configurability theatre over two compositions that already differ.
-  block('product', 'Benefits', 'icon-grid', '@/design-system/blocks/product/Benefits/IconGrid.astro', {}, ['product.benefits']),
-  block('product', 'Benefits', 'feature-list', '@/design-system/blocks/product/Benefits/FeatureList.astro', {}, ['product.benefits']),
+  block('product', 'Benefits', 'icon-grid', '@/design-system/blocks/product/Benefits/IconGrid.astro', {}, ['product.benefits'], [], ['width', 'rhythm']),
+  block('product', 'Benefits', 'feature-list', '@/design-system/blocks/product/Benefits/FeatureList.astro', {}, ['product.benefits'], [], ['width', 'rhythm']),
 
   // conversion/BuyBox — EIGHTH capability on the variant axis, the first that
   // mounts a commerce island, and the first to declare a real incompatibility.

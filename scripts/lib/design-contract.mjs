@@ -45,7 +45,19 @@ export const DESIGN_SPEC_SCHEMA = 1;
 
 export const ALLOWED_SPEC_FIELDS = ['schema', 'productId', 'design', 'theme', 'sections'];
 export const ALLOWED_DESIGN_FIELDS = ['family', 'density'];
-export const ALLOWED_SECTION_FIELDS = ['category', 'type', 'variant', 'order', 'props'];
+// `layout` rides on the SECTION INSTANCE, beside `order` — not inside `props`.
+//
+// Props are a dial inside one composition, declared and owned by a capability.
+// Width and rhythm are neither: a Faq is the same Faq contained or wide, and
+// putting them in propsSchema would mean duplicating one identical enum into
+// all 21 entries and keeping them in sync through the parity test, while
+// letting a capability declare a fictional restriction on something it does not
+// own. `order` is already an instance field no capability declares, for exactly
+// the same reason.
+export const ALLOWED_SECTION_FIELDS = ['category', 'type', 'variant', 'order', 'props', 'layout'];
+export const ALLOWED_LAYOUT_FIELDS = ['width', 'rhythm'];
+export const SECTION_WIDTHS = ['contained', 'wide'];
+export const SECTION_RHYTHMS = ['tight', 'standard', 'spacious'];
 
 /**
  * Issue codes that mean "the design system cannot express this", as opposed to
@@ -474,6 +486,7 @@ function collectSectionIssues(section, i, design, registry) {
   }
 
   issues.push(...collectPropsIssues(section.props, capability, at));
+  issues.push(...collectLayoutIssues(section.layout, capability, at));
 
   return issues;
 }
@@ -744,4 +757,70 @@ export function checkDesignSupport(input, registry = REGISTRY, content = null) {
   }
 
   return { status: 'invalid', issues };
+}
+
+
+/**
+ * `layout` — the compositional half of a section: how wide it is and how much
+ * air it gets. Enums only, never raw CSS: a spec that could say
+ * `paddingTop: "83px"` would have traded a controlled registry for free-form
+ * styling, which is the failure this vocabulary is designed around.
+ *
+ * Both fields are OPTIONAL and their absence is meaningful: it renders the
+ * block's own literal, unchanged. `standard` means the same thing explicitly.
+ */
+export function collectLayoutIssues(layout, capability, at) {
+  const issues = [];
+  if (layout === undefined) return issues;
+
+  if (!isPlainObject(layout)) {
+    return [{
+      code: 'section-layout-invalid',
+      path: `${at}.layout`,
+      message: `${at}.layout must be an object, got ${Array.isArray(layout) ? 'array' : typeof layout}`,
+    }];
+  }
+
+  const unknown = Object.keys(layout).filter((k) => !ALLOWED_LAYOUT_FIELDS.includes(k));
+  if (unknown.length > 0) {
+    issues.push({
+      code: 'section-layout-unknown',
+      path: `${at}.layout`,
+      message: `${at}.layout has fields outside the contract: ${unknown.join(', ')} (allowed: ${ALLOWED_LAYOUT_FIELDS.join(', ')})`,
+    });
+  }
+
+  // A capability may only be given an axis it actually implements. Without
+  // this, a spec could say `width: "wide"` on one of the 15 blocks that never
+  // reads it: the spec would validate, the Design Agent would believe it had
+  // made a compositional decision, and the decision would evaporate at render.
+  //
+  // An expressed decision takes effect or fails validation. It is never ignored.
+  const supported = capability?.layoutAxes ?? [];
+
+  for (const [field, allowed] of [['width', SECTION_WIDTHS], ['rhythm', SECTION_RHYTHMS]]) {
+    if (layout[field] === undefined) continue;
+
+    if (!supported.includes(field)) {
+      issues.push({
+        code: 'section-layout-unsupported',
+        path: `${at}.layout.${field}`,
+        message:
+          `${at}.layout.${field} was set, but this capability does not implement that axis ` +
+          `(declares: ${supported.length ? supported.join(', ') : 'none'}). ` +
+          'Remove it, or migrate the block and declare the axis in the registry — a layout ' +
+          'decision must take effect, never be silently ignored.',
+      });
+      continue;
+    }
+    if (!allowed.includes(layout[field])) {
+      issues.push({
+        code: 'section-layout-invalid',
+        path: `${at}.layout.${field}`,
+        message: `${at}.layout.${field} must be one of: ${allowed.join(', ')} — got ${JSON.stringify(layout[field])}`,
+      });
+    }
+  }
+
+  return issues;
 }
