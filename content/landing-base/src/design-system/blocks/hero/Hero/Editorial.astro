@@ -22,8 +22,10 @@
 // NOTHING HERE IS INVENTED. Every string on screen comes from @/data/product.
 // There is no "Bestseller", no "Top rated", no fabricated claim: the badges are
 // product.badges verbatim and the rating is product.ratingAverage /
-// product.ratingCount. A hero is not allowed to make a claim the Content Agent
-// did not write and the scraper did not support.
+// product.ratingCount, both PROJECTED from CanonicalProduct.socialProof rather
+// than written by the Content Agent. A hero is not allowed to make a claim the
+// scraper did not support — and when the scraper found no rating, this block
+// does not render at all.
 //
 // STICKY CTA SENTINEL — see the bottom of this file. Present from the FIRST
 // commit of this variant, unlike split, which shipped without one at 19f60d5
@@ -86,9 +88,18 @@ const secondaries = rest.slice(0, 2);
 // block below is either fully populated or absent — no empty cell, no
 // placeholder invented to fill a slot.
 const dominantCell = DOMINANT_CELL[secondaries.length === 0 ? 'solo' : 'paired'];
-const hasRating = product.ratingAverage > 0;
-const hasCount = product.ratingCount > 0;
+// Null-safe: ratingAverage/ratingCount are PROJECTED from CanonicalProduct now
+// and are genuinely nullable. `null > 0` is already false, but the comparison is
+// written explicitly so the intent survives a refactor: absent means the block
+// is absent, never a zero star row.
+// Held nullable ON PURPOSE, and guarded in the markup instead of coerced.
+// A `?? 0` here would be a numeric default on a fact that is genuinely absent
+// for products the scraper found no rating for, and a zero-star row is never
+// the right answer — the block simply does not render.
+const ratingValue = product.ratingAverage;
+const hasCount = product.ratingCount !== null && product.ratingCount > 0;
 const badges = product.badges ?? [];
+
 ---
 
 <section class="bg-bone pb-12 pt-8">
@@ -100,12 +111,12 @@ const badges = product.badges ?? [];
     </header>
 
     {
-      (hasRating || badges.length > 0) && (
+      ((ratingValue !== null && ratingValue > 0) || badges.length > 0) && (
         <div class="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-graphite/10 pt-5">
-          {hasRating && (
+          {ratingValue !== null && ratingValue > 0 && (
             <div class="flex items-center gap-2">
-              <Stars rating={product.ratingAverage} />
-              <span class="font-display text-sm font-bold text-graphite">{product.ratingAverage}</span>
+              <Stars rating={ratingValue} />
+              <span class="font-display text-sm font-bold text-graphite">{ratingValue}</span>
               {hasCount && <span class="text-sm text-steel">{product.ratingCount} reseñas</span>}
             </div>
           )}

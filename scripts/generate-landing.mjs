@@ -244,7 +244,6 @@ function buildProductTs(product, shopifyHandle) {
     ``,
     `  ratingAverage: ${serialize(product.ratingAverage, 2, 1)},`,
     `  ratingCount: ${serialize(product.ratingCount, 2, 1)},`,
-    `  ratingBreakdown: ${serialize(product.ratingBreakdown, 2, 1)},`,
     ``,
     `  badges: ${serialize(product.badges, 2, 1)},`,
     ``,

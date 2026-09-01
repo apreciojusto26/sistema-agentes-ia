@@ -27,10 +27,17 @@ export const BUYBOX_PAYMENT_LOGOS = ['Visa', 'Mastercard', 'PayPal'] as const;
 export interface BuyBoxDisplay {
   /** Units that count as "gift unlocked" on the meter. A RULE, not a field. */
   giftThresholdUnits: number;
-  /** es-ES decimal comma, e.g. "4,7". */
-  ratingLabel: string;
-  /** es-ES grouped, e.g. "1234" -> "1.234". */
-  ratingCountLabel: string;
+  /**
+   * es-ES decimal comma, e.g. "4,7", or NULL when the scraper found no rating.
+   *
+   * Nullable because ratingAverage is PROJECTED from
+   * CanonicalProduct.socialProof.rating now, and that field is genuinely
+   * nullable. It used to be model-written, so it was always a number — always a
+   * plausible one, and never necessarily the product's.
+   */
+  ratingLabel: string | null;
+  /** es-ES grouped, e.g. "1234" -> "1.234", or NULL. Same reason. */
+  ratingCountLabel: string | null;
 }
 
 /**
@@ -42,7 +49,11 @@ export function buyBoxDisplay(_variant: 'card' | 'compact'): BuyBoxDisplay {
 
   return {
     giftThresholdUnits: popularPack?.units ?? 2,
-    ratingLabel: product.ratingAverage.toFixed(1).replace('.', ','),
-    ratingCountLabel: new Intl.NumberFormat('es-ES').format(product.ratingCount),
+    ratingLabel:
+      product.ratingAverage === null ? null : product.ratingAverage.toFixed(1).replace('.', ','),
+    ratingCountLabel:
+      product.ratingCount === null
+        ? null
+        : new Intl.NumberFormat('es-ES').format(product.ratingCount),
   };
 }

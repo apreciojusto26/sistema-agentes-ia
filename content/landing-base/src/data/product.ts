@@ -34,13 +34,6 @@ export const product = {
 
   ratingAverage: 4.9,
   ratingCount: 128,
-  ratingBreakdown: {
-    5: 120,
-    4: 4,
-    3: 2,
-    2: 1,
-    1: 1,
-  },
 
   // PRODUCT badges only. 'Envío 24-48h' and 'Garantía 30 días' used to sit
   // here; both are merchant policy and are derived in lib/policy.ts now.
@@ -50,9 +43,14 @@ export const product = {
   // estimate, commercial guarantee — is prepended by 01-utility-bar.astro from
   // lib/policy.ts. 'Envío gratis desde 29€' and 'Garantía de 30 días' were here
   // and are gone: neither was configured anywhere.
+  //
+  // '+120 reseñas de 5 estrellas' went too, for the rating version of the same
+  // reason. The review count is PROJECTED from CanonicalProduct.socialProof now
+  // and rendered by BuyBox and Hero/Editorial; a second, invented count in free
+  // ticker text is the contamination vector all over again — and it survived
+  // even on landings where the scraper found no rating at all.
   trustTicker: [
     'Pago 100% seguro',
-    '+120 reseñas de 5 estrellas',
     '24 películas deslizables',
   ],
 

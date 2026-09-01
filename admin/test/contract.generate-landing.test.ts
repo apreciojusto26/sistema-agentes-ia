@@ -422,7 +422,6 @@ describe('Group D — scripts/lib/content-contract.mjs unit tests (no spawn)', (
 
   test('ALLOWED_PRODUCT_FIELDS is exported and matches the CLI whitelist length', async () => {
     const { ALLOWED_PRODUCT_FIELDS } = await loadContract();
-    expect(ALLOWED_PRODUCT_FIELDS).toContain('ratingBreakdown');
     // 23 -> 24: `comparisonRival` joined the whitelist so the Comparison
     // heading could stop being a template literal about decorative lamps.
     expect(ALLOWED_PRODUCT_FIELDS).toContain('comparisonRival');
@@ -432,7 +431,21 @@ describe('Group D — scripts/lib/content-contract.mjs unit tests (no spawn)', (
     // merchant config on every landing. They are merchant fields now.
     expect(ALLOWED_PRODUCT_FIELDS).not.toContain('guarantee');
     expect(ALLOWED_PRODUCT_FIELDS).not.toContain('shipping');
-    expect(ALLOWED_PRODUCT_FIELDS.length).toBe(22);
+    // 22 -> 21: `ratingBreakdown` LEFT too, and for the sharpest version of the
+    // same reason. It drew a five-bar histogram and had NO canonical source at
+    // all — an invented statistic rendered as a chart. It was not replaced by a
+    // distribution derived from the average, because an average does not
+    // determine one.
+    expect(ALLOWED_PRODUCT_FIELDS).not.toContain('ratingBreakdown');
+    expect(ALLOWED_PRODUCT_FIELDS.length).toBe(21);
+
+    // ratingAverage and ratingCount STAY in content.json but leave the model's
+    // authority: they are projected from CanonicalProduct.socialProof by
+    // generate-content.mjs, so they are accepted but never requested.
+    const { REQUIRED_PRODUCT_FIELDS } = await loadContract();
+    expect(ALLOWED_PRODUCT_FIELDS).toContain('ratingAverage');
+    expect(REQUIRED_PRODUCT_FIELDS).not.toContain('ratingAverage');
+    expect(REQUIRED_PRODUCT_FIELDS).not.toContain('ratingCount');
   });
 });
 

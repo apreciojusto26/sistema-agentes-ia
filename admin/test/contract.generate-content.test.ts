@@ -220,7 +220,23 @@ describe('Group 1 — successful first attempt', () => {
 
       expect(fixture.requestBodies.length).toBe(1);
       expect(existsSync(stagedPath)).toBe(true);
-      expect(JSON.parse(readFileSync(stagedPath, 'utf8'))).toEqual(minimalContent);
+      // The staged file is the model's output with the PROJECTED facts stamped
+      // over it, so it is no longer byte-equal to what the fixture returned.
+      // ratingAverage / ratingCount come from the canonical product's
+      // socialProof, not from Gemini — it is not asked for them and its values
+      // are overwritten if it writes any.
+      const staged = JSON.parse(readFileSync(stagedPath, 'utf8'));
+      const canonical = buildCanonicalProductFixture();
+      expect(staged.product.ratingAverage).toBe(canonical.socialProof?.rating ?? null);
+      expect(staged.product.ratingCount).toBe(canonical.socialProof?.reviewCount ?? null);
+      expect(staged).toEqual({
+        ...minimalContent,
+        product: {
+          ...minimalContent.product,
+          ratingAverage: staged.product.ratingAverage,
+          ratingCount: staged.product.ratingCount,
+        },
+      });
 
       const resultEvent = events.find((e) => e.type === 'result');
       expect(resultEvent).toBeDefined();

@@ -98,6 +98,12 @@ export function buildSystemInstruction() {
     'un objeto con "product", "faq", "testimonials" y, opcionalmente, "design".',
     '',
     `"product" debe incluir exactamente estos campos: ${REQUIRED_PRODUCT_FIELDS.join(', ')}.`,
+    'NO generes "ratingAverage", "ratingCount" ni "ratingBreakdown". La valoración y el número de',
+    'reseñas salen de los datos scrapeados, no de vos, y una distribución de estrellas no existe',
+    'como dato: no la inventes ni la deduzcas del promedio.',
+    'Tampoco escribas cifras de valoraciones o reseñas dentro de texto libre (badges, trustTicker,',
+    'faq, benefits): nada de "+200 reseñas", "miles de clientes" ni "4,8 de media". Esos números',
+    'salen de los datos scrapeados y la landing ya los muestra por su cuenta.',
     `Cada elemento de "faq" debe incluir: ${FAQ_FIELDS.join(', ')}.`,
     `Cada elemento de "testimonials" debe incluir: ${TESTIMONIAL_REQUIRED_FIELDS.join(', ')}.`,
     // Coverage, stated as a hard requirement rather than left to the few-shot.
@@ -506,6 +512,26 @@ async function main() {
   // identity.sourceItemId and provenance.scrapeJobId are ALWAYS null by design
   // (product-normalizer.mjs DECISION-2) — this script simply propagates
   // whatever it is handed, faithfully, without patching them from elsewhere.
+  // RATING FACTS ARE PROJECTED, NOT GENERATED — same principle as the
+  // productId re-stamp below, and the same shape: taken from the canonical
+  // product read at the top of main(), applied AFTER the validate/retry loop,
+  // overwriting whatever the model happened to write.
+  //
+  // The scraper's real rating and review count sat unused in CanonicalProduct
+  // while every landing displayed numbers the few-shot had taught. They are no
+  // longer asked for (they left REQUIRED_PRODUCT_FIELDS) and no longer trusted.
+  //
+  // NULL IS PROPAGATED, NOT PATCHED. A product the scraper found no rating for
+  // gets null, and the surfaces degrade; inventing 4.7 to fill the gap is the
+  // defect this projection exists to remove. `ratingBreakdown` is not projected
+  // at all — no canonical source exists for a distribution, and an average does
+  // not determine one.
+  const socialProof = product.socialProof ?? {};
+  parsed.product.ratingAverage =
+    typeof socialProof.rating === 'number' ? socialProof.rating : null;
+  parsed.product.ratingCount =
+    typeof socialProof.reviewCount === 'number' ? socialProof.reviewCount : null;
+
   if (isProductId(product.identity?.productId)) {
     parsed.productId = product.identity.productId;
     parsed.provenance = {

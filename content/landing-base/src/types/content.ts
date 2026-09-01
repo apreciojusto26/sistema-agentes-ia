@@ -127,9 +127,14 @@ export interface ProductContent {
   name: string;
   tagline: string;
   subtagline: string;
-  ratingAverage: number;
-  ratingCount: number;
-  ratingBreakdown: Record<Stars, number>; // absolute counts, not %
+  /**
+   * PROJECTED from CanonicalProduct.socialProof.rating by generate-content.mjs,
+   * never written by the model. `null` when the scraper found none — surfaces
+   * degrade rather than invent a number.
+   */
+  ratingAverage: number | null;
+  /** PROJECTED from CanonicalProduct.socialProof.reviewCount. Same rules. */
+  ratingCount: number | null;
   badges: string[]; // 'Envío 24-48h', 'Acero inoxidable'
   trustTicker: string[]; // marquee items in UtilityBar
   offer: { durationMinutes: number; label: string; expiredLabel: string };

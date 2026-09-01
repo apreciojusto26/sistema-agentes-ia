@@ -44,15 +44,42 @@ import { isProductId } from './product-id.cjs';
 // `badges` and `trustTicker` STAY, and are now product-only. The policy half of
 // both is derived in landing-base/src/lib/policy.ts and concatenated at the
 // render site, so the model has no array to write a policy claim into.
+// `ratingBreakdown` WAS here and is GONE. It rendered a five-bar histogram in
+// 13-real-results.astro, and it had NO canonical source at all:
+// product-normalizer.mjs projects socialProof.rating and socialProof.reviewCount
+// (both nullable) and nothing resembling a distribution. The bars came from the
+// few-shot's 180/22/8/3/1 and from free invention — a fabricated statistic drawn
+// as a chart, which reads as data rather than as marketing.
+//
+// It is NOT replaced by a distribution computed from the average. An average
+// does not determine a distribution: 4.9 is consistent with infinitely many
+// breakdowns, and picking a plausible one is fabrication with extra steps.
+//
+// `ratingAverage` and `ratingCount` STAY in content.json but leave the model's
+// authority — see REQUIRED_PRODUCT_FIELDS below. They have real canonical
+// sources and are projected onto the content deterministically.
 export const ALLOWED_PRODUCT_FIELDS = [
   'brand', 'name', 'tagline', 'subtagline',
-  'ratingAverage', 'ratingCount', 'ratingBreakdown',
+  'ratingAverage', 'ratingCount',
   'badges', 'trustTicker', 'offer', 'benefits', 'heroPills',
   'specs', 'packs', 'gallery', 'steps', 'comparison', 'comparisonRival',
   'ugc', 'cta', 'variantGroupLabel', 'errors',
 ];
-// errors has a sane default (translation-only field) so it's not required input.
-export const REQUIRED_PRODUCT_FIELDS = ALLOWED_PRODUCT_FIELDS.filter((f) => f !== 'errors');
+// Fields the model is NOT asked for.
+//
+//   errors            has a sane default (translation-only field).
+//   ratingAverage     PROJECTED from CanonicalProduct.socialProof.rating.
+//   ratingCount       PROJECTED from CanonicalProduct.socialProof.reviewCount.
+//
+// The two rating fields are accepted in ALLOWED_PRODUCT_FIELDS because they end
+// up in content.json, but generate-content.mjs overwrites whatever the model
+// wrote with the canonical values, so the model has no authority over them. It
+// used to invent both: the scraper's real rating and review count sat unused in
+// CanonicalProduct while the landing displayed whatever the few-shot had taught.
+export const MODEL_UNAUTHORED_PRODUCT_FIELDS = ['errors', 'ratingAverage', 'ratingCount'];
+export const REQUIRED_PRODUCT_FIELDS = ALLOWED_PRODUCT_FIELDS.filter(
+  (f) => !MODEL_UNAUTHORED_PRODUCT_FIELDS.includes(f),
+);
 
 export const FAQ_FIELDS = ['id', 'question', 'answer'];
 // `verified` WAS here and was removed (D1). CanonicalReview carries no
