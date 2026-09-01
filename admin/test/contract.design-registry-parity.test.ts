@@ -132,13 +132,20 @@ describe('design registry parity — build-time ↔ runtime', () => {
     expect(support.status, `support: ${JSON.stringify(support)}`).toBe('pass');
   });
 
-  test('the template default renders the 11 default-generation capabilities, in order, with no props', () => {
+  test('the template default renders the 10 default-generation capabilities, in order, with no props', () => {
     const runtimeMap = byKey(runtimeEntries);
     return import(
       pathToFileURL(path.join(REPO_ROOT, 'content/landing-base/src/data/design.ts')).href
     ).then((mod) => {
       const sections = mod.design.sections;
-      expect(sections).toHaveLength(11);
+      // 11 -> 10: socialProof/RealResults left the default spec with the
+      // capability itself. It was the LAST section here still resolving to a
+      // components/sections path, and it was removed rather than promoted —
+      // its histogram read a field with no canonical source, and its UGC grid
+      // rendered the same product.ugc entries as the socialProof/UgcStrip this
+      // very spec already composes at order 6. Nothing replaced it: the
+      // collection now appears once per page instead of twice.
+      expect(sections).toHaveLength(10);
       // The documented exceptions to "legacy only": each is a legacy section
       // PROMOTED onto the variant axis. Each block IS the composition its
       // legacy section held — the file moved, the markup did not — and
@@ -181,6 +188,11 @@ describe('design registry parity — build-time ↔ runtime', () => {
         'product/HowItWorks/horizontal-timeline',
         'product/Comparison/table',
       ]);
+
+      // Every entry in this spec is now a PROMOTED block, so the "legacy only"
+      // rule below has no subjects left. It is kept because the exception list
+      // is what stops an unrelated block being added here.
+      expect(sections.map((s: Entry) => keyOf(s)).every((k: string) => PROMOTED.has(k))).toBe(true);
 
       sections.forEach((s: Entry & { order: number; props?: unknown }, i: number) => {
         expect(s.order, `section ${i} order`).toBe(i);

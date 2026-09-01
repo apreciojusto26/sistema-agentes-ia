@@ -358,14 +358,19 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
     // Fase 2 raised the count from 11 to 14 by ADDING three building blocks.
     // Asserted by identity, not just by length: a bare length check would go
     // green if a legacy capability were swapped for a block.
-    const LEGACY_KEYS = [
-      // 'socialProof/FeaturedTestimonial/default' LEFT this list: it is a block
-      // now, and 07-featured-testimonial.astro is a shim.
-      // 'conversion/Guarantee/default' left for the same reason one phase later,
-      // absorbing 'conversion/ProductGuarantee/default' on the way out. ONE
-      // legacy capability is left.
-      'socialProof/RealResults/default',
-    ];
+    // EMPTY, and that is the milestone this series was working toward.
+    //
+    // 'socialProof/FeaturedTestimonial/default' left when it became a block and
+    // 07-featured-testimonial.astro became a shim. 'conversion/Guarantee/default'
+    // left the same way one phase later, absorbing ProductGuarantee on the way
+    // out. 'socialProof/RealResults/default' did NOT leave by promotion — it was
+    // removed outright, because after taking out the invented rating histogram
+    // there was no responsibility left that socialProof/UgcStrip did not already
+    // own.
+    //
+    // Asserted as a length, and separately by identity below, so "zero legacy"
+    // cannot be true only of this hand-written list.
+    const LEGACY_KEYS: string[] = [];
     const BLOCK_KEYS = [
       // hero/Hero is the one capability that did not merely GAIN variants: it
       // absorbed a second type. 'hero/Hero/default' left LEGACY_KEYS above
@@ -427,13 +432,61 @@ describe('DesignSpec v1 — contract (agents.MD §5.7)', () => {
     const keyOf = (e: { category: string; type: string; variant: string }) =>
       `${e.category}/${e.type}/${e.variant}`;
 
-    // 24 -> 23 -> 22. Two consecutive phases have now REMOVED a duplicate
-    // capability rather than adding one. Both times the block count held at 21
-    // (a duplicate left, the surviving type arrived as a block) and the legacy
-    // count is what fell: 3 -> 2 -> 1.
-    test('registers exactly the 1 legacy section plus the 21 building blocks', () => {
-      expect(registryModule.REGISTRY).toHaveLength(22);
+    // 24 -> 23 -> 22 -> 21, and the legacy count 3 -> 2 -> 1 -> ZERO. Three
+    // consecutive phases removed a capability rather than adding one: two
+    // duplicates absorbed into the type they shadowed, and one deleted outright
+    // for depending on a fabricated statistic.
+    test('registers exactly 21 building blocks and NO legacy sections', () => {
+      expect(registryModule.REGISTRY).toHaveLength(21);
       expect(registryModule.REGISTRY.map(keyOf)).toEqual([...LEGACY_KEYS, ...BLOCK_KEYS]);
+      expect(LEGACY_KEYS).toHaveLength(0);
+    });
+
+    test('ZERO capabilities resolve to a components/sections path — measured, not listed', () => {
+      // The milestone, asserted against the registry itself rather than against
+      // the hand-written LEGACY_KEYS above. A legacy entry someone forgot to add
+      // to that list would still be caught here.
+      const legacy = registryModule.REGISTRY.filter((e: { component: string }) =>
+        e.component.startsWith('@/components/sections/'),
+      );
+      expect(legacy.map((e: { component: string }) => e.component)).toEqual([]);
+
+      // …and EVERY capability resolves into the block tree. Without this half,
+      // the assertion above would also pass if the registry were empty.
+      expect(registryModule.REGISTRY).not.toHaveLength(0);
+      for (const entry of registryModule.REGISTRY) {
+        expect(entry.component, `${keyOf(entry)} is not a block`).toMatch(
+          /^@\/design-system\/blocks\//,
+        );
+      }
+    });
+
+    test('socialProof/RealResults is GONE, and UgcStrip still owns product.ugc', () => {
+      // NEGATIVE half.
+      expect(
+        registryModule.resolveCapability('socialProof', 'RealResults', 'default'),
+        'RealResults still registered',
+      ).toBeNull();
+      expect(registryModule.REGISTRY.some((e: { type: string }) => e.type === 'RealResults')).toBe(
+        false,
+      );
+
+      // POSITIVE half — without it the negative would stay green if
+      // resolveCapability broke and returned null for everything. UgcStrip is
+      // the capability that already owned this dataset, and it is untouched:
+      // RealResults was removed with NO replacement section, so product.ugc now
+      // appears once per page instead of twice.
+      const strip = registryModule.resolveCapability('socialProof', 'UgcStrip', 'strip');
+      expect(strip, 'UgcStrip no longer resolves').not.toBeNull();
+      expect(strip!.requiresData).toEqual(['product.ugc']);
+      expect(registryModule.resolveCapability('socialProof', 'UgcStrip', 'grid')).not.toBeNull();
+
+      // No capability inherited the removed field's data requirement.
+      for (const entry of registryModule.REGISTRY) {
+        expect(entry.requiresData, `${keyOf(entry)} requires ratingBreakdown`).not.toContain(
+          'product.ratingBreakdown',
+        );
+      }
     });
 
     test('the remaining legacy capabilities still point at their original section files', () => {

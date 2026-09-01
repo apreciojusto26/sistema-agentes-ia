@@ -396,12 +396,16 @@ describe('ReviewsReel backstop', () => {
 
   test('no legacy section grew a defensive throw', () => {
     const dir = 'content/landing-base/src/components/sections';
-    const guarded = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '11', '12', '13', '14', '15']
+    // '13' left this list with 13-real-results.astro itself: socialProof/
+    // RealResults was REMOVED rather than promoted, because its histogram read
+    // a field with no canonical source and its UGC grid duplicated
+    // socialProof/UgcStrip's dataset in the same page.
+    const guarded = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '11', '12', '14', '15']
       .map((n) => {
         const file = [
           '01-utility-bar', '02-site-header', '03-hero', '04-gallery-strip', '05-buy-box',
           '06-how-it-works', '07-featured-testimonial', '08-faq', '09-ugc-strip',
-          '11-comparison', '12-guarantee', '13-real-results', '14-site-footer', '15-sticky-bar',
+          '11-comparison', '12-guarantee', '14-site-footer', '15-sticky-bar',
         ].find((f) => f.startsWith(n))!;
         return { file, src: read(`${dir}/${file}.astro`) };
       })

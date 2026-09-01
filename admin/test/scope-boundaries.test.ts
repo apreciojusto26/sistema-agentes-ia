@@ -303,6 +303,29 @@ describe('scope-boundaries (Batch G — machine-checkable, spec R14)', () => {
     // and the Guarantee / BuyBox / Faq historical goldens, all three updated by
     // hand with the removed claim and its deterministic replacement written out.
     //
+    // `content/landing-base/src/components/sections/13-real-results.astro` is
+    // the TWELFTH file under this arrangement and the only DELETION.
+    //
+    // socialProof/RealResults was the last legacy capability. It was not
+    // promoted: it rendered a five-bar rating histogram from
+    // product.ratingBreakdown, a field with no canonical source, above a UGC
+    // grid rendering the same product.ugc entries as socialProof/UgcStrip —
+    // which the default DesignSpec already composed at order 6, so every legacy
+    // landing showed that collection twice, once framed as "Resultados reales".
+    //
+    // Nothing replaced it. Fewer sections is the correct outcome when one of
+    // them duplicated another's data under a claim the data does not support,
+    // and the hardcoded headings went with it rather than moving to UgcStrip.
+    //
+    // With it gone the registry has 21 capabilities and ZERO entries resolving
+    // to components/sections — asserted by measurement in
+    // contract.design-spec.test.ts, not by a hand-written list. The `legacy()`
+    // helper in both registry mirrors was deleted with its last caller.
+    //
+    // Guards: the byte-lock on test-fixtures/LegacyIndex2074c93.astro, updated
+    // BY HAND for the second time (first was the consent phase) with both the
+    // fixture header and the sha comment recording what left and why.
+    //
     // NO PATH IS EXEMPTED HERE, ON PURPOSE. This assertion measures WORKING
     // TREE dirtiness (`git status --porcelain`), not history, so once that
     // change is committed these files are clean again and the boundary holds
@@ -665,6 +688,62 @@ describe('scope-boundaries (Batch G — machine-checkable, spec R14)', () => {
         "+  'ugc', 'cta', 'variantGroupLabel', 'errors',",
       ];
 
+      // SIXTH authorised diff — the RealResults integrity removal.
+      //
+      // `ratingBreakdown` leaves ALLOWED_PRODUCT_FIELDS, and ratingAverage /
+      // ratingCount leave the MODEL's authority without leaving content.json.
+      //
+      //   ratingBreakdown had NO canonical source at all. product-normalizer.mjs
+      //   projects socialProof.rating and socialProof.reviewCount, both nullable,
+      //   and nothing resembling a distribution — so the five-bar histogram in
+      //   13-real-results.astro came from the few-shot's 180/22/8/3/1 and from
+      //   free invention. A fabricated statistic drawn as a chart, which reads
+      //   as data rather than as marketing. It is NOT replaced by a distribution
+      //   computed from the average: an average does not determine one, and
+      //   picking a plausible breakdown is fabrication with extra steps.
+      //
+      //   ratingAverage / ratingCount DO have canonical sources, which sat
+      //   unused while every landing displayed whatever the example had taught.
+      //   They move to MODEL_UNAUTHORED_PRODUCT_FIELDS: still accepted in
+      //   content.json, never requested, and overwritten by generate-content.mjs
+      //   from the canonical product in the same `save` stage that re-stamps
+      //   productId. Null is propagated, not patched.
+      const EXPECTED_RATING_PROVENANCE_DIFF_LINES = [
+        "+// `ratingBreakdown` WAS here and is GONE. It rendered a five-bar histogram in",
+        "+// 13-real-results.astro, and it had NO canonical source at all:",
+        "+// product-normalizer.mjs projects socialProof.rating and socialProof.reviewCount",
+        "+// (both nullable) and nothing resembling a distribution. The bars came from the",
+        "+// few-shot's 180/22/8/3/1 and from free invention \u2014 a fabricated statistic drawn",
+        "+// as a chart, which reads as data rather than as marketing.",
+        "+//",
+        "+// It is NOT replaced by a distribution computed from the average. An average",
+        "+// does not determine a distribution: 4.9 is consistent with infinitely many",
+        "+// breakdowns, and picking a plausible one is fabrication with extra steps.",
+        "+//",
+        "+// `ratingAverage` and `ratingCount` STAY in content.json but leave the model's",
+        "+// authority \u2014 see REQUIRED_PRODUCT_FIELDS below. They have real canonical",
+        "+// sources and are projected onto the content deterministically.",
+        "-  'ratingAverage', 'ratingCount', 'ratingBreakdown',",
+        "+  'ratingAverage', 'ratingCount',",
+        "-// errors has a sane default (translation-only field) so it's not required input.",
+        "-export const REQUIRED_PRODUCT_FIELDS = ALLOWED_PRODUCT_FIELDS.filter((f) => f !== 'errors');",
+        "+// Fields the model is NOT asked for.",
+        "+//",
+        "+//   errors            has a sane default (translation-only field).",
+        "+//   ratingAverage     PROJECTED from CanonicalProduct.socialProof.rating.",
+        "+//   ratingCount       PROJECTED from CanonicalProduct.socialProof.reviewCount.",
+        "+//",
+        "+// The two rating fields are accepted in ALLOWED_PRODUCT_FIELDS because they end",
+        "+// up in content.json, but generate-content.mjs overwrites whatever the model",
+        "+// wrote with the canonical values, so the model has no authority over them. It",
+        "+// used to invent both: the scraper's real rating and review count sat unused in",
+        "+// CanonicalProduct while the landing displayed whatever the few-shot had taught.",
+        "+export const MODEL_UNAUTHORED_PRODUCT_FIELDS = ['errors', 'ratingAverage', 'ratingCount'];",
+        "+export const REQUIRED_PRODUCT_FIELDS = ALLOWED_PRODUCT_FIELDS.filter(",
+        "+  (f) => !MODEL_UNAUTHORED_PRODUCT_FIELDS.includes(f),",
+        "+);",
+      ];
+
       // EXACTLY one of the reviewed sequences. Not a union, not a superset:
       // a partially-applied or reworded version of either is a different line
       // sequence and still fails, exactly as the all-or-nothing check did.
@@ -676,6 +755,7 @@ describe('scope-boundaries (Batch G — machine-checkable, spec R14)', () => {
           EXPECTED_COMPLETENESS_DIFF_LINES,
           EXPECTED_FEATURED_TESTIMONIAL_MERGE_DIFF_LINES,
           EXPECTED_POLICY_CONSISTENCY_DIFF_LINES,
+          EXPECTED_RATING_PROVENANCE_DIFF_LINES,
         ],
         'content-contract.mjs diff matches no reviewed change',
       ).toContainEqual(diffLines);

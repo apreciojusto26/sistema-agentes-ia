@@ -41,6 +41,5 @@ export const design: DesignSpec = {
     { category: 'socialProof', type: 'ReviewsReel', variant: 'carousel', order: 7 },
     { category: 'product', type: 'Comparison', variant: 'table', order: 8 },
     { category: 'conversion', type: 'Guarantee', variant: 'default', order: 9 },
-    { category: 'socialProof', type: 'RealResults', variant: 'default', order: 10 },
   ],
 };

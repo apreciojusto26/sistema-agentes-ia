@@ -152,15 +152,21 @@ describe('B1 — invalid capability / variant / props are REJECTED', () => {
   });
 
   test('props on a props-less capability are still rejected — they accept none', () => {
-    // Was conversion/BuyBox/default, which stopped existing when BuyBox gained
-    // structural variants; an unregistered triple would have failed here as
-    // `section-unknown-variant` and stopped testing props at all.
-    // socialProof/RealResults is still a real legacy section with no props.
+    // THIRD example this test has needed, and the reason is worth keeping: it
+    // must name a REGISTERED capability that declares no props, or the spec
+    // fails as `section-unknown-variant` and never reaches the props check at
+    // all — green on the wrong error.
+    //
+    // conversion/BuyBox/default went first, when BuyBox gained structural
+    // variants. socialProof/RealResults went next, when that capability was
+    // removed outright for depending on a fabricated rating histogram.
+    // socialProof/UgcStrip/strip is a block with `propsSchema: {}` and is the
+    // capability that already owned RealResults' UGC dataset.
     const spec = mutate((s) => {
       s.sections.push({
         category: 'socialProof',
-        type: 'RealResults',
-        variant: 'default',
+        type: 'UgcStrip',
+        variant: 'strip',
         order: 3,
         props: { align: 'left' },
       });

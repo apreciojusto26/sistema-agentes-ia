@@ -97,7 +97,36 @@ export const REGISTRY = [
   // protects — they are read and rendered, never modified). The others were
   // promoted onto the variant axis one capability at a time; their old paths
   // survive as shims, which is why this list only shrinks.
-  legacy('socialProof', 'RealResults', '@/components/sections/13-real-results.astro', ['product.ugc']),
+  // socialProof/RealResults WAS HERE, and was the LAST legacy capability. It is
+  // not promoted, not renamed and not replaced — it is REMOVED, because after
+  // taking the fabricated half out there was no responsibility left.
+  //
+  // It rendered two things under the eyebrow "Resultados reales": a five-bar
+  // rating histogram and a six-image UGC grid.
+  //
+  //   The histogram read product.ratingBreakdown, which had NO canonical source
+  //   at all. product-normalizer.mjs projects socialProof.rating and
+  //   socialProof.reviewCount, both nullable, and nothing resembling a
+  //   distribution — so the bars came from the few-shot's 180/22/8/3/1 and from
+  //   free invention. A fabricated statistic drawn as a chart, which reads as
+  //   data rather than as marketing. It was not replaced by a distribution
+  //   derived from the average: an average does not determine one.
+  //
+  //   The UGC grid was socialProof/UgcStrip's dataset, rendered from the same
+  //   product.ugc entries. Not similar — IDENTICAL: rendered against one input
+  //   the two emitted the same three assets. And the default DesignSpec composed
+  //   BOTH, so every legacy landing already showed that collection twice, once
+  //   of them framed as "Resultados reales".
+  //
+  // Removing it therefore needs no replacement section: UgcStrip is already in
+  // the same page at order 6. The collection now appears once instead of twice.
+  //
+  // The headings went with it. "Resultados reales" cannot be applied to a UGC
+  // collection with no provenance of a result, and it was NOT moved to UgcStrip.
+  //
+  // With this gone the registry has 21 capabilities and ZERO legacy entries:
+  // every capability resolves to design-system/blocks/**, and no
+  // components/sections/*.astro path is registered any more.
 
   // --- DESIGN SYSTEM building blocks (Fase 2 vertical slice) ---------------
   // Props-driven derivations living under src/design-system/blocks/. Each one
@@ -442,25 +471,15 @@ export const REGISTRY = [
   block('conversion', 'BuyBox', 'compact', '@/design-system/blocks/conversion/BuyBox/Compact.astro', {}),
 ];
 
-/**
- * A legacy section: unconstrained `default` variant, zero props. Written as a
- * helper rather than 11 hand-copied literals so the "no fictional constraint"
- * invariant is structural — there is exactly one place a constraint could be
- * introduced for these, and it would be a deliberate edit.
- */
-function legacy(category, type, component, requiresData = []) {
-  return {
-    category,
-    type,
-    variant: 'default',
-    component,
-    propsSchema: {},
-    familiesAllowed: '*',
-    densityAllowed: '*',
-    incompatibleWith: [],
-    requiresData,
-  };
-}
+// The `legacy()` helper WAS HERE and is gone with the last legacy capability.
+//
+// It built an entry pointing at components/sections/*.astro with an
+// unconstrained `default` variant and zero props. Every one of those has since
+// either been promoted into design-system/blocks (with the section file left as
+// a one-line shim) or removed outright, so the helper had no callers.
+//
+// Deleted rather than kept "in case": re-introducing a legacy capability should
+// require re-introducing the concept, with a reason written down.
 
 /**
  * A design-system building block. Still declares no family/density restriction
