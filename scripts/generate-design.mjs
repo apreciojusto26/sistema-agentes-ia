@@ -48,6 +48,7 @@ import {
   collectImpeccableFindings,
   describeFindings,
 } from './lib/impeccable-principles.mjs';
+import { SECTION_WIDTHS, SECTION_RHYTHMS } from './lib/design-contract.mjs';
 import events from './lib/events.cjs';
 
 const GEMINI_REQUEST_TIMEOUT_MS = 120_000;
@@ -108,6 +109,12 @@ export function buildCapabilityCatalogue(registry = REGISTRY) {
       type: entry.type,
       variant: entry.variant,
       props: props.length ? props.join(', ') : 'ninguna',
+      // Only the axes this capability actually implements. A block that reads
+      // neither shows nothing, so the agent is never offered a decision that
+      // would be rejected.
+      layout: (entry.layoutAxes ?? []).length
+        ? `, layout: ${(entry.layoutAxes ?? []).join(' + ')}`
+        : '',
       // Surfaced in the prompt so the model can avoid an unfeedable capability
       // on the FIRST attempt. The contract still rejects it either way — this
       // just stops a correction turn being spent on something knowable upfront.
@@ -120,7 +127,7 @@ export function buildSystemInstruction() {
   const catalogue = buildCapabilityCatalogue()
     .map((c) => {
       const needs = c.requiresData.length ? `, necesita datos: ${c.requiresData.join(' + ')}` : '';
-      return `- ${c.key}  (props: ${c.props}${needs})`;
+      return `- ${c.key}  (props: ${c.props}${needs}${c.layout})`;
     })
     .join('\n');
 
@@ -172,6 +179,26 @@ export function buildSystemInstruction() {
     '',
     // Criterion layer. Sits BELOW the contract and the hard rules above and
     // ABOVE the model's free preference — see impeccable-principles.mjs.
+    // LAYOUT VOCABULARY. Derived from the contract, never hardcoded here — the
+    // enums the prompt offers and the enums the validator accepts are the same
+    // arrays, so the two cannot drift.
+    //
+    // Deliberately NOT taught as "editorial means spacious". The agent chooses
+    // per section from context; the FAMILY decides what the words are worth in
+    // CSS, so the same choice reads differently in editorial and ecommerce.
+    '',
+    'Algunas capabilities aceptan un "layout" opcional con la composición de ESA instancia.',
+    'El catálogo de arriba dice cuáles: sólo las que muestran "layout:" lo soportan.',
+    'Ponerlo en una que no lo declara INVALIDA el spec — no es un no-op, es un error.',
+    `  layout.width: ${SECTION_WIDTHS.map((w) => `"${w}"`).join(' | ')}`,
+    `  layout.rhythm: ${SECTION_RHYTHMS.map((r) => `"${r}"`).join(' | ')}`,
+    'No es un prop del bloque: un Faq es el mismo Faq contained o wide. Es dónde vive esa',
+    'sección en la página.',
+    'Omitir "layout" deja la sección como está hoy — es una decisión válida, no un olvido.',
+    'USALO PARA CREAR RITMO, no para decorar: si todas las secciones llevan el mismo rhythm,',
+    'la página vuelve a leerse como una plantilla. Alterná respiración según lo que cada',
+    'sección pide — una galería puede querer amplitud, un FAQ no.',
+    'NUNCA escribas CSS ni clases Tailwind acá: sólo estas palabras.',
     IMPECCABLE_PROMPT,
   ].join('\n');
 }
