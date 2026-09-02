@@ -1,0 +1,102 @@
+---
+import '@/styles/global.css';
+import { getSecret } from 'astro:env/server';
+import { CONSENT_KEY } from '@/lib/consent';
+import { CookieBanner } from '@/components/islands/CookieBanner';
+import { DiagnosticBadge } from '@/components/islands/DiagnosticBadge';
+import { TikTokBioNotice } from '@/components/islands/TikTokBioNotice';
+
+interface Props {
+  title: string;
+  description: string;
+}
+
+const { title, description } = Astro.props;
+const ogImage = new URL('/og-cover.png', Astro.site ?? Astro.url).toString();
+
+// Gated to prod so local/preview traffic doesn't pollute GA4/Clarity data.
+const gaId = import.meta.env.PROD ? getSecret('PUBLIC_GA_MEASUREMENT_ID') : undefined;
+const clarityId = import.meta.env.PROD ? getSecret('PUBLIC_CLARITY_PROJECT_ID') : undefined;
+// Shared with lib/consent.ts so the bootstrap and the banner can never read
+// and write different keys.
+const consentKey = CONSENT_KEY;
+---
+
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="generator" content={Astro.generator} />
+
+    <title>{title}</title>
+    <meta name="description" content={description} />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={ogImage} />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    {/*
+      Analytics are NOT loaded here. They are injected by __loadAnalytics(),
+      which runs on first paint ONLY for a visitor who already consented, and
+      otherwise waits for the banner. Consent under LSSI-CE art. 22.2 must be
+      prior, so a <script src> in the head would be the infringement itself.
+    */}
+    {(gaId || clarityId) && (
+      <script is:inline define:vars={{ gaId, clarityId, consentKey }}>
+        window.__loadAnalytics = function () {
+          if (window.__analyticsLoaded) return;
+          window.__analyticsLoaded = true;
+
+          if (gaId) {
+            window.dataLayer = window.dataLayer || [];
+            // Exposed on window so lib/analytics.ts can reach it — this
+            // script is wrapped in an IIFE by define:vars.
+            window.gtag = function () {
+              window.dataLayer.push(arguments);
+            };
+            window.gtag('js', new Date());
+            window.gtag('config', gaId);
+
+            var ga = document.createElement('script');
+            ga.async = true;
+            ga.src = 'https://www.googletagmanager.com/gtag/js?id=' + gaId;
+            document.head.appendChild(ga);
+          }
+
+          if (clarityId) {
+            window.clarity =
+              window.clarity ||
+              function () {
+                (window.clarity.q = window.clarity.q || []).push(arguments);
+              };
+            var cl = document.createElement('script');
+            cl.async = true;
+            cl.src = 'https://www.clarity.ms/tag/' + clarityId;
+            document.head.appendChild(cl);
+          }
+        };
+
+        try {
+          if (window.localStorage.getItem(consentKey) === 'granted') window.__loadAnalytics();
+        } catch (e) {
+          /* storage blocked — stay off until the banner is answered */
+        }
+      </script>
+    )}
+  </head>
+  <body>
+    <slot />
+    <CookieBanner client:idle />
+    {/* Renders nothing unless ?diag=1 latched the mode on. In Base so the id
+        stays visible across the landing, /checkout and /checkout/gracias. */}
+    <DiagnosticBadge client:idle />
+    {/* Renders only for traffic latched as ?source=tiktokbio. */}
+    <TikTokBioNotice client:load />
+  </body>
+</html>

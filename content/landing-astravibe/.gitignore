@@ -1,0 +1,31 @@
+# build output
+dist/
+# generated types
+.astro/
+
+# dependencies
+node_modules/
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+
+# environment variables
+.env*
+!.env.example
+
+# macOS-specific files
+.DS_Store
+
+# jetbrains setting folder
+.idea/
+.vercel
+
+# Masters de cámara sin procesar (public/img/Galeria/IMG_*).
+# Pesan ~103 MB y public/ se despliega tal cual: subirlos serviría un .mov de
+# 87 MB a cada visitante. Las versiones optimizadas viven en
+# src/assets/product/ y pasan por astro:assets.
+public/img/Galeria/IMG_*

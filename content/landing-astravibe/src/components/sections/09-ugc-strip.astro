@@ -1,0 +1,115 @@
+---
+import { Image } from 'astro:assets';
+import type { ImageMetadata } from 'astro';
+import { images } from '@/data/images';
+import { videos } from '@/data/videos';
+import { product } from '@/data/product';
+import type { MediaRef } from '@/types/content';
+
+/**
+ * Reads from product.ugcStrip and goes through astro:assets, so the strip
+ * gets WebP + a real srcset. It previously pointed at raw /public paths,
+ * which skips optimization entirely, and declared 1536x2752 for files that
+ * are actually 768x1376 — a wrong intrinsic size makes the browser reserve
+ * the wrong space and shifts the layout once the real image lands.
+ */
+// Explicit discriminated union: flatMap returning two different object shapes
+// widens to `unknown` without it, and the template then cannot read either.
+type StripItem =
+  | { kind: 'video'; src: string; poster: string | undefined; alt: string }
+  | { kind: 'image'; asset: ImageMetadata; alt: string };
+
+// Read through MediaRef: `as const` gives each entry its own literal type, so
+// the ones without `kind` do not carry the property at all and the union
+// cannot be narrowed on it.
+const stripSource: MediaRef[] = [...product.ugcStrip];
+
+const strip = stripSource.flatMap((media): StripItem[] => {
+  if (media.kind === 'video' && media.asset) {
+    const src = videos[media.asset];
+    return src
+      ? [{ kind: 'video', src, poster: media.poster ? images[media.poster]?.src : undefined, alt: media.alt }]
+      : [];
+  }
+  const asset = media.asset ? images[media.asset] : null;
+  return asset ? [{ kind: 'image', asset, alt: media.alt }] : [];
+});
+
+/**
+ * ONE pass per track, not two. The track is already duplicated below for the
+ * seamless loop, so every item exists twice — and with video in the mix each
+ * extra pass is another decoding <video>, not just another decoded JPEG.
+ * Nine distinct items cover a wide screen on their own.
+ */
+const marqueeTrack = strip;
+---
+
+<section class="overflow-hidden bg-white py-8">
+  <div class="overflow-hidden px-5 motion-reduce:overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div class="flex w-max animate-[marquee_94s_linear_infinite] motion-reduce:animate-none">
+      <div class="flex gap-3 pr-3">
+        {
+          marqueeTrack.map((item, index) => (
+            <div class="w-[42vw] max-w-[11rem] shrink-0 lg:max-w-[14rem]">
+              {item.kind === 'video' ? (
+                <video
+                  src={item.src}
+                  poster={item.poster}
+                  aria-label={item.alt}
+                  muted
+                  loop
+                  playsinline
+                  autoplay
+                  preload="none"
+                  class="aspect-[9/16] w-full rounded-tile object-cover"
+                />
+              ) : (
+                <Image
+                  src={item.asset}
+                  alt={item.alt}
+                  widths={[176, 224, 448]}
+                  sizes="(min-width: 1024px) 14rem, 42vw"
+                  loading={index < 4 ? 'eager' : 'lazy'}
+                  decoding="async"
+                  class="aspect-[9/16] w-full rounded-tile object-cover"
+                />
+              )}
+            </div>
+          ))
+        }
+      </div>
+
+      <div class="flex gap-3 pr-3" aria-hidden="true">
+        {
+          marqueeTrack.map((item) => (
+            <div class="w-[42vw] max-w-[11rem] shrink-0 lg:max-w-[14rem]">
+              {item.kind === 'video' ? (
+                <video
+                  src={item.src}
+                  poster={item.poster}
+                  muted
+                  loop
+                  playsinline
+                  autoplay
+                  preload="none"
+                  tabindex="-1"
+                  class="aspect-[9/16] w-full rounded-tile object-cover"
+                />
+              ) : (
+                <Image
+                  src={item.asset}
+                  alt=""
+                  widths={[176, 224, 448]}
+                  sizes="(min-width: 1024px) 14rem, 42vw"
+                  loading="lazy"
+                  decoding="async"
+                  class="aspect-[9/16] w-full rounded-tile object-cover"
+                />
+              )}
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </div>
+</section>

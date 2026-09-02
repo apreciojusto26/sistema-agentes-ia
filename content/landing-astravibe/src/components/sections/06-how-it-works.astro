@@ -1,0 +1,90 @@
+---
+import Container from '@/components/ui/Container.astro';
+import Media from '@/components/ui/Media.astro';
+import { product } from '@/data/product';
+---
+
+<section id="como-funciona" class="scroll-mt-4 bg-white py-12 md:py-16">
+  <Container>
+    <h2 class="bg-gradient-to-r from-grape-deep via-grape-soft to-grape-deep bg-[length:200%_auto] bg-clip-text text-display font-black text-transparent animate-shine md:text-4xl lg:text-5xl">
+      Cómo usar mi
+      <br />
+      Astra Vibe
+    </h2>
+    <p class="mt-2 max-w-md text-sm text-graphite md:text-base">
+      Transforma cualquier espacio en un cielo estrellado y disfruta de un ambiente único en segundos.
+    </p>
+
+    <div
+      data-steps-carousel
+      role="region"
+      aria-label="Cómo usar mi Astra Vibe"
+      tabindex="0"
+      class="-mx-5 mt-8 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-6 [scrollbar-width:none] [-ms-overflow-style:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden md:mx-0 md:block md:space-y-8 md:overflow-visible md:px-0 md:pb-0 md:[scroll-snap-type:none] xl:grid xl:grid-cols-3 xl:gap-6 xl:space-y-0"
+    >
+      <span class="-mr-3 w-5 shrink-0 snap-start md:hidden" aria-hidden="true"></span>
+      {
+        product.steps.map((step) => (
+          <div data-step-card class="flex w-[calc(87%_-_2.175rem)] shrink-0 snap-start flex-col rounded-card last:mr-5 md:last:mr-0 md:block md:w-auto md:overflow-hidden md:bg-surface md:shadow-[0_14px_28px_-10px_rgb(30_33_36_/_0.32)]">
+            <div class="relative overflow-hidden rounded-t-card md:rounded-none">
+              <Media media={step.media} rounded="rounded-none" class="aspect-[4/3] w-full" />
+              <span class="absolute left-4 top-4 grid size-9 place-items-center rounded-full bg-graphite font-display font-black text-bone">
+                {step.step}
+              </span>
+            </div>
+            <div class="flex-1 rounded-b-card bg-surface p-5 shadow-[0_10px_25px_rgb(30_33_36_/_0.10)] [clip-path:inset(0_-30px_-30px)] md:rounded-none md:shadow-none md:[clip-path:none]">
+              <h3 class="text-lg font-bold text-graphite">{step.title}</h3>
+              <p class="mt-1 text-sm text-steel">{step.text}</p>
+            </div>
+          </div>
+        ))
+      }
+    </div>
+
+    <div data-step-indicators class="mt-4 flex justify-center gap-2 md:hidden" aria-hidden="true">
+      {
+        product.steps.map((_, index) => (
+          <span
+            data-step-indicator
+            class:list={[
+              'size-1.5 rounded-full transition-colors',
+              index === 0 ? 'bg-grape' : 'bg-grape/25',
+            ]}
+          />
+        ))
+      }
+    </div>
+  </Container>
+</section>
+
+<script>
+  const carousel = document.querySelector<HTMLElement>('[data-steps-carousel]');
+  const cards = Array.from(document.querySelectorAll<HTMLElement>('[data-step-card]'));
+  const indicators = Array.from(document.querySelectorAll<HTMLElement>('[data-step-indicator]'));
+
+  if (carousel && cards.length === indicators.length) {
+    let frame: number | undefined;
+
+    const updateIndicator = () => {
+      const activeIndex = cards.reduce((closestIndex, card, index) => {
+        const currentDistance = Math.abs(cards[closestIndex]!.offsetLeft - carousel.offsetLeft - carousel.scrollLeft);
+        const nextDistance = Math.abs(card.offsetLeft - carousel.offsetLeft - carousel.scrollLeft);
+        return nextDistance < currentDistance ? index : closestIndex;
+      }, 0);
+
+      indicators.forEach((indicator, index) => {
+        indicator.classList.toggle('bg-grape', index === activeIndex);
+        indicator.classList.toggle('bg-grape/25', index !== activeIndex);
+      });
+    };
+
+    carousel.addEventListener(
+      'scroll',
+      () => {
+        if (frame !== undefined) cancelAnimationFrame(frame);
+        frame = requestAnimationFrame(updateIndicator);
+      },
+      { passive: true },
+    );
+  }
+</script>

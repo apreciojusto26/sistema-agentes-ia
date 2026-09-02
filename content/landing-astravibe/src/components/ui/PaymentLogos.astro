@@ -1,0 +1,13 @@
+---
+import { PAYMENT_METHOD_SLUGS } from '@/data/payment-methods';
+---
+
+<div class="mt-4 flex items-center gap-1.5" aria-hidden="true">
+  {
+    PAYMENT_METHOD_SLUGS.map((slug) => (
+      <span class="flex h-6 shrink-0 items-center rounded-md bg-white px-1.5 shadow-card ring-1 ring-graphite/10">
+        <img src={`/img/payment/${slug}.svg`} alt="" class="h-3 w-auto" loading="lazy" decoding="async" />
+      </span>
+    ))
+  }
+</div>

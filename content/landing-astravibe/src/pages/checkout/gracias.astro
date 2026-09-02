@@ -1,0 +1,16 @@
+---
+import Base from '@/layouts/Base.astro';
+import { OrderConfirmation } from '@/components/islands/OrderConfirmation';
+
+// ref arrives via the query string the widget navigates with on 'success'
+// (design data flow: "onResponse('success') → /checkout/gracias?ref=…").
+// The httpOnly `dop_ref` cookie set by /api/checkout/session is a backup
+// carrier only, not read here — the query string is the primary path.
+const paymentRef = Astro.url.searchParams.get('ref') ?? '';
+---
+
+<Base title="Gracias por tu compra" description="Confirmando tu pedido.">
+  <main class="mx-auto max-w-lg px-5 py-12 text-center">
+    <OrderConfirmation client:load paymentRef={paymentRef} />
+  </main>
+</Base>

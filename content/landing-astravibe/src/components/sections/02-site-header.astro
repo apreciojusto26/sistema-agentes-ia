@@ -1,0 +1,16 @@
+---
+import { product } from '@/data/product';
+import { CartButton } from '@/components/islands/CartButton';
+---
+
+<header class="sticky top-9 z-40 flex h-14 items-center justify-between bg-white px-5">
+  <a
+    href="/"
+    aria-label={`${product.brand} — ir al inicio`}
+    class="font-display text-xl font-black leading-none tracking-tight text-graphite transition hover:text-grape"
+  >
+    {product.brand}<span class="align-super text-[0.6em] text-grape">™</span>
+  </a>
+
+  <CartButton client:load />
+</header>

@@ -1,0 +1,33 @@
+---
+import { ICONS } from '@/lib/icons';
+import { PLACEHOLDER_CLASSES, aspectRatioStyle, hatchBackgroundImage, placeholderAriaLabel } from '@/lib/placeholder';
+import type { AspectRatio } from '@/types/content';
+import type { PlaceholderTone } from '@/lib/placeholder';
+
+interface Props {
+  ratio?: AspectRatio;
+  label?: string | undefined;
+  alt?: string | undefined;
+  tone?: PlaceholderTone;
+  rounded?: string;
+  class?: string | undefined;
+}
+
+const { ratio = '4/5', label, alt, tone = 'bone', rounded = 'rounded-tile', class: className } = Astro.props;
+const camera = ICONS.camera;
+---
+
+<div
+  role="img"
+  aria-label={placeholderAriaLabel(label, alt)}
+  data-placeholder="true"
+  style={aspectRatioStyle(ratio)}
+  class:list={[PLACEHOLDER_CLASSES.wrapper, PLACEHOLDER_CLASSES.wrapperTone[tone], rounded, className]}
+>
+  <!-- [PLACEHOLDER] swap with real photo -->
+  <div class={PLACEHOLDER_CLASSES.hatch} style={`background-image:${hatchBackgroundImage(tone)}`}></div>
+  <svg viewBox={camera.viewBox} class={PLACEHOLDER_CLASSES.glyph} aria-hidden="true">
+    <path d={camera.path} fill="currentColor" />
+  </svg>
+  {label && <span class={PLACEHOLDER_CLASSES.label}>{label}</span>}
+</div>

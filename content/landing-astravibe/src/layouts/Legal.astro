@@ -1,0 +1,53 @@
+---
+/**
+ * Shared shell for every legal/help page. Keeps the storefront chrome (header
+ * + footer) so these pages never feel like a dead end, and applies one prose
+ * ruleset so the documents read consistently.
+ */
+import Base from '@/layouts/Base.astro';
+import Container from '@/components/ui/Container.astro';
+import SiteHeader from '@/components/sections/02-site-header.astro';
+import SiteFooter from '@/components/sections/14-site-footer.astro';
+import { legal } from '@/data/legal';
+
+interface Props {
+  title: string;
+  description: string;
+}
+
+const { title, description } = Astro.props;
+---
+
+<Base title={`${title} — ${legal.identity.tradeName}`} description={description}>
+  <SiteHeader />
+
+  <main class="bg-white py-10 md:py-14">
+    <Container>
+      <article class="mx-auto max-w-2xl">
+        <a href="/" class="text-sm font-semibold text-grape hover:underline">&larr; Volver a la tienda</a>
+
+        <h1 class="mt-4 font-display text-3xl font-extrabold leading-tight text-graphite md:text-4xl">
+          {title}
+        </h1>
+        <p class="mt-2 text-sm text-steel">Última actualización: {legal.lastUpdated}</p>
+
+        <div
+          class="mt-8 space-y-5 text-[0.9375rem] leading-relaxed text-graphite
+                 [&_a]:font-semibold [&_a]:text-grape [&_a]:underline
+                 [&_h2]:mt-9 [&_h2]:font-display [&_h2]:text-xl [&_h2]:font-bold [&_h2]:text-graphite
+                 [&_h3]:mt-6 [&_h3]:font-display [&_h3]:text-base [&_h3]:font-bold [&_h3]:text-graphite
+                 [&_li]:leading-relaxed
+                 [&_ul]:list-disc [&_ul]:space-y-1.5 [&_ul]:pl-5
+                 [&_ol]:list-decimal [&_ol]:space-y-1.5 [&_ol]:pl-5
+                 [&_table]:w-full [&_table]:text-sm
+                 [&_td]:border-t [&_td]:border-graphite/10 [&_td]:py-2 [&_td]:pr-4 [&_td]:align-top
+                 [&_th]:py-2 [&_th]:pr-4 [&_th]:text-left [&_th]:font-display [&_th]:font-bold"
+        >
+          <slot />
+        </div>
+      </article>
+    </Container>
+  </main>
+
+  <SiteFooter />
+</Base>

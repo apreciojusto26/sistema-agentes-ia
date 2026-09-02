@@ -1,0 +1,103 @@
+---
+import Legal from '@/layouts/Legal.astro';
+import { legal } from '@/data/legal';
+
+const { identity } = legal;
+---
+
+<Legal
+  title="Política de privacidad"
+  description="Cómo tratamos tus datos personales: finalidades, base jurídica, destinatarios y derechos."
+>
+  <p>
+    Esta política explica cómo se tratan los datos personales que nos facilitas, conforme al Reglamento (UE) 2016/679
+    (RGPD) y a la Ley Orgánica 3/2018 de Protección de Datos y garantía de los derechos digitales (LOPDGDD).
+  </p>
+
+  <h2>1. Responsable del tratamiento</h2>
+  <table>
+    <tbody>
+      <tr><th>Responsable</th><td>{identity.holder}</td></tr>
+      <tr><th>NIF</th><td>{identity.taxId}</td></tr>
+      <tr><th>Domicilio</th><td>{identity.address}</td></tr>
+      <tr><th>Email</th><td><a href={`mailto:${identity.email}`}>{identity.email}</a></td></tr>
+    </tbody>
+  </table>
+
+  <h2>2. Qué datos tratamos</h2>
+  <ul>
+    <li><strong>Datos de pedido:</strong> nombre, apellidos, dirección de envío, código postal, ciudad, email y —si lo facilitas— teléfono.</li>
+    <li><strong>Datos de pago:</strong> gestionados íntegramente por nuestro proveedor de pagos. <strong>No almacenamos ni tenemos acceso a los datos de tu tarjeta.</strong></li>
+    <li><strong>Datos de navegación:</strong> dirección IP, dispositivo, navegador y páginas visitadas, siempre que hayas dado tu consentimiento para las cookies analíticas.</li>
+    <li><strong>Datos de contacto:</strong> los que nos envíes al escribirnos.</li>
+  </ul>
+
+  <h2>3. Finalidades y base jurídica</h2>
+  <table>
+    <thead>
+      <tr><th>Finalidad</th><th>Base jurídica</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Tramitar, enviar y gestionar tu pedido</td><td>Ejecución del contrato (art. 6.1.b RGPD)</td></tr>
+      <tr><td>Atender consultas, incidencias y devoluciones</td><td>Ejecución del contrato y consentimiento</td></tr>
+      <tr><td>Cumplir obligaciones fiscales y contables</td><td>Obligación legal (art. 6.1.c RGPD)</td></tr>
+      <tr><td>Prevención del fraude en los pagos</td><td>Interés legítimo (art. 6.1.f RGPD)</td></tr>
+      <tr><td>Analítica de uso del sitio</td><td>Consentimiento (art. 6.1.a RGPD)</td></tr>
+    </tbody>
+  </table>
+
+  <h2>4. Destinatarios</h2>
+  <p>Para poder prestarte el servicio compartimos datos con los siguientes encargados de tratamiento:</p>
+  <ul>
+    <li><strong>Shopify</strong> — gestión del catálogo y de los pedidos.</li>
+    <li><strong>SumUp</strong> — procesamiento de los pagos.</li>
+    <li><strong>Vercel</strong> — alojamiento del sitio web.</li>
+    <li><strong>Upstash</strong> — almacenamiento técnico temporal asociado al proceso de compra.</li>
+    <li><strong>Google (Analytics)</strong> y <strong>Microsoft (Clarity)</strong> — analítica, solo con tu consentimiento.</li>
+    <li><strong>Empresas de transporte</strong> — únicamente los datos necesarios para entregarte el pedido.</li>
+  </ul>
+  <p>
+    No vendemos ni cedemos tus datos a terceros con fines comerciales. Algunos de estos proveedores pueden realizar
+    transferencias internacionales de datos, amparadas en las cláusulas contractuales tipo aprobadas por la Comisión
+    Europea o en decisiones de adecuación.
+  </p>
+
+  <h2>5. Plazos de conservación</h2>
+  <ul>
+    <li><strong>Datos de pedidos y facturación:</strong> el plazo exigido por la normativa fiscal y mercantil.</li>
+    <li><strong>Datos de contacto:</strong> mientras dure la consulta y el tiempo necesario para atender responsabilidades derivadas.</li>
+    <li><strong>Datos de navegación:</strong> según los plazos indicados en la <a href="/legal/cookies">política de cookies</a>.</li>
+  </ul>
+
+  <h2>6. Tus derechos</h2>
+  <p>Puedes ejercer en cualquier momento los siguientes derechos:</p>
+  <ul>
+    <li><strong>Acceso</strong> — saber qué datos tuyos tratamos.</li>
+    <li><strong>Rectificación</strong> — corregir datos inexactos.</li>
+    <li><strong>Supresión</strong> — solicitar que los eliminemos.</li>
+    <li><strong>Oposición</strong> y <strong>limitación</strong> del tratamiento.</li>
+    <li><strong>Portabilidad</strong> — recibir tus datos en un formato estructurado.</li>
+    <li><strong>Retirar el consentimiento</strong> prestado, sin efectos retroactivos.</li>
+  </ul>
+  <p>
+    Escríbenos a <a href={`mailto:${identity.email}`}>{identity.email}</a> indicando el derecho que deseas ejercer.
+    Responderemos en el plazo máximo de un mes.
+  </p>
+  <p>
+    Si consideras que no hemos atendido correctamente tu solicitud, puedes presentar una reclamación ante la
+    <a href="https://www.aepd.es" rel="noopener noreferrer" target="_blank">Agencia Española de Protección de Datos</a>.
+  </p>
+
+  <h2>7. Seguridad</h2>
+  <p>
+    Aplicamos medidas técnicas y organizativas razonables para proteger tus datos. El sitio funciona íntegramente sobre
+    conexión cifrada (HTTPS) y los datos de tarjeta viajan directamente a nuestro proveedor de pagos sin pasar por
+    nuestros servidores.
+  </p>
+
+  <h2>8. Menores de edad</h2>
+  <p>
+    Este sitio se dirige a mayores de 18 años. No recogemos conscientemente datos de menores; si detectas que un menor
+    nos ha facilitado datos, escríbenos y los eliminaremos.
+  </p>
+</Legal>

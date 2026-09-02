@@ -1,0 +1,82 @@
+---
+import Container from '@/components/ui/Container.astro';
+import { product } from '@/data/product';
+import { legal } from '@/data/legal';
+
+/**
+ * Every entry resolves to a real destination — an anchor on the storefront or
+ * a legal page. Dead `href="#"` links in a footer are a compliance problem as
+ * much as a UX one: the LSSI-CE requires the legal notice to be reachable
+ * "de forma permanente, fácil, directa y gratuita".
+ */
+const columns = [
+  {
+    title: 'Producto',
+    links: [
+      { label: 'Cómo funciona', href: '/#como-funciona' },
+      { label: 'Preguntas frecuentes', href: '/#faq' },
+      { label: 'Garantía', href: '/#garantia' },
+    ],
+  },
+  {
+    title: 'Ayuda',
+    links: [
+      { label: 'Envíos', href: '/legal/envios' },
+      { label: 'Devoluciones', href: '/legal/devoluciones' },
+      { label: 'Contacto', href: '/contacto' },
+    ],
+  },
+  {
+    title: 'Legal',
+    links: [
+      { label: 'Aviso legal', href: '/legal/aviso-legal' },
+      { label: 'Términos y condiciones', href: '/legal/terminos' },
+      { label: 'Privacidad', href: '/legal/privacidad' },
+      { label: 'Cookies', href: '/legal/cookies' },
+    ],
+  },
+];
+
+const year = new Date().getFullYear();
+---
+
+<footer class="bg-graphite py-10 text-xs text-bone/70">
+  <Container>
+    <div class="grid grid-cols-2 gap-8 md:grid-cols-4">
+      <div>
+        <a
+          href="/"
+          aria-label={`${product.brand} — ir al inicio`}
+          class="font-display text-lg font-black tracking-tight text-bone transition hover:text-grape-soft"
+        >
+          {product.brand}<span class="align-super text-[0.6em] text-grape">™</span>
+        </a>
+        <p class="mt-2 leading-relaxed text-bone/50">
+          Envío gratis a España<br />
+          Garantía de {product.guarantee.days} días
+        </p>
+      </div>
+      {
+        columns.map((column) => (
+          <div>
+            <p class="mb-2 font-semibold text-bone">{column.title}</p>
+            <ul class="space-y-1.5">
+              {column.links.map((link) => (
+                <li>
+                  <a href={link.href} class="hover:text-bone">
+                    {link.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))
+      }
+    </div>
+
+    <div class="mt-8 space-y-1 border-t border-white/10 pt-6 text-bone/50">
+      <p>© {year} {legal.identity.holder} · {legal.identity.tradeName}</p>
+      <p>{legal.identity.address}</p>
+    </div>
+  </Container>
+</footer>

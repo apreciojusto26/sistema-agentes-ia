@@ -1,0 +1,30 @@
+---
+import Container from '@/components/ui/Container.astro';
+import { ICONS } from '@/lib/icons';
+import { product } from '@/data/product';
+
+const shield = ICONS.shield;
+const { guarantee } = product;
+---
+
+<section id="garantia" class="scroll-mt-4 bg-gold-tint py-12 md:py-16">
+  <Container class="text-center">
+    <img src="/sello-garantia.webp" width="112" height="112" alt={`Sello de garantía de ${guarantee.days} días`} class="mx-auto size-28" loading="lazy" decoding="async" />
+
+    <h2 class="mt-4 text-display md:text-4xl">{guarantee.title}</h2>
+    <p class="mx-auto mt-2 max-w-md text-sm text-steel">{guarantee.text}</p>
+
+    <div class="mx-auto mt-8 grid max-w-lg grid-cols-1 gap-3 sm:grid-cols-3">
+      {
+        guarantee.points.map((point) => (
+          <div class="flex flex-col items-center gap-2 text-xs text-graphite">
+            <svg viewBox={shield.viewBox} class="size-6 text-gold" aria-hidden="true">
+              <path fill="currentColor" d={shield.path} />
+            </svg>
+            <span>{point}</span>
+          </div>
+        ))
+      }
+    </div>
+  </Container>
+</section>

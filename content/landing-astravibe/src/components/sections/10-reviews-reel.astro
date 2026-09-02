@@ -1,0 +1,35 @@
+---
+import Container from '@/components/ui/Container.astro';
+import WaveDivider from '@/components/ui/WaveDivider.astro';
+import { ReviewCarousel } from '@/components/islands/ReviewCarousel';
+import { testimonials } from '@/data/testimonials';
+
+const reelReviews = testimonials.filter((t) => t.variant === 'reel');
+---
+
+<div class="bg-white">
+  <WaveDivider fill="grape-tint" />
+</div>
+
+<div class="bg-grape-tint">
+  <section class="mx-3 rounded-card bg-grape-tint py-10 md:mx-6 md:py-12 xl:mx-auto xl:max-w-[80rem]">
+    <Container>
+      <div class="mb-6 max-w-2xl">
+        <p class="text-eyebrow font-bold uppercase text-grape">Opiniones</p>
+        <h2 class="mt-1 text-[1.75rem] leading-tight md:text-4xl">Lo que dicen quienes ya lo tienen</h2>
+        {/*
+          Origin disclosure required by the Omnibus Directive (EU 2019/2161,
+          transposed in RDL 24/2021): reviews sourced from another marketplace
+          must not be presented as if they were left in this shop.
+        */}
+        <p class="mt-3 text-sm text-graphite/70">
+          Reseñas de compradores verificados de este mismo producto, recopiladas de plataformas de venta online. No son
+          opiniones dejadas en esta tienda.
+        </p>
+      </div>
+      <div>
+        <ReviewCarousel client:visible reviews={reelReviews} />
+      </div>
+    </Container>
+  </section>
+</div>

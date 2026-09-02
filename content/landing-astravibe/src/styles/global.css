@@ -1,0 +1,91 @@
+@import "tailwindcss";
+@import "@fontsource-variable/archivo";
+@import "@fontsource-variable/inter";
+
+@theme {
+  --color-bone:        #F7F3EC;
+  --color-bone-dim:    #EDE6D9;
+  --color-graphite:    #1E2124;
+  --color-graphite-soft:#2A2E33;
+  --color-steel:       #8A9096;
+  --color-steel-light: #C5CACE;
+  --color-grape:        #7C3AED;
+  --color-grape-dark:   #6D28D9;
+  --color-grape-tint:   #EFEAFE;
+  --color-grape-deep:   #4C1D95;
+  --color-grape-soft:   #A78BFA;
+  --color-gold:        #FFB100;
+  --color-gold-tint:   #F7EFD6;
+  /* Positive-outcome accent (free shipping, savings). 4.9:1 on white — AA for
+     the small bold text it is used on. Deliberately NOT grape: purple is the
+     brand/action colour, so a win reads as a win and not as a button. */
+  --color-success:      #15803D;
+  --color-success-tint: #E8F5EC;
+  --color-surface:     #FFFFFF;
+
+  --font-display: "Archivo Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans:    "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+
+  --text-eyebrow: 0.6875rem;
+  --text-eyebrow--line-height: 1;
+  --text-eyebrow--letter-spacing: 0.18em;
+  --text-display: 2rem;
+  --text-display--line-height: 1.08;
+  --text-display--letter-spacing: -0.02em;
+  --text-hero: 2.5rem;
+  --text-hero--line-height: 1.03;
+  --text-hero--letter-spacing: -0.03em;
+
+  --radius-card: 1.5rem;
+  --radius-tile: 1rem;
+  --radius-pill: 999px;
+
+  --shadow-card:   0 2px 10px -3px rgb(30 33 36 / 0.10);
+  --shadow-lift:   0 14px 32px -12px rgb(30 33 36 / 0.28);
+  --shadow-sticky: 0 -8px 28px -12px rgb(30 33 36 / 0.22);
+  --shadow-ring-white: 0 0 0 4px #FFFFFF;
+
+  --breakpoint-xs: 22.5rem;
+  --animate-marquee: marquee 20s linear infinite;
+  --animate-shine: shine 3.5s linear infinite;
+  --animate-point-diagonal: point-diagonal 1.6s ease-in-out infinite;
+}
+
+@keyframes marquee { from { transform: translate3d(0,0,0);} to { transform: translate3d(-50%,0,0);} }
+@keyframes shine { 0% { background-position: 200% center; } 100% { background-position: -200% center; } }
+/* Travels along its own diagonal so the motion reads as "up and to the right",
+   toward the ⋯ menu, rather than as a generic bounce. */
+@keyframes point-diagonal {
+  0%, 100% { transform: translate3d(0, 0, 0); opacity: 0.85; }
+  50%      { transform: translate3d(6px, -6px, 0); opacity: 1; }
+}
+
+@layer base {
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body { @apply bg-bone text-graphite font-sans antialiased overflow-x-hidden; }
+  h1,h2,h3 { @apply font-display font-extrabold; }
+  :focus-visible { @apply outline-2 outline-offset-2 outline-graphite; }
+
+  /* Cursor pointer en todo lo clickeable. :disabled excluido — esos ya usan
+     cursor-not-allowed en sus clases. `label:has(...)` cubre los labels que
+     ENVUELVEN un radio/checkbox (sin atributo for, patrón del buy box);
+     `label[for]` cubre los que apuntan por id. */
+  button:not(:disabled),
+  [role="button"]:not(:disabled),
+  [role="tab"]:not(:disabled),
+  [role="link"]:not(:disabled),
+  [role="checkbox"]:not(:disabled),
+  [role="radio"]:not(:disabled),
+  [role="switch"]:not(:disabled),
+  a[href],
+  summary,
+  select,
+  label[for],
+  label:has(> input[type="checkbox"]),
+  label:has(> input[type="radio"]),
+  input[type="checkbox"],
+  input[type="radio"] {
+    cursor: pointer;
+  }
+}

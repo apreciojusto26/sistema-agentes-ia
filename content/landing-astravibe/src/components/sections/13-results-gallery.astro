@@ -1,0 +1,17 @@
+---
+import Container from '@/components/ui/Container.astro';
+import Media from '@/components/ui/Media.astro';
+import { product } from '@/data/product';
+---
+
+<section class="bg-white py-8">
+  <Container>
+    <div class="grid grid-cols-3 gap-2 xl:grid-cols-6">
+      {
+        product.ugc.slice(0, 6).map((item) => (
+          <Media media={item} rounded="rounded-tile" class="aspect-square w-full" />
+        ))
+      }
+    </div>
+  </Container>
+</section>

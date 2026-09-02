@@ -1,0 +1,77 @@
+---
+import Legal from '@/layouts/Legal.astro';
+import { legal } from '@/data/legal';
+
+const { identity } = legal;
+---
+
+<Legal
+  title="Aviso legal"
+  description="Datos identificativos del titular del sitio y condiciones generales de uso."
+>
+  <p>
+    En cumplimiento del artículo 10 de la Ley 34/2002, de servicios de la sociedad de la información y de comercio
+    electrónico (LSSI-CE), se ponen a disposición del usuario los siguientes datos identificativos.
+  </p>
+
+  <h2>1. Titular del sitio web</h2>
+  <table>
+    <tbody>
+      <tr><th>Titular</th><td>{identity.holder}</td></tr>
+      <tr><th>Nombre comercial</th><td>{identity.tradeName}</td></tr>
+      <tr><th>NIF</th><td>{identity.taxId}</td></tr>
+      <tr><th>Domicilio</th><td>{identity.address}</td></tr>
+      <tr><th>Email</th><td><a href={`mailto:${identity.email}`}>{identity.email}</a></td></tr>
+      <tr><th>Teléfono</th><td>{identity.phone}</td></tr>
+      <tr><th>Sitio web</th><td>{identity.site}</td></tr>
+    </tbody>
+  </table>
+
+  <h2>2. Objeto</h2>
+  <p>
+    Este sitio web tiene por objeto la venta de productos de consumo a través de internet. El acceso y la navegación
+    atribuyen la condición de usuario e implican la aceptación de este aviso legal desde el momento del acceso.
+  </p>
+
+  <h2>3. Uso del sitio</h2>
+  <p>El usuario se compromete a:</p>
+  <ul>
+    <li>Utilizar el sitio conforme a la ley, a este aviso legal y a la buena fe.</li>
+    <li>No introducir contenidos que resulten ilícitos, difamatorios o que vulneren derechos de terceros.</li>
+    <li>No realizar acciones que puedan dañar, sobrecargar o impedir el funcionamiento normal del sitio.</li>
+    <li>Facilitar información veraz en los formularios, especialmente los datos de envío y contacto.</li>
+  </ul>
+
+  <h2>4. Propiedad intelectual e industrial</h2>
+  <p>
+    Los contenidos de este sitio —textos, fotografías, vídeos, logotipos, diseño y código— son titularidad de
+    {' '}{identity.holder} o se utilizan con la autorización correspondiente. Queda prohibida su reproducción,
+    distribución o transformación sin autorización expresa y por escrito.
+  </p>
+
+  <h2>5. Responsabilidad</h2>
+  <p>
+    {identity.holder} no se hace responsable de los daños derivados de un uso indebido del sitio, ni de las
+    interrupciones del servicio por causas técnicas ajenas a su control. Se realizan esfuerzos razonables para que la
+    información publicada —incluidos precios, descripciones y disponibilidad— sea exacta y esté actualizada; los errores
+    tipográficos evidentes podrán corregirse sin previo aviso.
+  </p>
+
+  <h2>6. Enlaces a terceros</h2>
+  <p>
+    Este sitio puede contener enlaces a páginas de terceros. No se asume responsabilidad alguna sobre sus contenidos ni
+    sobre sus políticas de privacidad.
+  </p>
+
+  <h2>7. Legislación aplicable y jurisdicción</h2>
+  <p>
+    Esta relación se rige por la legislación española. Para cualquier controversia serán competentes los juzgados y
+    tribunales del domicilio del consumidor, conforme a la normativa de defensa de consumidores y usuarios.
+  </p>
+
+  <h2>8. Modificaciones</h2>
+  <p>
+    {identity.holder} se reserva el derecho a modificar este aviso legal para adaptarlo a novedades legislativas o a
+    cambios en el sitio. La versión vigente es siempre la publicada en esta página.
+  </p>
+</Legal>

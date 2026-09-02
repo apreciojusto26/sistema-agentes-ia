@@ -1,0 +1,67 @@
+---
+import { BundleSelector } from '@/components/islands/BundleSelector';
+import { getProductCommerce } from '@/lib/shopify/catalog';
+import Stars from '@/components/ui/Stars.astro';
+import PaymentLogos from '@/components/ui/PaymentLogos.astro';
+import { product } from '@/data/product';
+
+const commerce = await getProductCommerce();
+
+const popularPack = product.packs.find((p) => p.popular) ?? product.packs[0];
+const giftThresholdUnits = popularPack?.units ?? 2;
+const ratingLabel = product.ratingAverage.toFixed(1).replace('.', ',');
+const ratingCountLabel = new Intl.NumberFormat('es-ES').format(product.ratingCount);
+---
+
+<section id="buy" class="min-w-0 scroll-mt-14 bg-white">
+  <div class="mx-auto w-full max-w-[28rem] px-5 pb-8 pt-3 md:max-w-[42rem] xl:max-w-[64rem]">
+    <div class="rounded-card bg-surface p-5 shadow-[0_-5px_22px_-10px_rgb(30_33_36_/_0.32),0_8px_28px_-8px_rgb(30_33_36_/_0.22)]">
+    <div class="mb-3 flex items-center gap-2">
+      <Stars rating={product.ratingAverage} />
+      <span class="text-xs font-semibold text-graphite">
+        {ratingLabel}/5 <span class="font-normal text-steel">basado en +{ratingCountLabel} compradores del producto</span>
+      </span>
+    </div>
+
+    <h2 class="text-display">{commerce.title}</h2>
+
+    <p class="mt-2 text-sm text-graphite/80">
+      Mini proyector Galaxy compacto que proyecta efectos de estrellas y galaxias para crear un ambiente cálido y relajante. Incluye películas intercambiables, iluminación integrada y control táctil.
+    </p>
+
+    <div class="mt-5">
+      <BundleSelector
+        client:visible
+        commerce={commerce}
+        packs={[...product.packs]}
+        bundleOfferActive={product.commerce.bundleOfferActive}
+        variantGroupLabel={product.variantGroupLabel}
+        cta={{
+          primary: product.cta.primary,
+          checkout: product.cta.checkout,
+          pending: product.cta.pending,
+          soldOut: product.cta.soldOut,
+        }}
+        errors={product.errors}
+        giftThresholdUnits={giftThresholdUnits}
+        giftLabel="Progreso hacia tu unidad gratis"
+      />
+    </div>
+
+    <PaymentLogos />
+
+    <div class="mt-4 space-y-1.5 text-xs text-steel">
+      <p class="flex items-center gap-1.5">
+        <svg viewBox="0 0 24 24" class="size-4 text-grape" aria-hidden="true">
+        <path fill="currentColor" d="M3 6a1 1 0 011-1h9a1 1 0 011 1v3h2.5a1 1 0 01.8.4l2.5 3.33a1 1 0 01.2.6V16a1 1 0 01-1 1h-1.17a2.5 2.5 0 01-4.66 0H9.83a2.5 2.5 0 01-4.66 0H4a1 1 0 01-1-1V6z"/>
+      </svg>
+        {product.shipping.etaLabel}
+      </p>
+      <p class="flex items-center gap-1.5">
+        <svg viewBox="0 0 24 24" class="size-4 text-gold" aria-hidden="true"><path fill="currentColor" d="M12 2l8 3.5v5.25c0 5.06-3.4 9.62-8 11.25-4.6-1.63-8-6.19-8-11.25V5.5L12 2z"/></svg>
+        {product.guarantee.title}
+      </p>
+    </div>
+    </div>
+  </div>
+</section>

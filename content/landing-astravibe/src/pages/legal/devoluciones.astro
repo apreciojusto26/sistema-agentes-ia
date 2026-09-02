@@ -1,0 +1,88 @@
+---
+import Legal from '@/layouts/Legal.astro';
+import { legal } from '@/data/legal';
+import { product } from '@/data/product';
+
+const { identity } = legal;
+---
+
+<Legal
+  title="Devoluciones y desistimiento"
+  description="Cómo devolver tu pedido, plazos y reembolsos."
+>
+  <p>
+    Si tu pedido no es lo que esperabas, puedes devolverlo. Aquí tienes tus derechos y el procedimiento, explicados sin
+    letra pequeña.
+  </p>
+
+  <h2>1. Tus dos plazos</h2>
+  <table>
+    <thead>
+      <tr><th>Plazo</th><th>Qué es</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>{legal.withdrawalDays} días</strong></td>
+        <td>Derecho legal de desistimiento (RDL 1/2007). Puedes devolver sin dar explicaciones.</td>
+      </tr>
+      <tr>
+        <td><strong>{product.guarantee.days} días</strong></td>
+        <td>Nuestra garantía de satisfacción. Ampliación voluntaria del plazo legal.</td>
+      </tr>
+    </tbody>
+  </table>
+  <p>
+    Ambos plazos cuentan desde el día en que recibes el pedido. La garantía comercial <strong>no sustituye</strong> a la
+    garantía legal de conformidad de tres años, que se mantiene intacta.
+  </p>
+
+  <h2>2. Cómo devolver</h2>
+  <ol>
+    <li>Escríbenos a <a href={`mailto:${identity.email}`}>{identity.email}</a> indicando tu número de pedido.</li>
+    <li>Te confirmamos la dirección de devolución y los pasos a seguir.</li>
+    <li>Envías el producto, a ser posible en su embalaje original.</li>
+    <li>Al recibirlo y comprobarlo, tramitamos el reembolso.</li>
+  </ol>
+  <p>
+    Puedes usar el <a href="#formulario">formulario de desistimiento</a> que encontrarás al final de esta página, aunque
+    no es obligatorio: basta con una declaración inequívoca por email.
+  </p>
+
+  <h2>3. Reembolso</h2>
+  <ul>
+    <li>Te devolvemos el <strong>importe íntegro</strong> del producto.</li>
+    <li>El reembolso se realiza por el <strong>mismo medio de pago</strong> que usaste en la compra.</li>
+    <li>Lo tramitamos en un plazo máximo de <strong>14 días naturales</strong> desde que recibimos la devolución o la prueba de su envío.</li>
+  </ul>
+
+  <h2>4. Coste de la devolución</h2>
+  <p>
+    Salvo que el producto llegue defectuoso o no se corresponda con lo pedido —en cuyo caso asumimos nosotros todos los
+    gastos—, el coste directo de la devolución corre a cargo del comprador.
+  </p>
+
+  <h2>5. Productos defectuosos o incorrectos</h2>
+  <p>
+    Si el producto llega dañado, defectuoso o no es el que pediste, escríbenos con una foto y tu número de pedido. Lo
+    resolvemos sin coste para ti, con reposición o reembolso íntegro, incluidos los gastos de envío.
+  </p>
+
+  <h2 id="formulario">6. Formulario de desistimiento</h2>
+  <p>Puedes copiar este texto y enviárnoslo por email:</p>
+  <div class="rounded-tile bg-bone p-4 text-sm">
+    <p>
+      A la atención de {identity.holder}, {identity.address}, {identity.email}:
+    </p>
+    <p class="mt-3">
+      Por la presente le comunico que desisto de mi contrato de venta del siguiente bien:
+    </p>
+    <p class="mt-3">
+      Pedido n.º: ______________<br />
+      Fecha del pedido: ______________<br />
+      Fecha de recepción: ______________<br />
+      Nombre del consumidor: ______________<br />
+      Domicilio del consumidor: ______________<br />
+      Fecha: ______________
+    </p>
+  </div>
+</Legal>

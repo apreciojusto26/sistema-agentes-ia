@@ -1,0 +1,87 @@
+---
+import Legal from '@/layouts/Legal.astro';
+import { legal } from '@/data/legal';
+
+const { identity } = legal;
+---
+
+<Legal
+  title="Política de cookies"
+  description="Qué cookies utiliza este sitio, para qué sirven y cómo puedes gestionarlas."
+>
+  <p>
+    Esta política explica qué cookies y tecnologías similares utiliza {identity.site}, conforme al artículo 22.2 de la
+    LSSI-CE y a las directrices de la Agencia Española de Protección de Datos.
+  </p>
+
+  <h2>1. Qué es una cookie</h2>
+  <p>
+    Una cookie es un pequeño archivo que un sitio web guarda en tu dispositivo al visitarlo. Sirve para recordar
+    información sobre tu visita, como los productos que has añadido al carrito.
+  </p>
+
+  <h2>2. Cookies que utilizamos</h2>
+
+  <h3>Técnicas o necesarias</h3>
+  <p>
+    Imprescindibles para que el sitio funcione. <strong>No requieren consentimiento</strong> porque sin ellas no
+    podrías comprar.
+  </p>
+  <table>
+    <thead>
+      <tr><th>Finalidad</th><th>Titular</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Mantener el carrito entre páginas</td><td>Propia / Shopify</td></tr>
+      <tr><td>Asociar tu pago con tu pedido durante el checkout</td><td>Propia</td></tr>
+      <tr><td>Procesar el pago con seguridad y prevenir el fraude</td><td>SumUp</td></tr>
+      <tr><td>Recordar tu preferencia sobre estas cookies</td><td>Propia</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Analíticas</h3>
+  <p>
+    Nos ayudan a entender cómo se usa el sitio para mejorarlo. <strong>Solo se activan si das tu consentimiento</strong>
+    y puedes retirarlo cuando quieras.
+  </p>
+  <table>
+    <thead>
+      <tr><th>Servicio</th><th>Finalidad</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Google Analytics</td><td>Estadísticas de visitas y comportamiento agregado</td></tr>
+      <tr><td>Microsoft Clarity</td><td>Métricas de uso e interacción con las páginas</td></tr>
+    </tbody>
+  </table>
+
+  <p>
+    <strong>No utilizamos cookies publicitarias ni de perfilado</strong> con fines de marketing en este sitio.
+  </p>
+
+  <h2>3. Cómo gestionar las cookies</h2>
+  <p>
+    Puedes aceptar o rechazar las cookies no necesarias desde el aviso que aparece al entrar en el sitio. Rechazarlas no
+    te impide comprar ni afecta a ninguna funcionalidad.
+  </p>
+  <p>
+    ¿Cambiaste de opinión? <a href="#cookie-preferencias">Vuelve a abrir tus preferencias de cookies</a> y elige de
+    nuevo. Tu decisión anterior se sustituye por la nueva.
+  </p>
+  <p>
+    También puedes borrarlas o bloquearlas desde la configuración de tu navegador. Ten en cuenta que bloquear
+    <em>todas</em> las cookies, incluidas las técnicas, puede impedir que el carrito funcione correctamente.
+  </p>
+  <ul>
+    <li>Chrome: Configuración &rsaquo; Privacidad y seguridad &rsaquo; Cookies</li>
+    <li>Safari: Preferencias &rsaquo; Privacidad</li>
+    <li>Firefox: Ajustes &rsaquo; Privacidad y seguridad</li>
+    <li>Edge: Configuración &rsaquo; Cookies y permisos del sitio</li>
+  </ul>
+
+  <h2>4. Datos personales</h2>
+  <p>
+    El tratamiento de los datos recogidos mediante cookies se detalla en nuestra
+    <a href="/legal/privacidad">política de privacidad</a>. Para cualquier duda, escríbenos a
+    <a href={`mailto:${identity.email}`}>{identity.email}</a>.
+  </p>
+</Legal>

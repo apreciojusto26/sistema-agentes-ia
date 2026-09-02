@@ -1,0 +1,39 @@
+---
+import Legal from '@/layouts/Legal.astro';
+import { legal } from '@/data/legal';
+
+const { identity } = legal;
+---
+
+<Legal title="Contacto" description="Cómo ponerte en contacto con nosotros.">
+  <p>
+    ¿Tienes una duda sobre tu pedido, una incidencia o quieres devolver algo? Escríbenos y te respondemos lo antes
+    posible.
+  </p>
+
+  <h2>Datos de contacto</h2>
+  <table>
+    <tbody>
+      <tr><th>Email</th><td><a href={`mailto:${identity.email}`}>{identity.email}</a></td></tr>
+      <tr><th>Teléfono</th><td>{identity.phone}</td></tr>
+      <tr><th>Responsable</th><td>{identity.holder}</td></tr>
+      <tr><th>Domicilio</th><td>{identity.address}</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Para que te ayudemos más rápido</h2>
+  <p>Si tu consulta es sobre un pedido, incluye en el mensaje:</p>
+  <ul>
+    <li>Tu <strong>número de pedido</strong> (aparece en el email de confirmación y en la pantalla de gracias).</li>
+    <li>El email con el que hiciste la compra.</li>
+    <li>Una foto, si el producto llegó dañado o incorrecto.</li>
+  </ul>
+
+  <h2>Enlaces útiles</h2>
+  <ul>
+    <li><a href="/legal/envios">Envíos y entregas</a> — plazos y cobertura.</li>
+    <li><a href="/legal/devoluciones">Devoluciones y desistimiento</a> — cómo devolver y plazos de reembolso.</li>
+    <li><a href="/legal/terminos">Términos y condiciones</a> — condiciones de compra y garantías.</li>
+    <li><a href="/legal/privacidad">Política de privacidad</a> — cómo tratamos tus datos.</li>
+  </ul>
+</Legal>

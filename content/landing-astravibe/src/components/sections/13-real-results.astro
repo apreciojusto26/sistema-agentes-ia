@@ -1,0 +1,42 @@
+---
+import Container from '@/components/ui/Container.astro';
+import Stars from '@/components/ui/Stars.astro';
+import { product } from '@/data/product';
+
+const total = product.ratingCount;
+const stars = [5, 4, 3, 2, 1] as const;
+const rows = stars.map((star) => {
+  const count = product.ratingBreakdown[star];
+  const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+  return { star, count, pct };
+});
+const countFormatter = new Intl.NumberFormat('es-ES');
+const ratingLabel = product.ratingAverage.toFixed(1).replace('.', ',');
+---
+
+<section class="bg-white pb-4 pt-12 md:pb-6 md:pt-16">
+  <Container>
+    <p class="text-eyebrow font-bold uppercase text-grape">Resultados reales</p>
+    <h2 class="mt-1 text-display md:text-4xl lg:text-5xl">
+      Lo que dicen de<br />Astra Vibe
+    </h2>
+    <div class="mt-2 flex items-center gap-2">
+      <Stars rating={product.ratingAverage} />
+      <span class="text-sm font-semibold text-graphite">{ratingLabel}/5</span>
+    </div>
+
+    <div class="mx-auto mt-6 max-w-xl space-y-2">
+      {
+        rows.map((row) => (
+          <div class="grid grid-cols-[auto_1fr_auto] items-center gap-3 text-xs">
+            <span class="w-8 font-semibold text-graphite">{row.star}★</span>
+            <span class="h-2 rounded-pill bg-graphite/10">
+              <span class="block h-full rounded-pill bg-gold" style={`width:${row.pct}%`} />
+            </span>
+            <span class="tabular-nums text-steel">{countFormatter.format(row.count)}</span>
+          </div>
+        ))
+      }
+    </div>
+  </Container>
+</section>

@@ -1,0 +1,46 @@
+---
+import Base from '@/layouts/Base.astro';
+import { CheckoutForm } from '@/components/islands/CheckoutForm';
+import { getProductCommerce } from '@/lib/shopify/catalog';
+import { product } from '@/data/product';
+
+// This route runs server-side on every request (output:'server', no
+// prerender opt-out — spec checkout-api: "Checkout/API routes run
+// server-side"). getProductCommerce() is module-memoized so a warm lambda
+// only re-fetches once per cold start (design A7).
+const commerce = await getProductCommerce();
+---
+
+<Base title={`Finalizar compra — ${product.brand}`} description="Completa tus datos de envío y pago.">
+  <main class="mx-auto max-w-6xl px-5 py-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:py-8">
+    <div class="mb-5 flex items-start justify-between gap-4 xl:w-[calc(100%_-_23.5rem)]">
+      <div>
+        <h1 class="font-display text-2xl font-extrabold leading-tight text-graphite sm:text-3xl">Finalizar compra</h1>
+        <p class="mt-1 max-w-md text-sm text-steel">Completa tus datos para continuar</p>
+        <p class="mt-1 max-w-md text-xs text-steel">
+          Los campos con <span class="font-semibold text-red-600" aria-hidden="true">*</span> son obligatorios
+        </p>
+      </div>
+      <a
+        href="/#buy"
+        class="inline-flex h-9 shrink-0 items-center gap-1 rounded-pill border border-graphite/10 bg-white px-3 text-sm font-semibold text-graphite shadow-card transition hover:bg-bone-dim"
+        aria-label="Volver a la tienda"
+      >
+        <svg viewBox="0 0 20 20" class="size-4 rotate-90 text-grape" aria-hidden="true">
+          <path
+            fill="currentColor"
+            d="M5.22 8.22a.75.75 0 011.06 0L10 11.94l3.72-3.72a.75.75 0 111.06 1.06l-4.25 4.25a.75.75 0 01-1.06 0L5.22 9.28a.75.75 0 010-1.06z"
+          />
+        </svg>
+        Volver
+      </a>
+    </div>
+    <CheckoutForm client:load commerce={commerce} />
+  </main>
+</Base>
+
+<style is:global>
+  body {
+    background-color: #fff;
+  }
+</style>

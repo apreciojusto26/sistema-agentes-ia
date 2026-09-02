@@ -1,0 +1,24 @@
+---
+interface Props {
+  href?: string;
+  type?: 'button' | 'submit' | 'reset';
+  variant?: 'primary' | 'ghost';
+  class?: string;
+}
+
+const { href, type = 'button', variant = 'primary', class: className } = Astro.props;
+
+const base =
+  'flex h-14 w-full items-center justify-center gap-2 rounded-pill px-6 font-display text-base font-bold tracking-wide transition active:scale-[.99]';
+
+const variants = {
+  primary: 'bg-grape text-white shadow-lift hover:bg-grape-dark',
+  ghost: 'bg-transparent text-graphite ring-1 ring-graphite/15 hover:bg-bone-dim',
+};
+
+const Tag = href ? 'a' : 'button';
+---
+
+<Tag href={href} type={href ? undefined : type} class:list={[base, variants[variant], className]}>
+  <slot />
+</Tag>

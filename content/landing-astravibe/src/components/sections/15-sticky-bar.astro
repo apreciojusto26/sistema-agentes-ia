@@ -1,0 +1,22 @@
+---
+import { StickyAddToCart } from '@/components/islands/StickyAddToCart';
+import { getProductCommerce } from '@/lib/shopify/catalog';
+import { product } from '@/data/product';
+
+// Memoized in lib/shopify/catalog.ts — no extra network call even though
+// 05-buy-box.astro also awaits this.
+const commerce = await getProductCommerce();
+
+---
+
+<StickyAddToCart
+  client:idle
+  commerce={commerce}
+  packs={[...product.packs]}
+  bundleOfferActive={product.commerce.bundleOfferActive}
+  ctaLabel={product.cta.sticky}
+  pendingLabel={product.cta.pending}
+  soldOutLabel={product.cta.soldOut}
+  checkoutLabel={product.cta.checkout}
+  sentinelId="hero-end"
+/>
