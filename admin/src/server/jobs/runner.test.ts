@@ -10,7 +10,7 @@
 // Playwright/network. Group 2 spawns the REAL generate-landing.mjs (fast,
 // fs-only, no network) end-to-end to prove the wrapper drives a real agent
 // script correctly, closing Batch C's handoff note about setEncoding.
-import { describe, test, expect, afterAll } from 'vitest';
+import { describe, test, expect, afterAll, vi } from 'vitest';
 import { rmSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -26,6 +26,40 @@ const RUNNER_OUT_DIR = path.join(REPO_ROOT, 'outputs', RUNNER_SLUG);
 
 function cleanRunnerOutput() {
   rmSync(RUNNER_OUT_DIR, { recursive: true, force: true });
+}
+
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function runObservedHang(run: typeof import('./runner').run, timeoutMs: number, killGraceMs: number) {
+  let ready!: () => void;
+  let observedSigterm!: () => void;
+  let resolveExit!: (info: import('./runner').RunExitInfo) => void;
+  let exited = false;
+  const readyPromise = new Promise<void>((resolve) => (ready = resolve));
+  const sigtermPromise = new Promise<void>((resolve) => (observedSigterm = resolve));
+  const exitPromise = new Promise<import('./runner').RunExitInfo>((resolve) => (resolveExit = resolve));
+  const handle = run(
+    { command: process.execPath, args: [FIXTURE_CHILD, 'hang'], cwd: __dirname, timeoutMs, killGraceMs },
+    {
+      onStdoutLine: (line) => {
+        if (line === 'ready') ready();
+        if (line === 'sigterm') observedSigterm();
+      },
+      onExit: (info) => {
+        exited = true;
+        resolveExit(info);
+      },
+    },
+  );
+
+  return { handle, readyPromise, sigtermPromise, exitPromise, hasExited: () => exited };
 }
 
 afterAll(cleanRunnerOutput);
@@ -86,21 +120,30 @@ describe('runner — fixture-child mechanics (real spawn, not mocked)', () => {
 
   test('timeout ladder: SIGTERM first, escalates to SIGKILL after the grace period, for a child that ignores SIGTERM', async () => {
     const { run } = await import('./runner');
-    const start = Date.now();
-    const result = await new Promise<{ code: number | null; signal: NodeJS.Signals | null; timedOut: boolean }>(
-      (resolve) => {
-        run(
-          { command: process.execPath, args: [FIXTURE_CHILD, 'hang'], cwd: __dirname, timeoutMs: 150, killGraceMs: 150 },
-          { onExit: resolve },
-        );
-      },
-    );
-    const elapsed = Date.now() - start;
+    vi.useFakeTimers();
+    const observed = runObservedHang(run, 150, 150);
 
-    expect(result.timedOut).toBe(true);
-    expect(result.signal).toBe('SIGKILL');
-    // Should resolve close to timeoutMs + killGraceMs, not hang indefinitely.
-    expect(elapsed).toBeLessThan(3_000);
+    try {
+      await observed.readyPromise;
+      expect(isProcessAlive(observed.handle.pid)).toBe(true);
+
+      await vi.advanceTimersByTimeAsync(150);
+      await observed.sigtermPromise;
+      expect(isProcessAlive(observed.handle.pid)).toBe(true);
+
+      await vi.advanceTimersByTimeAsync(149);
+      expect(observed.hasExited()).toBe(false);
+      expect(isProcessAlive(observed.handle.pid)).toBe(true);
+
+      await vi.advanceTimersByTimeAsync(1);
+      const result = await observed.exitPromise;
+      expect(result.timedOut).toBe(true);
+      expect(result.signal).toBe('SIGKILL');
+    } finally {
+      if (isProcessAlive(observed.handle.pid)) process.kill(observed.handle.pid, 'SIGKILL');
+      await observed.exitPromise;
+      vi.useRealTimers();
+    }
   });
 
   test('manual cancel() on a responsive child sends SIGTERM and does not need to escalate', async () => {
@@ -137,14 +180,30 @@ describe('runner — fixture-child mechanics (real spawn, not mocked)', () => {
 
   test('manual cancel() on a child that ignores SIGTERM escalates to SIGKILL after the grace period', async () => {
     const { run } = await import('./runner');
-    const result = await new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) => {
-      const handle = run(
-        { command: process.execPath, args: [FIXTURE_CHILD, 'hang'], cwd: __dirname, timeoutMs: 30_000, killGraceMs: 150 },
-        { onExit: resolve },
-      );
-      setTimeout(() => handle.cancel(), 30);
-    });
-    expect(result.signal).toBe('SIGKILL');
+    vi.useFakeTimers();
+    const observed = runObservedHang(run, 30_000, 150);
+
+    try {
+      await observed.readyPromise;
+      expect(isProcessAlive(observed.handle.pid)).toBe(true);
+      observed.handle.cancel();
+
+      await observed.sigtermPromise;
+      expect(isProcessAlive(observed.handle.pid)).toBe(true);
+
+      await vi.advanceTimersByTimeAsync(149);
+      expect(observed.hasExited()).toBe(false);
+      expect(isProcessAlive(observed.handle.pid)).toBe(true);
+
+      await vi.advanceTimersByTimeAsync(1);
+      const result = await observed.exitPromise;
+      expect(result.timedOut).toBe(false);
+      expect(result.signal).toBe('SIGKILL');
+    } finally {
+      if (isProcessAlive(observed.handle.pid)) process.kill(observed.handle.pid, 'SIGKILL');
+      await observed.exitPromise;
+      vi.useRealTimers();
+    }
   });
 
   test('returns a real pid on the handle', async () => {

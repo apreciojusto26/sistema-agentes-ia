@@ -49,7 +49,10 @@ if (mode === 'utf8-split') {
   }, 60);
 } else if (mode === 'hang') {
   // Ignore SIGTERM to force the runner's kill ladder to escalate to SIGKILL.
-  process.on('SIGTERM', () => {});
+  // Publish both readiness and receipt so tests synchronize on observed
+  // process state instead of guessing when this child has started executing.
+  process.on('SIGTERM', () => process.stdout.write('sigterm\n'));
+  process.stdout.write('ready\n');
   setInterval(() => {}, 1000);
 } else if (mode === 'exit-code') {
   process.exitCode = Number(process.argv[3] ?? 1);
