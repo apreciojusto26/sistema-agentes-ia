@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { getDiagnosticSessionId } from '@/lib/telemetry/client';
+import { STORAGE_KEYS } from '@/lib/storage-keys';
 
-const DIAG_MODE_KEY = 'astravibe:diag';
+// sessionStorage, and developer-only state at that.
+const DIAG_MODE_KEY = STORAGE_KEYS.diagMode;
 
 /**
  * Shows the diagnostic correlation id so a tester on a real phone can read it

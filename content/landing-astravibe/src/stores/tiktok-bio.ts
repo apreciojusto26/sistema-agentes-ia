@@ -1,5 +1,6 @@
 import { atom } from 'nanostores';
 import { isInAppWebView } from '@/lib/telemetry/webview';
+import { STORAGE_KEYS } from '@/lib/storage-keys';
 
 /**
  * UX layer for traffic arriving from the TikTok profile/bio link.
@@ -16,8 +17,15 @@ import { isInAppWebView } from '@/lib/telemetry/webview';
  * Nothing here touches payments. It gates ONE navigation and shows a notice.
  */
 
-const SOURCE_KEY = 'astravibe:source';
-const ENTRY_DISMISSED_KEY = 'astravibe:tiktokbio-entry-dismissed';
+// sessionStorage. NO migration, and that is a decision rather than an
+// omission: a session-scoped value cannot survive the deploy that renames it,
+// because the session ends with the tab. Writing migration code for keys that
+// can never be read back under their old name would be ceremony that implies a
+// guarantee it does not provide. The worst case is one visitor's latched
+// attribution marker resetting mid-session, which re-shows a dismissible
+// notice — the direction this store already fails in when storage is blocked.
+const SOURCE_KEY = STORAGE_KEYS.source;
+const ENTRY_DISMISSED_KEY = STORAGE_KEYS.entryNoticeDismissed;
 const TIKTOK_BIO = 'tiktokbio';
 
 /** null = nothing to show. 'entry' = dismissible. 'checkout' = blocking. */

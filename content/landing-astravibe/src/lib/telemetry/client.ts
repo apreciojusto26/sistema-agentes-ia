@@ -3,8 +3,10 @@
  * purchase: if telemetry breaks, the buyer must not notice.
  */
 import type { CheckoutEvent, DiagnosticEventInput } from '@/lib/telemetry/events';
+import { STORAGE_KEYS } from '@/lib/storage-keys';
 
-const DSID_KEY = 'astravibe:dsid';
+// sessionStorage — same no-migration reasoning as stores/tiktok-bio.ts.
+const DSID_KEY = STORAGE_KEYS.dsid;
 const ENDPOINT = '/api/diagnostics/event';
 
 /**
