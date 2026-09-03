@@ -30,3 +30,4 @@ pnpm-debug.log*
 # src/assets/product/ y pasan por astro:assets.
 public/img/Galeria/IMG_*
 dist-commerce-fixture/
+dist-ab-*/

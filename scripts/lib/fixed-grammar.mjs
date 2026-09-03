@@ -127,7 +127,9 @@ export const FIXED_GRAMMAR = [
       { name: 'S01', skeleton: "<div class=\"lg:max-w-[14rem] max-w-[11rem] shrink-0 w-[42vw]\">\n  <img alt class=\"aspect-[9/16] object-cover rounded-tile w-full\" decoding=\"async\" height=\"<media/intrinsic-height>\" loading=\"eager\" sizes=\"(min-width: 1024px) 14rem, 42vw\" src srcset width=\"<media/intrinsic-width>\">" },
       { name: 'S02', skeleton: "<div class=\"lg:max-w-[14rem] max-w-[11rem] shrink-0 w-[42vw]\">\n  <img alt class=\"aspect-[9/16] object-cover rounded-tile w-full\" decoding=\"async\" height=\"<media/intrinsic-height>\" loading=\"lazy\" sizes=\"(min-width: 1024px) 14rem, 42vw\" src srcset width=\"<media/intrinsic-width>\">" },
       { name: 'S03', skeleton: "<div class=\"lg:max-w-[14rem] max-w-[11rem] shrink-0 w-[42vw]\">\n  <video aria-label autoplay class=\"aspect-[9/16] object-cover rounded-tile w-full\" loop muted playsinline poster preload=\"none\" src>" },
-      { name: 'S04', skeleton: "<div class=\"lg:max-w-[14rem] max-w-[11rem] shrink-0 w-[42vw]\">\n  <video autoplay class=\"aspect-[9/16] object-cover rounded-tile w-full\" loop muted playsinline poster preload=\"none\" src tabindex=\"-1\">" },
+      { name: 'S04', skeleton: "<div class=\"lg:max-w-[14rem] max-w-[11rem] shrink-0 w-[42vw]\">\n  <video aria-label autoplay class=\"aspect-[9/16] object-cover rounded-tile w-full\" loop muted playsinline preload=\"none\" src>" },
+      { name: 'S05', skeleton: "<div class=\"lg:max-w-[14rem] max-w-[11rem] shrink-0 w-[42vw]\">\n  <video autoplay class=\"aspect-[9/16] object-cover rounded-tile w-full\" loop muted playsinline poster preload=\"none\" src tabindex=\"-1\">" },
+      { name: 'S06', skeleton: "<div class=\"lg:max-w-[14rem] max-w-[11rem] shrink-0 w-[42vw]\">\n  <video autoplay class=\"aspect-[9/16] object-cover rounded-tile w-full\" loop muted playsinline preload=\"none\" src tabindex=\"-1\">" },
     ],
   },
   {
