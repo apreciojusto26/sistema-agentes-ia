@@ -264,14 +264,33 @@ describe('Group 2 — end-to-end productId propagation (design "Full pipeline ru
 
     const productDir = reserveTmpDir('lg-pid-product-');
     const productPath = path.join(productDir, 'product.json');
+    // Canonical Product shape — generate-content.mjs now reads nested
+    // identity/provenance paths (product-normalizer-wiring, decision C1).
+    // HAND-BUILT on purpose (ADR-7): do NOT pipe a flat fixture through the
+    // real normalizeProduct() here. That function hard-nulls sourceItemId and
+    // scrapeJobId by design (DECISION-2), which would force the assertions
+    // below to be weakened to null and would delete #427's transport-fidelity
+    // coverage. D2's null behavior has its own dedicated coverage in
+    // contract.generate-content.test.ts; this group tests transport only.
     const productJson = {
-      title: 'Propagation Fixture Product',
-      description: 'A fixture product for end-to-end productId propagation (task 7.4).',
-      productId: mintedId,
-      sourceUrl: 'https://example.com/item/99999',
-      itemId: '99999',
-      scrapedAt: '2026-08-16T12:00:00.000Z',
-      scrapeJobId: 'job-scrape-propagation-0001',
+      identity: {
+        productId: mintedId,
+        sourceUrl: 'https://example.com/item/99999',
+        sourceItemId: '99999',
+        name: 'Propagation Fixture Product',
+        brand: null,
+      },
+      commerceFacts: { variantOptions: [] },
+      socialProof: { rating: null, reviewCount: null, reviews: [] },
+      media: { images: [], videos: [] },
+      specifications: [],
+      description: {
+        raw: 'A fixture product for end-to-end productId propagation (task 7.4).',
+      },
+      provenance: {
+        scrapedAt: '2026-08-16T12:00:00.000Z',
+        scrapeJobId: 'job-scrape-propagation-0001',
+      },
     };
     writeFileSync(productPath, JSON.stringify(productJson));
 
@@ -298,10 +317,10 @@ describe('Group 2 — end-to-end productId propagation (design "Full pipeline ru
     // after the retry loop (design D2) — same id, not re-derived.
     expect(stagedContent.productId).toBe(mintedId);
     expect(stagedContent.provenance).toMatchObject({
-      sourceUrl: productJson.sourceUrl,
-      itemId: productJson.itemId,
-      scrapedAt: productJson.scrapedAt,
-      scrapeJobId: productJson.scrapeJobId,
+      sourceUrl: productJson.identity.sourceUrl,
+      itemId: productJson.identity.sourceItemId,
+      scrapedAt: productJson.provenance.scrapedAt,
+      scrapeJobId: productJson.provenance.scrapeJobId,
       contentModel: 'gemini-2.5-flash',
     });
     expect(typeof stagedContent.provenance.contentAt).toBe('string');
@@ -311,10 +330,10 @@ describe('Group 2 — end-to-end productId propagation (design "Full pipeline ru
 
     const manifest = readManifest(SLUG_PROPAGATION);
     expect(manifest.productId).toBe(mintedId);
-    expect(manifest.sourceUrl).toBe(productJson.sourceUrl);
-    expect(manifest.itemId).toBe(productJson.itemId);
-    expect(manifest.jobs.scrape).toBe(productJson.scrapeJobId);
-    expect(manifest.timestamps.scrapedAt).toBe(productJson.scrapedAt);
+    expect(manifest.sourceUrl).toBe(productJson.identity.sourceUrl);
+    expect(manifest.itemId).toBe(productJson.identity.sourceItemId);
+    expect(manifest.jobs.scrape).toBe(productJson.provenance.scrapeJobId);
+    expect(manifest.timestamps.scrapedAt).toBe(productJson.provenance.scrapedAt);
     expect(manifest.lineage).toBe('scraped');
   }, 15_000);
 });
