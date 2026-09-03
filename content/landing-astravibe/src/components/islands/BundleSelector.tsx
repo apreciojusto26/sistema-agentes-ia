@@ -34,7 +34,33 @@ export function BundleSelector({
   const groupName = useId();
   const cartStatus = useStore($cartStatus);
   const cartError = useStore($cartError);
-  const { variant, pack, projection, cart } = useSelection({ commerce, packs, bundleOfferActive });
+  const selection = useSelection({ commerce, packs, bundleOfferActive });
+
+  // PREVIEW MODE. `null` means the landing was generated without commerce, so
+  // there is no variant, no pack and no price. Rendering the selector against a
+  // synthetic variant or a 0 would put a number on screen that nobody set — a
+  // fabricated price is worse than an absent one. The buy box keeps its place
+  // in the page and says plainly that it cannot sell yet.
+  if (!selection) {
+    return (
+      <div className="flex flex-wrap items-center gap-3">
+        <p className="min-w-0 flex-1 text-sm text-steel">
+          Vista previa — esta landing todavía no tiene producto conectado.
+        </p>
+        <button
+          type="button"
+          disabled
+          aria-disabled="true"
+          data-preview-cta="true"
+          className="flex h-12 shrink-0 items-center justify-center rounded-pill bg-grape px-5 font-display text-sm font-bold tracking-wide text-white shadow-lift disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          Vista previa — compra no disponible
+        </button>
+      </div>
+    );
+  }
+
+  const { variant, pack, projection, cart } = selection;
 
   const isPending = cartStatus === 'creating' || cartStatus === 'updating' || cartStatus === 'restoring';
   const soldOut = !variant.availableForSale;

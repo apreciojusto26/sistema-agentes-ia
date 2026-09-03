@@ -34,7 +34,7 @@ export function StickyAddToCart({
   const [dismissed, setDismissed] = useState(false);
   const isLightboxOpen = useStore($isLightboxOpen);
   const cartStatus = useStore($cartStatus);
-  const { variant, projection, totalCents, cart } = useSelection({ commerce, packs, bundleOfferActive });
+  const selection = useSelection({ commerce, packs, bundleOfferActive });
 
   useEffect(() => {
     const sentinel = document.getElementById(sentinelId);
@@ -52,6 +52,16 @@ export function StickyAddToCart({
     observer.observe(sentinel);
     return () => observer.disconnect();
   }, [sentinelId]);
+
+  // PREVIEW MODE. A sticky ADD-TO-CART bar with nothing to add is not a
+  // degraded state worth rendering — it is a control that cannot do its one
+  // job. It is omitted entirely rather than shown disabled, which would follow
+  // the visitor down the whole page advertising an action that does not exist.
+  // Placed AFTER the hooks above: an early return before them would change the
+  // hook order between preview and commerce builds.
+  if (!selection) return null;
+
+  const { variant, projection, totalCents, cart } = selection;
 
   const visible = pastSentinel && !isLightboxOpen && !dismissed;
   const isPending = cartStatus === 'creating' || cartStatus === 'updating' || cartStatus === 'restoring';
