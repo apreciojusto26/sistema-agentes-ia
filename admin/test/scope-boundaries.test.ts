@@ -92,7 +92,7 @@ describe('scope-boundaries (Batch G — machine-checkable, spec R14)', () => {
     });
   });
 
-  describe('boundary: no core-logic / checkout / commerce changes in content/landing-base', () => {
+  describe('boundary: no core-logic / checkout / commerce changes in the Fixed canonical template', () => {
     // Proposal "Out of scope": content/landing-base core logic, components,
     // hooks, tracking, checkout, or commerce behavior. Design's real file
     // inventory (verified at design time) maps "checkout/commerce" onto
@@ -337,21 +337,77 @@ describe('scope-boundaries (Batch G — machine-checkable, spec R14)', () => {
     // THIS TEST IS EXPECTED TO BE RED until the phase is committed. That is
     // the mechanism working, not a regression — and it is exactly why the
     // exception is written down here instead of being coded around.
+    // =====================================================================
+    // REPOINTED TO content/landing-astravibe — READ THIS BEFORE CHANGING IT
+    // BACK.
+    //
+    // Everything above this line is VERSION A HISTORY, kept for provenance.
+    // It records twelve authorised edits to content/landing-base's design
+    // system, and it no longer describes what this guard protects. That work
+    // continues in the experimental repo (gbritez53/landing-generator); this
+    // repo is Fixed AstraVibe and does not render landing-base at all.
+    //
+    //   content/landing-astravibe IS THE PROTECTED FIXED CANONICAL TEMPLATE.
+    //
+    // It is a frozen verbatim copy of the deployed AstraVibe landing, and the
+    // entire premise of this repo is that it does not drift: every generated
+    // product is the SAME PAGE with different data in it. An edit under these
+    // paths changes every landing this system will ever produce, so it must
+    // be a deliberate, committed, reviewed act — never a stray working-tree
+    // change someone forgot about.
+    //
+    // The target of this guard was changed ON PURPOSE, not by accident. If
+    // you are here because the paths look wrong, they are not: point it back
+    // at landing-base only if this repo stops being Fixed AstraVibe.
+    //
+    // WHAT IS PROTECTED, AND WHY ONLY THIS MUCH. "Protect the frozen visual
+    // source" is not "protect the repo" — a guard that fires on everything
+    // gets switched off.
+    //
+    //   src/components     the sections, islands and ui primitives that ARE
+    //                      the visual composition
+    //   src/layouts        Base.astro mounts the shell on every page, so a
+    //                      change here reaches all of them at once
+    //   src/pages/index.astro  the section sequence itself — the single file
+    //                      that decides what the page is
+    //   src/lib/kv.ts, src/lib/shopify, src/lib/sumup, src/pages/api
+    //                      protected commerce infrastructure, unchanged in
+    //                      intent from the landing-base list above
+    //
+    // DELIBERATELY NOT PROTECTED, and each exclusion is load-bearing:
+    //
+    //   src/styles/global.css  the palette lives in its @theme block and is
+    //                      the ONE thing Fixed lets a product change. Guarding
+    //                      it would fight the feature. The structural tokens
+    //                      in the same file — fonts, radius, shadows, text
+    //                      scale — are held by the structural fingerprint
+    //                      instead, which is the right instrument for them.
+    //   src/data/**        product facts, copy, merchant policy. This is the
+    //                      payload, not the template.
+    //   src/assets/product/**  per-product media.
+    //
+    // As before, NO PATH IS EXEMPTED. The assertion measures working-tree
+    // dirtiness, not history, so an authorised change goes red until it is
+    // committed and then the boundary holds at full strength again. A red
+    // here during a phase is the mechanism working.
+    // =====================================================================
     const protectedRelPaths = [
-      'content/landing-base/src/components',
-      'content/landing-base/src/lib/kv.ts',
-      'content/landing-base/src/lib/shopify',
-      'content/landing-base/src/lib/sumup',
-      'content/landing-base/src/pages/api',
+      'content/landing-astravibe/src/components',
+      'content/landing-astravibe/src/layouts',
+      'content/landing-astravibe/src/pages/index.astro',
+      'content/landing-astravibe/src/lib/kv.ts',
+      'content/landing-astravibe/src/lib/shopify',
+      'content/landing-astravibe/src/lib/sumup',
+      'content/landing-astravibe/src/pages/api',
     ];
 
-    it('all protected content/landing-base paths exist (guarding against a stale/renamed path silently no-op-ing this test)', () => {
+    it('all protected content/landing-astravibe paths exist (guarding against a stale/renamed path silently no-op-ing this test)', () => {
       for (const rel of protectedRelPaths) {
         expect(existsSync(path.join(REPO_ROOT, rel)), `${rel} should exist`).toBe(true);
       }
     });
 
-    it('git reports zero modified/untracked files under any protected path (src/components, kv.ts, lib/shopify, lib/sumup, pages/api)', () => {
+    it('git reports zero modified/untracked files under any protected path of the Fixed canonical template', () => {
       const output = gitPorcelain(protectedRelPaths);
       expect(output.trim()).toBe('');
     });
