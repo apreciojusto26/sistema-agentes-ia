@@ -182,3 +182,67 @@ describe('structural fingerprint — shape', () => {
     expect(structuralFingerprint('').elements).toBe(0);
   });
 });
+
+// ── Stars: the rating VALUE is data; everything around it is design ────────
+//
+// ui/Stars.astro renders each star as `<path opacity={fill}>`, so the rating
+// leaks into an attribute. Stars appears seven or more times on a commerce
+// page, which made two products with different ratings impossible to match on
+// structure. The exception is keyed on (ancestor, element, attribute) — NOT on
+// `opacity` globally, because elsewhere an opacity is a real design decision.
+//
+// Every case below is a control: normalizing the fill must not buy silence
+// about the component's shape.
+describe('Stars — contextual value normalization', () => {
+  const stars = (fills: number[], opts: { tag?: string; pathClass?: string; wrapperRole?: string; d?: string } = {}) => {
+    const { tag = 'path', pathClass = 'text-gold', wrapperRole = 'img', d = 'M10.868 2.884' } = opts;
+    const cells = fills
+      .map((f) => `<svg class="size-4 shrink-0"><${tag} class="${pathClass}" d="${d}" opacity="${f === 0 ? 0.25 : f}"/></svg>`)
+      .join('');
+    return `<div role="${wrapperRole}" class="inline-flex items-center gap-0.5" aria-label="x">${cells}</div>`;
+  };
+  const h = (html: string) => structuralFingerprint(html).hash;
+
+  const RATING_49 = [1, 1, 1, 1, 0.9000000000000004];
+  const RATING_42 = [1, 1, 1, 1, 0.2];
+  const BASELINE = h(stars(RATING_49));
+
+  it('a different rating does NOT change the structure', () => {
+    expect(h(stars(RATING_42))).toBe(BASELINE);
+  });
+
+  it('a different NUMBER of stars does', () => {
+    expect(h(stars([1, 1, 1, 1]))).not.toBe(BASELINE);
+    expect(h(stars([1, 1, 1, 1, 1, 1]))).not.toBe(BASELINE);
+  });
+
+  it('changing the star geometry does', () => {
+    expect(h(stars(RATING_49, { d: 'M0 0h10v10z' }))).not.toBe(BASELINE);
+  });
+
+  it('changing the item tag does', () => {
+    expect(h(stars(RATING_49, { tag: 'rect' }))).not.toBe(BASELINE);
+  });
+
+  it('changing the star class does', () => {
+    expect(h(stars(RATING_49, { pathClass: 'text-steel' }))).not.toBe(BASELINE);
+  });
+
+  it('changing the wrapper role does — the rule stops matching, which is the safe direction', () => {
+    expect(h(stars(RATING_49, { wrapperRole: 'presentation' }))).not.toBe(BASELINE);
+  });
+
+  it('adding a child does', () => {
+    expect(h(stars(RATING_49).replace('</div>', '<span class="x"></span></div>'))).not.toBe(BASELINE);
+  });
+
+  it('REMOVING the opacity attribute does — only its value is normalized', () => {
+    expect(h(stars(RATING_49).replace(/ opacity="[^"]*"/g, ''))).not.toBe(BASELINE);
+  });
+
+  it('an opacity OUTSIDE Stars keeps its value and still fails', () => {
+    const a = '<div class="overlay"><path class="veil" opacity="0.5"/></div>';
+    const b = '<div class="overlay"><path class="veil" opacity="0.9"/></div>';
+    expect(h(a)).not.toBe(h(b));
+  });
+});

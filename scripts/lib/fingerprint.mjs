@@ -461,13 +461,85 @@ export function applyGrammar(skeleton, grammar) {
   return out.join('\n');
 }
 
+
+// ---------------------------------------------------------------------------
+// CONTEXTUAL VALUE NORMALIZATION — a value that is DATA in one place and
+// GEOMETRY in another.
+// ---------------------------------------------------------------------------
+//
+// Some attributes carry a product fact rather than a design decision, but only
+// in a specific component. `opacity` is the case that surfaced this: ui/Stars
+// .astro renders each star as
+//
+//     <path opacity={fill === 0 ? 0.25 : fill} />
+//
+// so a rating of 4,9 emits `opacity="0.9000000000000004"` on the fifth star and
+// 4,2 emits `opacity="0.2"`. Two products with different ratings hashed
+// differently — and Stars renders seven or more times per page, so this alone
+// made fingerprint(A) === fingerprint(B) impossible regardless of anything else.
+//
+// WHY NOT DROP `opacity` GLOBALLY. Elsewhere an opacity IS a design decision —
+// a deliberately faded overlay is part of the composition, and a change to it
+// should fail. A global rule would stop noticing that. So the exception is
+// keyed on (ancestor, element, attribute), the narrowest context that
+// identifies the dynamic value without capturing any other SVG on the page.
+//
+// EVERY RULE HERE NEEDS FOUR THINGS, and the Stars one has them: a context, a
+// reason, a positive test (rating 4,9 vs 4,2 hash alike) and a structural
+// control (the star count, the wrapper, the tag and the path geometry all
+// still fail when changed). There is deliberately no
+// DROP_ALL_NUMERIC_ATTRIBUTES here and there must never be one.
+
+/**
+ * `<div role="img">` with the inline-flex star row's own classes. Scoped to
+ * Stars specifically: an `opacity` on any other element keeps its value and
+ * keeps failing.
+ */
+export const CONTEXTUAL_VALUE_RULES = [
+  {
+    id: 'stars/fill',
+    ancestor: { tag: 'div', attrs: { role: 'img' }, classes: ['inline-flex', 'gap-0.5'] },
+    element: { tag: 'path', classes: ['text-gold'] },
+    attr: 'opacity',
+  },
+];
+
+/** Rewrites the VALUE of a contextual attribute, keeping the attribute itself. */
+export function normalizeContextualValues(skeleton, rules = CONTEXTUAL_VALUE_RULES) {
+  if (!rules || rules.length === 0) return skeleton;
+  const lines = parseLines(skeleton);
+  /** ancestor element line by depth, so a rule can ask what encloses a node. */
+  const stack = [];
+
+  const out = lines.map(({ text, depth }) => {
+    stack.length = depth;
+    stack[depth] = text;
+
+    for (const rule of rules) {
+      if (!matchesWrapper(text, rule.element)) continue;
+      // `slice(0, depth)` — the element cannot be its own ancestor.
+      if (!stack.slice(0, depth).some((a) => a && matchesWrapper(a, rule.ancestor))) continue;
+      // The NAME survives; only the value collapses. An added or removed
+      // opacity attribute therefore still moves the hash.
+      const rewritten = text.replace(
+        new RegExp(`(\\s${rule.attr})="[^"]*"`),
+        `$1="<${rule.id}>"`,
+      );
+      return '  '.repeat(depth) + rewritten;
+    }
+    return '  '.repeat(depth) + text;
+  });
+
+  return out.join('\n');
+}
+
 /**
  * @param {string} html rendered page markup
  * @param {object[]} [grammar] declared repeatable/optional regions
  * @returns {{ skeleton: string, hash: string, elements: number }}
  */
 export function structuralFingerprint(html, grammar) {
-  const skeleton = applyGrammar(structuralSkeleton(html), grammar);
+  const skeleton = applyGrammar(normalizeContextualValues(structuralSkeleton(html)), grammar);
   return {
     skeleton,
     hash: createHash('sha256').update(skeleton).digest('hex'),
