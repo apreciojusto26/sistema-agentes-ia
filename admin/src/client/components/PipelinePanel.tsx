@@ -1,66 +1,54 @@
-// The whole Admin MVP surface: form -> run -> timeline -> result -> preview.
+// The Admin's single generation surface: URL in, pipeline visible, landing out.
 //
-// A THIN surface on purpose. It sends three fields, renders whatever the
-// server says, and starts a preview. It decides nothing: stage order, stage
-// status, commerce mode and error text all arrive from the PipelineRecord, so
-// the UI can never disagree with what actually ran.
+// ONE form and ONE pipeline, deliberately. The dashboard used to carry a hero
+// input, a per-agent timeline and a separate slug form alongside this panel —
+// three ways to start overlapping work, and two competing pictures of what was
+// happening. Everything now flows through /api/pipeline.
 //
-// Reuses StatusPill and the existing preview endpoint rather than introducing
-// any new visual dependency.
+// STATE LIVES HERE AND NOWHERE ELSE. This component owns the start call and
+// the SSE subscription; PipelineColumn, ActiveStagePanel and the result bar are
+// presentational and receive what the server said. They cannot disagree with
+// the run because they hold nothing of their own.
 import { useState } from 'react';
-import StatusPill, { type StatusPillTone } from './StatusPill';
+import PipelineColumn from './PipelineColumn';
+import ActiveStagePanel from './ActiveStagePanel';
+import JobHistory from './JobHistory';
+import { buildBlocks, activeBlock, emptyBlocks } from './pipeline-blocks';
 import { startPipeline, usePipelineStream } from '../http/pipeline';
 import * as api from '../http/client';
-import type { PipelineRecord, PipelineStageStatus } from '../../server/pipeline';
-
-const STAGE_LABEL: Record<string, string> = {
-  scrape: 'Buscando el producto',
-  normalize: 'Ordenando los datos',
-  content: 'Escribiendo los textos',
-  design: 'Decidiendo el diseño',
-  assets: 'Preparando las fotos',
-  generate: 'Armando la landing',
-  build: 'Compilando',
-  validate: 'Revisión final',
-};
-
-/** Maps the pipeline's 5 states onto StatusPill's 4 tones. `skipped` has no
- * tone of its own — it is rendered as its own muted row instead, because
- * painting it like `idle` would suggest it is still going to run. */
-function toneFor(status: PipelineStageStatus): StatusPillTone | null {
-  switch (status) {
-    case 'running':
-      return 'running';
-    case 'pass':
-      return 'done';
-    case 'failed':
-      return 'failed';
-    case 'pending':
-      return 'idle';
-    case 'skipped':
-      return null;
-  }
-}
-
-const STATUS_TEXT: Record<PipelineStageStatus, string> = {
-  pending: 'Pendiente',
-  running: 'En progreso',
-  pass: 'Listo',
-  failed: 'Falló',
-  skipped: 'No se ejecutó',
-};
+import { useJobs } from '../http/useJobs';
+import type { PipelineRecord } from '../../server/pipeline';
 
 const COMMERCE_LABEL: Record<PipelineRecord['commerceMode'], string> = {
-  'preview-only': 'Preview only — sin comercio',
-  'commerce-configured': 'Commerce configured — handle puesto, todavía sin verificar contra Shopify',
+  'preview-only': 'Preview only',
+  'commerce-configured': 'Commerce configured',
   'shopify-live-verified': 'Shopify live verified',
 };
+
+/** `mi-producto-genial` from a messy product URL. Keeps the common path free
+ *  of a field nobody wants to fill in; Opciones avanzadas still overrides it. */
+export function slugFromUrl(url: string): string {
+  try {
+    const last = new URL(url).pathname.split('/').filter(Boolean).pop() ?? '';
+    const base = last
+      .replace(/\.[a-z0-9]+$/i, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 60)
+      .replace(/-+$/g, '');
+    return /^[a-z0-9]/.test(base) ? base : '';
+  } catch {
+    return '';
+  }
+}
 
 export default function PipelinePanel() {
   const [url, setUrl] = useState('');
   const [scrapeJobId, setScrapeJobId] = useState('');
   const [slug, setSlug] = useState('');
   const [handle, setHandle] = useState('');
+  const [advanced, setAdvanced] = useState(false);
   const [starting, setStarting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [pipelineId, setPipelineId] = useState<string | null>(null);
@@ -70,20 +58,29 @@ export default function PipelinePanel() {
   const [previewStarting, setPreviewStarting] = useState(false);
 
   const record = usePipelineStream(pipelineId);
+  const { jobs } = useJobs();
+
   const running = record?.status === 'running' || starting;
+  // Before a run exists the six blocks still render, all pending, so the flow
+  // reads on arrival instead of being an empty column.
+  const blocks = record ? buildBlocks(record.stages) : emptyBlocks();
+  const active = record ? activeBlock(blocks) : null;
+  const activeIndex = active ? blocks.findIndex((b) => b.meta.id === active.meta.id) : 0;
+
+  const effectiveSlug = slug.trim() || slugFromUrl(url);
+  const canStart = !running && !!effectiveSlug && (!!url.trim() || !!scrapeJobId.trim());
 
   async function submit() {
     setFormError(null);
     setPreviewUrl(null);
     setPreviewError(null);
     setStarting(true);
+
     const result = await startPipeline({
       url: url.trim() || undefined,
       scrapeJobId: scrapeJobId.trim() || undefined,
-      slug: slug.trim(),
+      slug: effectiveSlug,
       shopifyHandle: handle.trim() || null,
-      // A re-run after a failure must be able to overwrite the half-written
-      // output of the previous attempt.
       force: true,
     });
     setStarting(false);
@@ -101,8 +98,9 @@ export default function PipelinePanel() {
     setPreviewError(null);
     const res = await api.startPreview(record.slug);
     setPreviewStarting(false);
-    // Preview is an action ON a valid artefact. If it fails, the pipeline's
-    // own verdict is untouched — the landing was still generated correctly.
+    // Preview acts ON a finished artefact. A failure here says nothing about
+    // whether the landing was generated correctly, so the pipeline verdict is
+    // never rewritten.
     if (res.ok) {
       setPreviewUrl(res.url);
       window.open(res.url, '_blank', 'noopener');
@@ -111,141 +109,150 @@ export default function PipelinePanel() {
     }
   }
 
+  const commerceNow = handle.trim() ? COMMERCE_LABEL['commerce-configured'] : COMMERCE_LABEL['preview-only'];
+
   return (
-    <section className="mx-auto w-full max-w-3xl px-4 py-6">
-      <h2 className="mb-3 text-sm font-semibold text-ink">Generar una landing</h2>
+    <div className="mx-auto w-full max-w-[76rem] px-5 pb-10">
+      {/* ── Nueva generación ─────────────────────────────────────────── */}
+      <section className="rounded-2xl border border-hairline-soft bg-panel p-4">
+        <span className="cap text-ink-faint">Nueva generación</span>
 
-      <div className="grid gap-2 rounded-2xl border border-hairline bg-panel p-4">
-        <label className="text-xs text-ink-soft">
-          URL del producto
-          <input
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://…"
-            disabled={running}
-            className="mt-1 w-full rounded-lg border border-hairline px-2 py-1.5 text-sm text-ink"
-          />
-        </label>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <label className="min-w-[18rem] flex-1">
+            <span className="sr-only">URL del producto</span>
+            <input
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="Pegá la URL del producto…"
+              disabled={running}
+              className="w-full rounded-xl border border-hairline bg-panel-soft px-3.5 py-2.5 text-sm text-ink placeholder:text-ink-faint focus:border-brand focus:outline-none disabled:opacity-50"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => void submit()}
+            disabled={!canStart}
+            className="rounded-xl bg-brand px-5 py-2.5 text-sm font-semibold text-brand-ink transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {running ? 'Generando…' : record ? 'Generar de nuevo' : 'Generar landing'}
+          </button>
+        </div>
 
-        <label className="text-xs text-ink-soft">
-          …o reusar un scrape existente (jobId)
-          <input
-            value={scrapeJobId}
-            onChange={(e) => setScrapeJobId(e.target.value)}
-            placeholder="msyyd9nm-e48bcce7"
-            disabled={running}
-            className="mt-1 w-full rounded-lg border border-hairline px-2 py-1.5 text-sm text-ink"
-          />
-        </label>
-
-        <label className="text-xs text-ink-soft">
-          Slug de la landing
-          <input
-            value={slug}
-            onChange={(e) => setSlug(e.target.value)}
-            placeholder="mi-producto"
-            disabled={running}
-            className="mt-1 w-full rounded-lg border border-hairline px-2 py-1.5 text-sm text-ink"
-          />
-        </label>
-
-        <label className="text-xs text-ink-soft">
-          Handle de Shopify <span className="text-ink-soft">(opcional — vacío = preview mode)</span>
-          <input
-            value={handle}
-            onChange={(e) => setHandle(e.target.value)}
-            placeholder="mi-producto-en-shopify"
-            disabled={running}
-            className="mt-1 w-full rounded-lg border border-hairline px-2 py-1.5 text-sm text-ink"
-          />
-        </label>
-
-        <p className="text-[11px] text-ink-soft">
-          {handle.trim() ? COMMERCE_LABEL['commerce-configured'] : COMMERCE_LABEL['preview-only']}
+        <p className="mt-2 flex flex-wrap items-center gap-1.5 font-mono text-[10px] text-ink-faint">
+          <span className="rounded-full bg-panel-muted px-1.5 py-0.5 text-ink-soft">{commerceNow}</span>
+          {effectiveSlug && <span className="rounded-full bg-panel-muted px-1.5 py-0.5 text-ink-soft">/{effectiveSlug}</span>}
         </p>
 
         <button
           type="button"
-          onClick={() => void submit()}
-          disabled={running || !slug.trim()}
-          className="mt-1 rounded-lg bg-graphite px-3 py-2 text-sm font-medium text-bone disabled:opacity-40"
+          onClick={() => setAdvanced((v) => !v)}
+          aria-expanded={advanced}
+          className="mt-2 text-[11px] text-ink-soft underline-offset-2 hover:underline"
         >
-          {running ? 'Generando…' : record ? 'Generar de nuevo' : 'Generar landing'}
+          {advanced ? 'Ocultar opciones avanzadas' : 'Opciones avanzadas'}
         </button>
 
-        {formError && <p className="text-[11px] text-state-failed">{formError}</p>}
+        {advanced && (
+          <div className="mt-2 grid gap-2 border-t border-hairline-soft pt-2 sm:grid-cols-3">
+            <label className="text-xs text-ink-soft">
+              Reusar scrape (jobId)
+              <input
+                value={scrapeJobId}
+                onChange={(e) => setScrapeJobId(e.target.value)}
+                placeholder="opcional"
+                disabled={running}
+                className="mt-1 w-full rounded-lg border border-hairline bg-panel-soft px-2 py-1.5 text-sm text-ink placeholder:text-ink-faint disabled:opacity-50"
+              />
+            </label>
+            <label className="text-xs text-ink-soft">
+              Slug manual
+              <input
+                value={slug}
+                onChange={(e) => setSlug(e.target.value)}
+                placeholder={slugFromUrl(url) || 'se deriva de la URL'}
+                disabled={running}
+                className="mt-1 w-full rounded-lg border border-hairline bg-panel-soft px-2 py-1.5 text-sm text-ink placeholder:text-ink-faint disabled:opacity-50"
+              />
+            </label>
+            <label className="text-xs text-ink-soft">
+              Handle de Shopify
+              <input
+                value={handle}
+                onChange={(e) => setHandle(e.target.value)}
+                placeholder="vacío = preview"
+                disabled={running}
+                className="mt-1 w-full rounded-lg border border-hairline bg-panel-soft px-2 py-1.5 text-sm text-ink placeholder:text-ink-faint disabled:opacity-50"
+              />
+            </label>
+          </div>
+        )}
+
+        {formError && <p className="mt-2 text-[11px] text-state-failed">{formError}</p>}
+      </section>
+
+      {/* ── pipeline | stage activo | historial ──────────────────────── */}
+      {/* `items-start` so a long history never stretches the other two columns
+          into tall empty boxes; the history scrolls inside its own panel. */}
+      {/* Column widths follow the canvas: a ~19rem agent rail, a fluid centre,
+          a ~17rem history. Wider than the previous 13rem rail because the
+          cards carry an avatar and a pill, not a single row of text. */}
+      <div className="mt-3 grid items-start gap-3 lg:grid-cols-[19rem_minmax(0,1fr)_17rem]">
+        <PipelineColumn blocks={blocks} activeId={active?.meta.id ?? null} />
+
+        <ActiveStagePanel block={active} index={activeIndex} total={blocks.length || 6} />
+
+        <div className="flex flex-col gap-2">
+          <span className="cap pl-1 text-ink-faint">Historial</span>
+          <div className="max-h-[28rem] overflow-y-auto pr-0.5">
+            <JobHistory jobs={jobs} />
+          </div>
+        </div>
       </div>
 
-      {record && (
-        <div className="mt-4 rounded-2xl border border-hairline bg-panel p-2">
-          <ol>
-            {record.stages.map((stage) => {
-              const tone = toneFor(stage.status);
-              return (
-                <li key={stage.name} className="flex items-start justify-between gap-3 px-3 py-2">
-                  <div className="min-w-0">
-                    <p className={`text-sm ${stage.status === 'skipped' ? 'text-ink-soft' : 'text-ink'}`}>
-                      {STAGE_LABEL[stage.name] ?? stage.name}
-                    </p>
-                    {stage.detail && <p className="text-[11px] text-ink-soft">{stage.detail}</p>}
-                    {stage.error && <p className="text-[11px] text-state-failed">{stage.error}</p>}
-                  </div>
-                  {tone ? (
-                    <StatusPill tone={tone} label={STATUS_TEXT[stage.status]} />
-                  ) : (
-                    <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-ink-soft">
-                      {STATUS_TEXT.skipped}
-                    </span>
-                  )}
-                </li>
-              );
-            })}
-          </ol>
-        </div>
-      )}
-
+      {/* ── Resultado ────────────────────────────────────────────────── */}
       {record?.status === 'succeeded' && (
-        <div className="mt-4 rounded-2xl border border-hairline bg-panel p-4 text-sm">
-          <p className="font-semibold text-ink">Landing lista</p>
-          <dl className="mt-2 grid grid-cols-[9rem_1fr] gap-y-1 text-xs">
-            <dt className="text-ink-soft">Slug</dt>
-            <dd className="text-ink">{record.slug}</dd>
-            <dt className="text-ink-soft">Carpeta</dt>
-            <dd className="break-all text-ink">{record.outputPath}</dd>
-            <dt className="text-ink-soft">Comercio</dt>
-            <dd className="text-ink">{COMMERCE_LABEL[record.commerceMode]}</dd>
-            <dt className="text-ink-soft">Build</dt>
-            <dd className="text-ink">{record.stages.find((s) => s.name === 'build')?.status === 'pass' ? 'compiló y prerenderizó' : '—'}</dd>
-            <dt className="text-ink-soft">Repo propio</dt>
-            <dd className="text-ink">
+        <section className="mt-3 rounded-2xl border border-hairline-soft border-t-2 border-t-state-done bg-panel p-4" aria-live="polite">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-semibold text-state-done">Landing lista</span>
+            <span className="rounded-full bg-panel-muted px-2 py-0.5 font-mono text-[10px] text-ink-soft">/{record.slug}</span>
+            <span className="rounded-full bg-brand-tint px-2 py-0.5 font-mono text-[10px] text-ink">
+              {COMMERCE_LABEL[record.commerceMode]}
+            </span>
+            <button
+              type="button"
+              onClick={() => void openPreview()}
+              disabled={previewStarting}
+              className="ml-auto rounded-xl border border-hairline px-3.5 py-1.5 text-sm font-medium text-ink transition hover:bg-panel-muted disabled:opacity-40"
+            >
+              {previewStarting ? 'Levantando…' : 'Abrir preview'}
+            </button>
+          </div>
+
+          <dl className="mt-3 grid gap-x-4 gap-y-1 text-xs sm:grid-cols-[8rem_minmax(0,1fr)]">
+            <dt className="text-ink-faint">Carpeta</dt>
+            <dd className="break-all text-ink-soft">{record.outputPath}</dd>
+            <dt className="text-ink-faint">Build</dt>
+            <dd className="text-ink-soft">
+              {record.stages.find((s) => s.name === 'build')?.status === 'pass' ? 'compiló y prerenderizó' : '—'}
+            </dd>
+            <dt className="text-ink-faint">Repo propio</dt>
+            <dd className="text-ink-soft">
               {record.stages.find((s) => s.name === 'validate')?.status === 'pass'
                 ? 'sí — la landing tiene su propio .git'
                 : '—'}
             </dd>
           </dl>
 
-          <button
-            type="button"
-            onClick={() => void openPreview()}
-            disabled={previewStarting}
-            className="mt-3 rounded-lg border border-hairline px-3 py-1.5 text-sm text-ink disabled:opacity-40"
-          >
-            {previewStarting ? 'Levantando el preview…' : 'Ver el resultado'}
-          </button>
-          {previewUrl && (
-            <p className="mt-1 text-[11px] text-ink-soft">
-              Preview en <span className="text-ink">{previewUrl}</span>
-            </p>
-          )}
-          {previewError && <p className="mt-1 text-[11px] text-state-failed">{previewError}</p>}
-        </div>
+          {previewUrl && <p className="mt-2 text-[11px] text-ink-faint">Preview en {previewUrl}</p>}
+          {previewError && <p className="mt-2 text-[11px] text-state-failed">{previewError}</p>}
+        </section>
       )}
 
       {record?.status === 'failed' && (
-        <p className="mt-3 text-xs text-state-failed">
-          Falló en <strong>{STAGE_LABEL[record.currentStage ?? ''] ?? record.currentStage}</strong>: {record.error}
+        <p className="mt-3 text-xs text-state-failed" aria-live="polite">
+          Falló en <strong>{active?.meta.label ?? record.currentStage}</strong>: {record.error}
         </p>
       )}
-    </section>
+    </div>
   );
 }

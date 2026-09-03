@@ -1,3 +1,8 @@
+/* Must be the FIRST rule in the file: a CSS `@import` that follows any other
+   rule is invalid and the optimizer drops it silently — which is exactly what
+   happened when this sat next to the palette below, leaving the whole page on
+   system-ui while the build still reported success. */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -64,4 +69,203 @@
      reused rather than re-derived since it's already AA-verified. --------- */
   --color-brand: #6d28d9;
   --color-brand-tint: #f3eeff;
+
+  /* --- Per-agent accents for the six pipeline members. Declared here so
+     Tailwind emits `text-agent-1`, `ring-agent-3`, `bg-agent-5`, … as real
+     utilities; the light/dark blocks below then redefine the same custom
+     properties, so one class works in both themes. -------------------- */
+  --color-agent-1: #c2410c;
+  --color-agent-2: #6d28d9;
+  --color-agent-3: #be185d;
+  --color-agent-4: #a16207;
+  --color-agent-5: #0369a1;
+  --color-agent-6: #0f766e;
+
+  --color-app: #f4f6fa;
+  --color-rail: #f8f9fc;
+  --color-panel-muted: #e8ebf0;
+  --color-ink-faint: #8b94a3;
+  --color-hairline-soft: #e8ebf0;
+  --color-state-running-tint: rgba(4, 120, 87, 0.1);
+  --color-state-done-tint: rgba(21, 128, 61, 0.1);
+  --color-state-failed-tint: rgba(185, 28, 28, 0.09);
+  --color-state-idle-tint: rgba(100, 116, 139, 0.09);
+  --color-state-skipped: #8b94a3;
+  --color-brand-ink: #ffffff;
+  --color-brand-hover: #5b21b6;
+}
+
+
+/* ═════════════════════════════════════════════════════════════════════════
+   AGENT DASHBOARD — visual language ported from the `/design` canvas
+   ("Panel Generador de Landings", artboards A / AClaro).
+
+   Values are lifted from that canvas rather than re-invented: the navy
+   surfaces, the 44px grid wash, the Space Grotesk / JetBrains Mono pairing,
+   the pill and avatar-ring treatments and the per-agent accents all come
+   from it. What changed is only WHAT is represented — the canvas showed
+   three agents, the real pipeline has six.
+
+   Redefining the same token names Tailwind's `@theme` emits on `:root` means
+   the whole surface re-skins without a component knowing a theme exists.
+   `:root:root` outranks `@theme`'s own block regardless of source order.
+   ═════════════════════════════════════════════════════════════════════════ */
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   `.console` — the dense dark card at the centre of the canvas.
+
+   The canvas keeps this card navy in BOTH artboards: in AClaro it is the one
+   dark surface on a light page, the "instrument readout" the eye lands on.
+
+   It is implemented by REDEFINING the same custom properties inside the
+   subtree rather than by giving children dark-specific classes. Tailwind v4
+   utilities are var references (`.text-ink{color:var(--color-ink)}`), so a
+   child that says `text-ink` or a StageMark that says `text-state-done`
+   resolves correctly here with no knowledge that it sits on a dark card —
+   and no second set of `-on-dark` classes to keep in sync.
+
+   Every value below is a contrast-verified pairing already in this file:
+   the checklist card's ink (13.2:1) and ink-soft (6.91:1) on #16202e, the
+   `-on-dark` status trio (8.60 / 9.49 / 5.98:1), and the dark theme's agent
+   accents. A status colour that cannot be read is a broken honest signal,
+   which is why these are mandatory rather than cosmetic.
+   ───────────────────────────────────────────────────────────────────────── */
+@utility console {
+  color-scheme: dark;
+
+  --color-panel: #16202e;
+  --color-panel-soft: #101927;
+  --color-panel-muted: #22304a;
+  --color-ink: #e6edf6;
+  --color-ink-soft: #9aa9bc;
+  --color-ink-faint: #6b7aa8;
+  --color-hairline: rgba(255, 255, 255, 0.14);
+  --color-hairline-soft: rgba(255, 255, 255, 0.09);
+
+  --color-state-running: #34d399;
+  --color-state-running-tint: rgba(52, 211, 153, 0.15);
+  --color-state-done: #4ade80;
+  --color-state-done-tint: rgba(74, 222, 128, 0.13);
+  --color-state-failed: #f87171;
+  --color-state-failed-tint: rgba(248, 113, 113, 0.14);
+  --color-state-idle: #6b7aa8;
+  --color-state-idle-tint: rgba(255, 255, 255, 0.06);
+  --color-state-skipped: #55627f;
+
+  --color-agent-1: #fb923c;
+  --color-agent-2: #a78bfa;
+  --color-agent-3: #f472b6;
+  --color-agent-4: #facc15;
+  --color-agent-5: #38bdf8;
+  --color-agent-6: #2dd4bf;
+
+  background-color: var(--color-panel);
+  color: var(--color-ink);
+}
+
+:root:root {
+  color-scheme: light;
+
+  /* AClaro artboard */
+  --color-app: #f4f6fa;
+  --color-panel: #ffffff;
+  --color-panel-soft: #ffffff;
+  --color-rail: #f8f9fc;
+  --color-panel-muted: #e8ebf0;
+  --color-ink: #14181f;
+  --color-ink-soft: #566173;
+  --color-ink-faint: #8b94a3;
+  --color-hairline: #e3e7ed;
+  --color-hairline-soft: #e8ebf0;
+  --color-grid: rgba(86, 97, 115, 0.07);
+
+  --color-brand: #6d28d9;
+  --color-brand-ink: #ffffff;
+  --color-brand-hover: #5b21b6;
+  --color-brand-tint: #f3eeff;
+
+  --color-state-running: #047857;
+  --color-state-running-tint: rgba(4, 120, 87, 0.1);
+  --color-state-done: #15803d;
+  --color-state-done-tint: rgba(21, 128, 61, 0.1);
+  --color-state-failed: #b91c1c;
+  --color-state-failed-tint: rgba(185, 28, 28, 0.09);
+  --color-state-idle: #64748b;
+  --color-state-idle-tint: rgba(100, 116, 139, 0.09);
+  --color-state-skipped: #8b94a3;
+
+  /* Per-agent accents — AA on white so they can carry the step label. */
+  --color-agent-1: #c2410c; /* Product    */
+  --color-agent-2: #6d28d9; /* Content    */
+  --color-agent-3: #be185d; /* Design     */
+  --color-agent-4: #a16207; /* Assets     */
+  --color-agent-5: #0369a1; /* Build      */
+  --color-agent-6: #0f766e; /* Validation */
+}
+
+:root:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  /* A artboard */
+  --color-app: #080c18;
+  --color-panel: #10162c;
+  --color-panel-soft: #0c1122;
+  --color-rail: #0c1122;
+  --color-panel-muted: #1c2454;
+  --color-ink: #f5f7fb;
+  --color-ink-soft: #9aa9bc;
+  --color-ink-faint: #6b7aa8;
+  --color-hairline: rgba(255, 255, 255, 0.12);
+  --color-hairline-soft: rgba(255, 255, 255, 0.08);
+  --color-grid: rgba(107, 122, 168, 0.06);
+
+  --color-brand: #a78bfa;
+  --color-brand-ink: #0b0f1e;
+  --color-brand-hover: #c4b5fd;
+  --color-brand-tint: rgba(167, 139, 250, 0.16);
+
+  --color-state-running: #34d399;
+  --color-state-running-tint: rgba(52, 211, 153, 0.15);
+  --color-state-done: #4ade80;
+  --color-state-done-tint: rgba(74, 222, 128, 0.13);
+  --color-state-failed: #f87171;
+  --color-state-failed-tint: rgba(248, 113, 113, 0.14);
+  --color-state-idle: #6b7aa8;
+  --color-state-idle-tint: rgba(255, 255, 255, 0.06);
+  --color-state-skipped: #3c4763;
+
+  --color-agent-1: #fb923c;
+  --color-agent-2: #a78bfa;
+  --color-agent-3: #f472b6;
+  --color-agent-4: #facc15;
+  --color-agent-5: #38bdf8;
+  --color-agent-6: #2dd4bf;
+}
+
+@theme inline {
+  --font-display: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-app);
+    /* The canvas's 44px graph-paper wash — the single strongest cue that this
+       is an instrument panel rather than a form. */
+    background-image:
+      linear-gradient(var(--color-grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--color-grid) 1px, transparent 1px);
+    background-size: 44px 44px;
+    color: var(--color-ink);
+    font-family: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+@utility cap {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
 }

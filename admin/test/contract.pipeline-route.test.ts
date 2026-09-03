@@ -246,9 +246,11 @@ describe('the UI surface decides nothing', () => {
   const panel = () => readFileSync(path.join(__dirname, '../src/client/components/PipelinePanel.tsx'), 'utf-8');
 
   it('renders the stages the server sent rather than a hardcoded sequence', () => {
-    // Labels are allowed; an ORDERED stage list in the client is not — it
-    // would let the UI disagree with what actually ran.
-    expect(panel()).toContain('record.stages.map');
+    // Labels and a name->block map are allowed; an ORDERED stage list in the
+    // client is not — it would let the UI disagree with what actually ran.
+    // The grouping now lives in pipeline-blocks.ts, which derives its order
+    // from record.stages; the panel just feeds it.
+    expect(panel()).toContain('buildBlocks(record.stages)');
     expect(panel()).not.toMatch(/const\s+\w*STAGES\w*\s*=\s*\[/);
   });
 
@@ -256,9 +258,13 @@ describe('the UI surface decides nothing', () => {
     expect(panel()).toContain("record?.status === 'succeeded'");
   });
 
-  it('reuses the existing preview endpoint and StatusPill', () => {
+  it('reuses the existing preview endpoint and job history rather than new plumbing', () => {
     expect(panel()).toContain('api.startPreview');
-    expect(panel()).toContain('StatusPill');
+    expect(panel()).toContain('JobHistory');
+    // Status rendering is delegated to one shared mark, not re-invented per row.
+    expect(readFileSync(path.join(__dirname, '../src/client/components/PipelineColumn.tsx'), 'utf-8')).toContain(
+      'StageMark',
+    );
   });
 
   it('carries no agent logic and no secret', () => {

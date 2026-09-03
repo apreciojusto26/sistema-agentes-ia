@@ -1,244 +1,113 @@
-// Hero + AgentTimeline layout (mockup-driven redesign — replaces the earlier
-// sidebar + per-agent detail-panel shell from Batch F). Consumes the same
-// useJobs/useJobStream real API surface as before; nothing about the data
-// flow changed, only which components render it. ScrapeAgentPanel/
-// CodeAgentPanel/ContentAgentPanel/AgentSidebar/JobHistory still exist as
-// files but are no longer wired in here — "cancelar" and the manual
-// content.json paste flow (ContentAgentPanel's onSubmitRaw/onDeleteStaged/
-// onCopyLastAttempt) have no reachable UI after this change; only the
-// 'generate' trigger got a minimal replacement (GenerateSlugForm), since
-// without it there was no way to finish a run at all.
+// Agent dashboard shell: header, then the single generation surface.
+//
+// Replaces the hero + per-agent timeline + slug form layout. That version had
+// THREE ways to start work — a hero URL input, an auto-fired content step and
+// a separate generate form — plus two competing pictures of progress. The
+// pipeline is now the one flow, and PipelinePanel owns all of its state.
+//
+// The top bar follows the `/design` canvas: mark, wordmark, mono API readout,
+// segmented sun/moon switch. The page itself is deliberately NOT painted here
+// so the body's graph-paper wash stays visible behind the panels.
+//
+// Nothing about the backend changed: the same /api/pipeline, the same SSE, the
+// same JobRegistry underneath.
 import { useEffect, useState } from 'react';
-import AgentTimeline from './components/AgentTimeline';
 import PipelinePanel from './components/PipelinePanel';
-import GeneratorHero from './components/GeneratorHero';
-import GenerateSlugForm from './components/GenerateSlugForm';
-import { useJobs } from './http/useJobs';
-import { useJobStream } from './http/useJobStream';
+import { useTheme } from './http/useTheme';
 import * as api from './http/client';
-import type { ContentStageState } from '../shared/content-stage';
-import type { OverwriteConfirmationRequired } from '../shared/api';
-import type { JobRecord } from '../shared/jobs';
-import OverwriteConfirmDialog from './components/OverwriteConfirmDialog';
 
-function latestJobOfKind(jobs: JobRecord[], kind: JobRecord['kind']): JobRecord | null {
-  // registry.list() is already sorted newest-first (per Batch E's
-  // apply-progress notes) — the first match is the latest.
-  return jobs.find((j) => j.kind === kind) ?? null;
+function SunIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+    </svg>
+  );
+}
+
+function MoonIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M21 13.2A8.5 8.5 0 1 1 10.8 3a6.8 6.8 0 0 0 10.2 10.2Z" />
+    </svg>
+  );
 }
 
 export default function App() {
-  const { jobs, refresh: refreshJobs } = useJobs();
+  const { theme, toggle } = useTheme();
+  const [apiOk, setApiOk] = useState<boolean | null>(null);
 
-  const [scrapeJobId, setScrapeJobId] = useState<string | null>(null);
-  const [generateJobId, setGenerateJobId] = useState<string | null>(null);
-  const [contentJobId, setContentJobId] = useState<string | null>(null);
-  const [scrapeError, setScrapeError] = useState<string | null>(null);
-  const [generateError, setGenerateError] = useState<string | null>(null);
-  const [pendingOverwrite, setPendingOverwrite] = useState<{
-    slug: string;
-    details: OverwriteConfirmationRequired;
-  } | null>(null);
-
-  const [contentState, setContentState] = useState<ContentStageState>({ kind: 'idle' });
-  const [contentDrift, setContentDrift] = useState<string | null>(null);
-  // Set only right after a user-initiated runScrape() call (never on a
-  // page-load pickup of an old scrape from job history — see the effect
-  // below), so content generation auto-fires exactly once per fresh scrape
-  // and never retroactively for jobs that finished in a previous session.
-  const [pendingContentForScrapeJobId, setPendingContentForScrapeJobId] = useState<string | null>(null);
-
-  // Pick up the latest run of each kind once the job list has loaded, so a
-  // page refresh re-attaches to whatever was already in flight or finished
-  // rather than starting from a blank slate.
-  useEffect(() => {
-    if (jobs.length === 0) return;
-    setScrapeJobId((cur) => cur ?? latestJobOfKind(jobs, 'scrape')?.jobId ?? null);
-    setGenerateJobId((cur) => cur ?? latestJobOfKind(jobs, 'generate')?.jobId ?? null);
-    setContentJobId((cur) => cur ?? latestJobOfKind(jobs, 'content')?.jobId ?? null);
-  }, [jobs]);
-
+  // Real health, polled once on load. `null` means "not asked yet" and renders
+  // as a neutral dot — never as a green one we have not earned.
   useEffect(() => {
     void api
-      .getStagedContent()
-      .then((res) => {
-        if (!res.present) {
-          setContentState({ kind: 'idle' });
-          return;
-        }
-        if (res.validation.ok) {
-          setContentState({
-            kind: 'validated',
-            path: res.path,
-            sha256: res.sha256,
-            bytes: res.bytes,
-            savedAt: res.savedAt,
-            summary: res.validation.summary,
-          });
-          setContentDrift(null);
-        } else {
-          // The staged file exists but has drifted invalid since it was
-          // staged (design §6 — GET re-validates on read) and GET does not
-          // return the raw text needed to populate ContentStageState's
-          // 'invalid'/'unparseable' variants without fabricating it. Rather
-          // than inventing a `raw` value, fall back to 'idle' plus an
-          // honest banner — the user re-pastes to see full detail.
-          setContentState({ kind: 'idle' });
-          setContentDrift(
-            'present' in res && res.present
-              ? `Hay un content.json guardado, pero ya no es válido. Volvé a pegarlo para ver qué le falta.`
-              : null,
-          );
-        }
-      })
-      .catch(() => {
-        // No content staged, or the request failed — 'idle' is the honest default either way.
-        setContentState({ kind: 'idle' });
-      });
+      .getHealth()
+      .then(() => setApiOk(true))
+      .catch(() => setApiOk(false));
   }, []);
 
-  const scrapeStream = useJobStream(scrapeJobId);
-  const generateStream = useJobStream(generateJobId);
-  const contentStream = useJobStream(contentJobId);
-
-  // Job history (useJobs' plain GET /api/jobs snapshot) has no SSE of its
-  // own — refresh it once each stream reaches a real terminal state, not
-  // just after a user-initiated create/cancel action. A cancel's HTTP
-  // response returns as soon as SIGTERM is sent, before the child has
-  // actually exited and the registry has recorded the terminal status; the
-  // list would otherwise keep showing that job as "running" until some
-  // unrelated action happened to trigger another refresh.
-  useEffect(() => {
-    if (scrapeStream.ended) void refreshJobs();
-  }, [scrapeStream.ended, refreshJobs]);
-  useEffect(() => {
-    if (generateStream.ended) void refreshJobs();
-  }, [generateStream.ended, refreshJobs]);
-  useEffect(() => {
-    if (contentStream.ended) void refreshJobs();
-  }, [contentStream.ended, refreshJobs]);
-
-  const scrapeJob = scrapeStream.job ?? latestJobOfKind(jobs, 'scrape');
-  const generateJob = generateStream.job ?? latestJobOfKind(jobs, 'generate');
-  const contentJob = contentStream.job ?? latestJobOfKind(jobs, 'content');
-
-  // Auto-generate content the moment the scrape it depends on succeeds — no
-  // "Generar textos" button. Scoped to pendingContentForScrapeJobId so this
-  // only fires for a scrape started via the Run button in this session, not
-  // for an already-finished scrape picked up from job history on page load.
-  useEffect(() => {
-    if (!pendingContentForScrapeJobId || scrapeJob?.jobId !== pendingContentForScrapeJobId) return;
-    if (scrapeJob.status === 'succeeded') {
-      setPendingContentForScrapeJobId(null);
-      void runContent(scrapeJob.jobId, '');
-    } else if (scrapeJob.status !== 'running' && scrapeJob.status !== 'queued') {
-      // Scrape itself failed/timed-out/cancelled/interrupted — nothing to feed the content agent.
-      setPendingContentForScrapeJobId(null);
-    }
-  }, [scrapeJob, pendingContentForScrapeJobId]);
-
-  const scrapeRunning = scrapeJob?.status === 'running' || scrapeJob?.status === 'queued';
-  const generateRunning = generateJob?.status === 'running' || generateJob?.status === 'queued';
-
-  async function runScrape(url: string) {
-    setScrapeError(null);
-    const res = await api.createJob({ kind: 'scrape', url });
-    if (res.ok) {
-      setScrapeJobId(res.job.jobId);
-      setPendingContentForScrapeJobId(res.job.jobId);
-      void refreshJobs();
-    } else {
-      setScrapeError('message' in res.error ? res.error.message : JSON.stringify(res.error));
-    }
-  }
-
-  async function runGenerate(slug: string, confirmToken?: string) {
-    setGenerateError(null);
-    const res = await api.createJob({
-      kind: 'generate',
-      slug,
-      ...(confirmToken ? { confirmOverwrite: { token: confirmToken } } : {}),
-    });
-
-    if (res.ok) {
-      setGenerateJobId(res.job.jobId);
-      setPendingOverwrite(null);
-      void refreshJobs();
-      return;
-    }
-
-    if (res.status === 409 && 'confirmToken' in res.error) {
-      setPendingOverwrite({ slug, details: res.error });
-      return;
-    }
-
-    if (res.status === 422 && 'issues' in res.error) {
-      setGenerateError(`Faltan datos en el contenido: ${res.error.issues.map((i) => i.message).join('; ')}`);
-      return;
-    }
-
-    setGenerateError('message' in res.error ? res.error.message : JSON.stringify(res.error));
-  }
-
-  async function runContent(scrapeJobIdArg: string, instructions: string) {
-    const res = await api.createJob({
-      kind: 'content',
-      scrapeJobId: scrapeJobIdArg,
-      ...(instructions ? { instructions } : {}),
-    });
-    if (res.ok) {
-      setContentJobId(res.job.jobId);
-      void refreshJobs();
-    }
-    // A failure here (the createJob call itself, not the job later failing)
-    // has no reachable display since ContentAgentPanel was removed — content
-    // generation is now fully automatic, with no manual retry UI. Rare in
-    // practice (would mean a network/500 at the moment of auto-chaining
-    // right after a scrape succeeds), left as a known gap rather than adding
-    // a new error surface beyond what this batch's scope asked for.
-  }
+  const apiTone = apiOk === null ? 'bg-state-idle' : apiOk ? 'bg-state-done' : 'bg-state-failed';
+  const apiLabel = apiOk === null ? 'comprobando' : apiOk ? 'conectada' : 'sin conexión';
 
   return (
     <div className="flex min-h-screen flex-col">
-      <GeneratorHero onRun={(url) => void runScrape(url)} running={scrapeRunning} submitError={scrapeError} />
+      <header className="sticky top-0 z-10 border-b border-hairline-soft bg-panel/85 backdrop-blur">
+        <div className="mx-auto flex w-full max-w-[76rem] items-center gap-3 px-5 py-2.5">
+          {/* mark */}
+          <span
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand text-brand-ink"
+            aria-hidden="true"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 17.5 9.5 12 4 6.5M12.5 18h7.5" />
+            </svg>
+          </span>
 
-      {/* One-shot pipeline: form -> 8 real stages -> result -> preview. The
-          per-agent flow below stays for step-by-step operation. */}
-      <PipelinePanel />
+          <span className="flex min-w-0 items-baseline gap-2">
+            <h1 className="truncate text-[15px] font-semibold tracking-tight text-ink">Generador de landings</h1>
+            <span className="cap hidden rounded-full bg-panel-muted px-1.5 py-0.5 text-ink-faint sm:inline-block">MVP</span>
+          </span>
 
-      {contentDrift && (
-        <p className="mx-auto mb-2 max-w-3xl px-4 text-center text-xs text-amber-600">{contentDrift}</p>
-      )}
+          {/* Real API health — the dot is earned, never optimistic. */}
+          <span className="ml-auto flex items-center gap-1.5 rounded-full border border-hairline-soft px-2 py-1 font-mono text-[10px] text-ink-soft">
+            <span className={`h-1.5 w-1.5 rounded-full ${apiTone}`} aria-hidden="true" />
+            api
+            <span className="sr-only">{apiLabel}</span>
+            <span aria-hidden="true" className="text-ink-faint">
+              {apiLabel}
+            </span>
+          </span>
 
-      <AgentTimeline
-        steps={[
-          { identity: 'scrape', job: scrapeJob ?? null },
-          { identity: 'content', job: contentJob ?? null },
-          {
-            identity: 'generate',
-            job: generateJob ?? null,
-            extra: (
-              <GenerateSlugForm
-                job={generateJob ?? null}
-                onRun={(slug) => void runGenerate(slug)}
-                running={!!generateRunning}
-                contentReady={contentState.kind === 'validated'}
-                submitError={generateError}
-              />
-            ),
-          },
-        ]}
-      />
-
-      {pendingOverwrite && (
-        <div className="mx-auto mb-8 w-full max-w-3xl px-4">
-          <OverwriteConfirmDialog
-            details={pendingOverwrite.details}
-            onCancel={() => setPendingOverwrite(null)}
-            onConfirm={(token) => void runGenerate(pendingOverwrite.slug, token)}
-          />
+          {/* Segmented sun/moon switch: both options are visible, the active
+              one is filled — the canvas's treatment, and it says what the
+              current theme IS rather than only what tapping would do. */}
+          <button
+            type="button"
+            onClick={toggle}
+            aria-label={theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
+            className="flex shrink-0 items-center gap-0.5 rounded-full border border-hairline-soft p-0.5"
+          >
+            <span
+              className={`flex h-6 w-6 items-center justify-center rounded-full ${
+                theme === 'dark' ? 'text-ink-faint' : 'bg-panel-muted text-ink'
+              }`}
+            >
+              <SunIcon />
+            </span>
+            <span
+              className={`flex h-6 w-6 items-center justify-center rounded-full ${
+                theme === 'dark' ? 'bg-panel-muted text-ink' : 'text-ink-faint'
+              }`}
+            >
+              <MoonIcon />
+            </span>
+          </button>
         </div>
-      )}
+      </header>
+
+      <main className="flex-1 pt-4">
+        <PipelinePanel />
+      </main>
     </div>
   );
 }

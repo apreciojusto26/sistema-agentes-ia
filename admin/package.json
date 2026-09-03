@@ -12,6 +12,7 @@
     "dev:api": "tsx watch src/server/main.ts",
     "dev:web": "vite",
     "build": "vite build",
+    "avatars": "node scripts/build-agent-avatars.mjs",
     "start": "NODE_ENV=production tsx src/server/main.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.server.json",
     "test": "vitest run",
