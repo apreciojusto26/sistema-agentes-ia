@@ -8,7 +8,7 @@
 // and that the result and preview appear only once the run has really earned
 // them. Rendering follows the existing harness convention (createRoot + act,
 // no @testing-library) from useJobStream.test.ts.
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { act } from 'react';
@@ -366,5 +366,85 @@ describe('App is the dashboard shell', () => {
     expect(s).not.toContain('<GeneratorHero');
     expect(s).not.toContain('<GenerateSlugForm');
     expect(s).not.toContain('<AgentTimeline');
+  });
+});
+
+// ── 5: the modern shell must not be lost again ─────────────────────────────
+
+/**
+ * WHY THIS BLOCK EXISTS, stated plainly so nobody deletes it as redundant.
+ *
+ * This interface was built, used, and then LOST — not by a bad merge but by a
+ * cleanup: it lived only as working-tree state (six untracked components plus
+ * uncommitted edits), so a path-scoped `git checkout --` reverted the tracked
+ * half to HEAD and a clean removed the rest. No commit anywhere in the repo
+ * contained it. Recovering it took two backup archives.
+ *
+ * Every assertion below renders the REAL component and reads the REAL DOM. A
+ * source-scan would pass on a file that imports the right things and renders
+ * none of them, which is close to the failure that actually happened. There is
+ * deliberately no CSS snapshot here — pinning styling would make every visual
+ * tweak a test edit, and styling was never what went missing. What went missing
+ * was the SHELL: the named regions, the agent rail, the history column, and the
+ * one-input form with its advanced fields.
+ */
+describe('the modern dashboard shell is present, and the legacy one is not', () => {
+  const REQUIRED_REGIONS = ['Nueva generación', 'Tu equipo IA', 'Historial', 'Opciones avanzadas'];
+
+  it.each(REQUIRED_REGIONS)('renders the %s region', (label) => {
+    render(<PipelinePanel />);
+    // Case-insensitive: these labels are uppercased by the `.cap` class in CSS,
+    // so asserting the rendered casing would couple this to a style choice.
+    expect(container.textContent?.toLowerCase()).toContain(label.toLowerCase());
+  });
+
+  it('renders the agent rail with exactly the blocks the server can produce', () => {
+    render(<PipelinePanel />);
+    const text = container.textContent ?? '';
+    for (const label of ['Product Agent', 'Content Agent', 'Asset Agent', 'Build Agent', 'Validation Agent']) {
+      expect(text, `${label} is missing from the rail`).toContain(label);
+    }
+  });
+
+  it('renders NO Design Agent, because no run can produce that stage', () => {
+    render(<PipelinePanel />);
+    expect(container.textContent).not.toContain('Design Agent');
+    // …and not as a disabled/omitted placeholder either. The rail explains what
+    // the team is doing; a permanently absent member is repo archaeology.
+    expect(container.textContent).not.toMatch(/dise[ñn]o/i);
+  });
+
+  it('renders the legacy three-agent surface nowhere', () => {
+    render(<PipelinePanel />);
+    const text = container.textContent ?? '';
+    // The exact strings from the interface this replaced. If any comes back,
+    // the old shell has been restored over this one again.
+    expect(text).not.toContain('Así trabaja nuestro equipo de IA');
+    expect(text).not.toContain('Buscar producto');
+    expect(text).not.toContain('Generar una landing');
+    expect(text).not.toContain('Extractor de productos');
+    expect(text).not.toContain('Constructor de la landing');
+  });
+
+  it('keeps every advanced capability reachable rather than dropped', () => {
+    // The simplification was UX only. Losing a field would be a real
+    // regression dressed up as a cleaner form.
+    render(<PipelinePanel />);
+    act(() => button('Opciones avanzadas')!.click());
+    const text = container.textContent ?? '';
+    expect(text).toContain('Reusar scrape');
+    expect(text).toContain('Slug manual');
+    expect(text).toContain('Handle de Shopify');
+  });
+
+  it('the six agent portraits the rail needs all exist on disk', () => {
+    // avatar-purity.test.ts covers AGENT_IDENTITY; BLOCK_META is a second
+    // avatar consumer and was never checked. A missing file here renders a
+    // broken image, which no DOM assertion above would catch.
+    const publicDir = path.join(__dirname, '../public');
+    for (const meta of Object.values(BLOCK_META)) {
+      if (!meta.avatarSrc) continue;
+      expect(existsSync(path.join(publicDir, meta.avatarSrc)), `${meta.label}: ${meta.avatarSrc} is missing`).toBe(true);
+    }
   });
 });
