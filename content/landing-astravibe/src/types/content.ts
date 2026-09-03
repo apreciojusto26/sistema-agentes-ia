@@ -106,15 +106,36 @@ export interface Guarantee {
   points: string[];
 }
 
+/**
+ * A review this landing is allowed to show.
+ *
+ * The shape is bounded by CanonicalReview (`scripts/lib/product-normalizer
+ * .d.mts`), which carries exactly `{ text, rating, author, dateRaw, variant }`.
+ * Two fields that used to live here were REMOVED because nothing upstream can
+ * ever supply them, and a field that cannot be sourced can only be invented:
+ *
+ *   `location`  CanonicalReview has no location at all. Every "· Madrid" this
+ *               template rendered was written by hand.
+ *   `verified`  CanonicalReview has no purchase-verification signal. Every
+ *               "✓ Compra verificada" was an unbacked claim about a stranger's
+ *               transaction.
+ *
+ * They are gone from the TYPE, not hidden at the render, so a future component
+ * cannot read them back and a future data file cannot set them.
+ */
 export interface Testimonial {
   id: string;
+  /**
+   * RAW author exactly as the source gave it — marketplace masks included
+   * (`Y***t`) — or `''` when the source recorded none. Never rewritten here:
+   * the mask IS the provenance. Components render `reviewerDisplayName()`
+   * from lib/reviewer-identity.ts instead of this value.
+   */
   author: string;
-  location?: string;
   rating: Stars;
   date: string; // ISO 'YYYY-MM-DD'
   title?: string;
   body: string;
-  verified: boolean;
   media?: MediaRef;
   variant: 'quote' | 'card' | 'reel'; // featured | ugc grid | dark carousel
 }
@@ -135,9 +156,36 @@ export interface ProductContent {
   name: string;
   tagline: string;
   subtagline: string;
-  ratingAverage: number;
-  ratingCount: number;
-  ratingBreakdown: Record<Stars, number>; // absolute counts, not %
+  /**
+   * Aggregate rating, straight from CanonicalProduct.socialProof.
+   *
+   * NULLABLE, and that is the whole point. `ratingAverage: 4.9` with no source
+   * is a fabricated claim about 128 strangers; `null` is the honest state for a
+   * product whose listing published no rating. Renderers must therefore treat
+   * absence as ABSENCE OF CLAIM — no `?? 0`, no "Sin valoraciones todavía", no
+   * placeholder stars. The section simply does not make the statement.
+   */
+  ratingAverage: number | null;
+  ratingCount: number | null;
+  /**
+   * `ratingBreakdown: Record<Stars, number>` WAS HERE AND IS NOT COMING BACK.
+   *
+   * It fed the five-bar histogram in 13-real-results.astro with the numbers
+   * 5★:120, 4★:4, 3★:2, 2★:1, 1★:1 — a distribution nothing ever measured.
+   * CanonicalProduct carries `socialProof.rating` and `socialProof.reviewCount`
+   * and no histogram, because marketplaces publish an average and a count, not
+   * a breakdown.
+   *
+   * AND IT CANNOT BE DERIVED. An average does not determine a distribution:
+   * 4.9 over 128 reviews is satisfied by many different shapes, so any formula
+   * that "reconstructs" one is inventing precision. It is equally off-limits to
+   * ask a model for it, infer it, or approximate it.
+   *
+   * A breakdown may only ever be COUNTED from individual reviews that carry
+   * real star values, and then it describes that sample and nothing more — see
+   * 13-real-results.astro for why this template's own ten reviews do not
+   * qualify.
+   */
   badges: string[]; // 'Envío 24-48h', 'Acero inoxidable'
   trustTicker: string[]; // marquee items in UtilityBar
   offer: { durationMinutes: number; label: string; expiredLabel: string };

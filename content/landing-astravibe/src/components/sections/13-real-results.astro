@@ -1,42 +1,86 @@
 ---
+// The social-proof SUMMARY that introduces the review carousel below it.
+//
+// ─── WHAT WAS REMOVED, AND WHY IT COULD NOT STAY ──────────────────────────
+//
+// This section used to draw a five-bar rating histogram from
+// `product.ratingBreakdown` — 5★:120, 4★:4, 3★:2, 2★:1, 1★:1. Nothing ever
+// measured that distribution. CanonicalProduct publishes an average and a
+// count, and no third number; an average cannot imply a shape, because 4,9
+// over 128 reviews is satisfied by many. The bars were precision we invented.
+//
+// ─── WHY NOT CASE 1 (a breakdown counted from our own reviews) ────────────
+//
+// The rule for a legitimate histogram is that it is COUNTED from individual
+// reviews carrying real star values, describes only that sample, and never
+// extrapolates to the global count. This template's ten reviews technically
+// carry star values — and all ten are 5★, because they were CURATED from a
+// listing whose average is 4,9. Counting them would render 5★:10 and four
+// empty bars: a perfect-score distribution, sitting directly beside "4,9/5",
+// contradicting it. A selection-biased sample drawn as a distribution is a
+// second fabrication wearing arithmetic. So: no bars.
+//
+// ─── WHAT REPLACED THEM (Case 2: aggregate only) ──────────────────────────
+//
+// The section keeps its position, its outer shell, its rhythm, its container
+// width and its relationship to the carousel that follows. Only the interior
+// that depended on invented data changed: the same centred `max-w-xl` block
+// now states the two facts we actually hold — the average and how many
+// ratings it is over — with the origin disclosed, as the reviews reel does.
+// This is deliberately NOT a redesign; the canonicalization is not a licence
+// to re-style a section.
+//
+// ─── AND IT DEGRADES INSTEAD OF INVENTING (Case 3) ────────────────────────
+//
+// `ratingAverage` and `ratingCount` are nullable. With no rating there is no
+// summary to make, so the section renders NOTHING — no zeroed stars, no
+// "todavía no hay valoraciones", no empty shell implying missing content.
+// Absence of data is absence of claim.
 import Container from '@/components/ui/Container.astro';
 import Stars from '@/components/ui/Stars.astro';
 import { product } from '@/data/product';
 
-const total = product.ratingCount;
-const stars = [5, 4, 3, 2, 1] as const;
-const rows = stars.map((star) => {
-  const count = product.ratingBreakdown[star];
-  const pct = total > 0 ? Math.round((count / total) * 100) : 0;
-  return { star, count, pct };
-});
-const countFormatter = new Intl.NumberFormat('es-ES');
-const ratingLabel = product.ratingAverage.toFixed(1).replace('.', ',');
+const rating = product.ratingAverage;
+const count = product.ratingCount;
+
+// Both facts are independent: a listing can publish an average without a count.
+// Each is rendered only if present, and the section only if the rating is.
+const ratingLabel = rating === null ? null : rating.toFixed(1).replace('.', ',');
+const countLabel = count === null ? null : new Intl.NumberFormat('es-ES').format(count);
 ---
 
-<section class="bg-white pb-4 pt-12 md:pb-6 md:pt-16">
-  <Container>
-    <p class="text-eyebrow font-bold uppercase text-grape">Resultados reales</p>
-    <h2 class="mt-1 text-display md:text-4xl lg:text-5xl">
-      Lo que dicen de<br />Astra Vibe
-    </h2>
-    <div class="mt-2 flex items-center gap-2">
-      <Stars rating={product.ratingAverage} />
-      <span class="text-sm font-semibold text-graphite">{ratingLabel}/5</span>
-    </div>
+{
+  rating !== null && (
+    <section class="bg-white pb-4 pt-12 md:pb-6 md:pt-16">
+      <Container>
+        {/* Was "Resultados reales" — a claim about outcomes this section has
+            no data for. It summarises ratings, so it says so. */}
+        <p class="text-eyebrow font-bold uppercase text-grape">Valoraciones</p>
+        {/* Was the hardcoded "Astra Vibe". Reads the brand now, so a generated
+            product cannot ship the template's. */}
+        <h2 class="mt-1 text-display md:text-4xl lg:text-5xl">
+          Lo que dicen de<br />{product.brand}
+        </h2>
+        <div class="mt-2 flex items-center gap-2">
+          {/* `rating`, not `product.ratingAverage`: the guard above narrows the
+              local, and astro check does NOT typecheck expressions inside a
+              conditional block — so passing the nullable field directly would
+              have compiled while handing Stars a null at runtime. */}
+          <Stars rating={rating} />
+          <span class="text-sm font-semibold text-graphite">{ratingLabel}/5</span>
+        </div>
 
-    <div class="mx-auto mt-6 max-w-xl space-y-2">
-      {
-        rows.map((row) => (
-          <div class="grid grid-cols-[auto_1fr_auto] items-center gap-3 text-xs">
-            <span class="w-8 font-semibold text-graphite">{row.star}★</span>
-            <span class="h-2 rounded-pill bg-graphite/10">
-              <span class="block h-full rounded-pill bg-gold" style={`width:${row.pct}%`} />
-            </span>
-            <span class="tabular-nums text-steel">{countFormatter.format(row.count)}</span>
-          </div>
-        ))
-      }
-    </div>
-  </Container>
-</section>
+        {/* The histogram's container, kept exactly — same width, same centring,
+            same top rhythm — holding a factual line instead of five bars. */}
+        <div class="mx-auto mt-6 max-w-xl space-y-2">
+          {countLabel !== null && (
+            <p class="text-sm text-graphite/70">
+              Media de {countLabel} valoraciones de compradores de este producto, recopiladas de plataformas de venta
+              online. No son opiniones dejadas en esta tienda.
+            </p>
+          )}
+        </div>
+      </Container>
+    </section>
+  )
+}

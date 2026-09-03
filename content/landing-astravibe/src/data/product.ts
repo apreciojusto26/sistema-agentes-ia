@@ -32,22 +32,30 @@ export const product = {
     generic: 'Algo salió mal. Prueba de nuevo.',
   },
 
+  // Both from the AliExpress listing's own aggregate — the two social-proof
+  // facts CanonicalProduct actually carries (socialProof.rating / reviewCount).
   ratingAverage: 4.9,
   ratingCount: 128,
-  ratingBreakdown: {
-    5: 120,
-    4: 4,
-    3: 2,
-    2: 1,
-    1: 1,
-  },
+  // `ratingBreakdown` was here: 5★:120, 4★:4, 3★:2, 2★:1, 1★:1. Those five
+  // numbers were written by hand — no source publishes them and no average can
+  // imply them. See the note in types/content.ts.
 
   badges: ['Envío gratis', 'Cable USB incluido', 'Garantía 30 días'],
 
+  // '+120 reseñas de 5 estrellas' WAS THE THIRD ITEM AND WAS REMOVED.
+  //
+  // That 120 was `ratingBreakdown[5]`, so the claim inherited the fabrication
+  // exactly. It is dropped rather than restated with a real number: any ticker
+  // string carrying a baked-in count becomes wrong for the next product the
+  // moment its aggregate differs, and a marquee is the worst place to discover
+  // that. The rating claim now lives ONLY where it is derived from the data —
+  // 05-buy-box.astro and 13-real-results.astro.
+  //
+  // Removing an entry changes the rendered element count: this marquee maps
+  // the array to <span>s, twice. Recorded as an approved F2 canonicalization.
   trustTicker: [
     'Envío gratis a España',
     'Pago 100% seguro',
-    '+120 reseñas de 5 estrellas',
     'Garantía de 30 días',
     'Hasta 24 proyecciones intercambiables',
   ],

@@ -2,6 +2,25 @@ import { useEffect, useRef, useState } from 'react';
 import { Stars } from '@/components/islands/parts/Stars';
 import type { Testimonial } from '@/types/content';
 
+/**
+ * WHAT THIS CARD NO LONGER SHOWS, and why it is not a styling choice.
+ *
+ *   `· Madrid`             CanonicalReview carries no reviewer location. Every
+ *                          city ever printed beside a name was written by hand.
+ *   `✓ Compra verificada`  CanonicalReview carries no verification signal, so
+ *                          the badge asserted a transaction nothing witnessed.
+ *
+ * Both are gone from the `Testimonial` type as well, so this component could
+ * not render them again even if someone re-added the markup.
+ *
+ * `review.author` IS rendered directly here, and that is deliberate: this is an
+ * ISLAND, so its reviews are serialized into the `<astro-island props="...">`
+ * attribute. Resolving the display name inside the component would still ship
+ * the raw value into the page source — the visible text would read `Cliente`
+ * while view-source read `Y***t`. 10-reviews-reel.astro therefore hands this
+ * island names that are ALREADY resolved, and the raw author stays behind in
+ * src/data/testimonials.ts where it belongs.
+ */
 interface ReviewCarouselProps {
   reviews: Testimonial[];
 }
@@ -90,21 +109,7 @@ export function ReviewCarousel({ reviews }: ReviewCarouselProps) {
             <Stars rating={review.rating} className="mb-3" />
             <p className="flex-1 text-sm leading-relaxed text-graphite">{review.body}</p>
             <div className="mt-4">
-              <p className="text-xs font-bold text-graphite">
-                {review.author}
-                {review.location && <span className="font-normal text-steel">{` · ${review.location}`}</span>}
-              </p>
-              {review.verified && (
-                <span className="mt-2 inline-flex items-center justify-center gap-1 rounded-pill bg-gold-tint px-2.5 py-1 text-xs font-semibold uppercase text-amber-700">
-                  <svg viewBox="0 0 20 20" className="size-3.5" aria-hidden="true">
-                    <path
-                      fill="currentColor"
-                      d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
-                    />
-                  </svg>
-                  Compra verificada
-                </span>
-              )}
+              <p className="text-xs font-bold text-graphite">{review.author}</p>
             </div>
           </article>
         ))}

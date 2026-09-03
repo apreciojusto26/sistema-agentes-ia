@@ -9,19 +9,29 @@ const commerce = await getProductCommerce();
 
 const popularPack = product.packs.find((p) => p.popular) ?? product.packs[0];
 const giftThresholdUnits = popularPack?.units ?? 2;
-const ratingLabel = product.ratingAverage.toFixed(1).replace('.', ',');
-const ratingCountLabel = new Intl.NumberFormat('es-ES').format(product.ratingCount);
+// Nullable: a product whose listing published no rating makes no rating claim
+// here. No `?? 0` — a zeroed average rendered as stars would be a fabricated
+// verdict, and a worse one than the missing line it replaced.
+const rating = product.ratingAverage;
+const ratingLabel = rating === null ? null : rating.toFixed(1).replace('.', ',');
+const ratingCountLabel =
+  product.ratingCount === null ? null : new Intl.NumberFormat('es-ES').format(product.ratingCount);
 ---
 
 <section id="buy" class="min-w-0 scroll-mt-14 bg-white">
   <div class="mx-auto w-full max-w-[28rem] px-5 pb-8 pt-3 md:max-w-[42rem] xl:max-w-[64rem]">
     <div class="rounded-card bg-surface p-5 shadow-[0_-5px_22px_-10px_rgb(30_33_36_/_0.32),0_8px_28px_-8px_rgb(30_33_36_/_0.22)]">
+    {/* "compradores del producto" said the count was PURCHASERS. It is a review
+        count — how many people rated it, which nothing tells us about how many
+        bought it. The whole row disappears when there is no rating to state. */}
+    {rating !== null && (
     <div class="mb-3 flex items-center gap-2">
-      <Stars rating={product.ratingAverage} />
+      <Stars rating={rating} />
       <span class="text-xs font-semibold text-graphite">
-        {ratingLabel}/5 <span class="font-normal text-steel">basado en +{ratingCountLabel} compradores del producto</span>
+        {ratingLabel}/5 {ratingCountLabel !== null && <span class="font-normal text-steel">sobre {ratingCountLabel} valoraciones del producto</span>}
       </span>
     </div>
+    )}
 
     <h2 class="text-display">{commerce.title}</h2>
 
