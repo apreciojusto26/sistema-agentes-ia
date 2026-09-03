@@ -1,7 +1,7 @@
 ---
 import '@/styles/global.css';
 import { getSecret } from 'astro:env/server';
-import { CONSENT_KEY } from '@/lib/consent';
+import { CONSENT_KEY, LEGACY_CONSENT_KEY } from '@/lib/consent';
 import { CookieBanner } from '@/components/islands/CookieBanner';
 import { DiagnosticBadge } from '@/components/islands/DiagnosticBadge';
 import { TikTokBioNotice } from '@/components/islands/TikTokBioNotice';
@@ -20,6 +20,10 @@ const clarityId = import.meta.env.PROD ? getSecret('PUBLIC_CLARITY_PROJECT_ID') 
 // Shared with lib/consent.ts so the bootstrap and the banner can never read
 // and write different keys.
 const consentKey = CONSENT_KEY;
+// The bootstrap reads the legacy key too, for the same reason lib/consent.ts
+// does: a visitor who consented before the key was renamed must still get
+// analytics on first paint instead of being re-prompted.
+const legacyConsentKey = LEGACY_CONSENT_KEY;
 ---
 
 <!doctype html>
@@ -48,7 +52,7 @@ const consentKey = CONSENT_KEY;
       prior, so a <script src> in the head would be the infringement itself.
     */}
     {(gaId || clarityId) && (
-      <script is:inline define:vars={{ gaId, clarityId, consentKey }}>
+      <script is:inline define:vars={{ gaId, clarityId, consentKey, legacyConsentKey }}>
         window.__loadAnalytics = function () {
           if (window.__analyticsLoaded) return;
           window.__analyticsLoaded = true;
@@ -83,7 +87,11 @@ const consentKey = CONSENT_KEY;
         };
 
         try {
-          if (window.localStorage.getItem(consentKey) === 'granted') window.__loadAnalytics();
+          var decision = window.localStorage.getItem(consentKey);
+          if (decision !== 'accepted' && decision !== 'rejected') {
+            decision = window.localStorage.getItem(legacyConsentKey) === 'granted' ? 'accepted' : null;
+          }
+          if (decision === 'accepted') window.__loadAnalytics();
         } catch (e) {
           /* storage blocked — stay off until the banner is answered */
         }

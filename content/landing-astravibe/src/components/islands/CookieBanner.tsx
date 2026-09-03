@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getConsent, setConsent } from '@/lib/consent';
+import { readConsent, setConsent, type ConsentValue } from '@/lib/consent';
 
 /**
  * Prior-consent gate for the analytics cookies (LSSI-CE art. 22.2).
@@ -17,7 +17,9 @@ export function CookieBanner() {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    if (getConsent() === null) setVisible(true);
+    // 'unknown' ONLY. A visitor who answered — including one who said no —
+    // is never asked again; re-prompting a rejection is its own dark pattern.
+    if (readConsent() === 'unknown') setVisible(true);
   }, []);
 
   // Lets the cookie policy re-open the choice: <a href="#cookie-preferencias">.
@@ -32,7 +34,7 @@ export function CookieBanner() {
 
   if (!visible) return null;
 
-  function decide(value: 'granted' | 'denied'): void {
+  function decide(value: ConsentValue): void {
     setConsent(value);
     setVisible(false);
     if (window.location.hash === '#cookie-preferencias') {
@@ -63,14 +65,14 @@ export function CookieBanner() {
         <div className="mt-4 flex flex-col gap-2 sm:flex-row-reverse">
           <button
             type="button"
-            onClick={() => decide('granted')}
+            onClick={() => decide('accepted')}
             className="h-11 flex-1 rounded-pill bg-grape px-6 font-display text-sm font-bold tracking-wide text-white transition active:scale-[.99] hover:bg-grape-dark"
           >
             Aceptar
           </button>
           <button
             type="button"
-            onClick={() => decide('denied')}
+            onClick={() => decide('rejected')}
             className="h-11 flex-1 rounded-pill border-2 border-graphite/15 px-6 font-display text-sm font-bold text-graphite transition hover:bg-graphite/5"
           >
             Rechazar
