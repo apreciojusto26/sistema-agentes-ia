@@ -1,12 +1,25 @@
-# Fixed AstraVibe
+# Sistema de generación de landings para dropshipping
 
-Generador de landings de dropshipping donde **cada landing es la misma página**.
+Sistema automatizado que transforma los datos de un producto en una landing de
+e-commerce lista para validar y publicar. El scraper y los procesos
+deterministas extraen, normalizan y renderizan la información; los agentes de
+IA se ocupan únicamente de las decisiones que requieren razonamiento.
 
-La composición visual de [AstraVibe](https://astravibe.bamzuk.com/) está
-congelada como plantilla canónica. Entre un producto y el siguiente cambian los
-datos —textos, imágenes, precios, colores, favicon, handle de Shopify— y **nada
-más**. Ni el orden de las secciones, ni el layout, ni la tipografía, ni el
-espaciado, ni la composición responsive.
+- El **Content Agent** convierte los datos verificados del producto en copy de
+  venta sin inventar especificaciones, reseñas ni información comercial.
+- El **Design & Layout Agent** decide la presentación usando exclusivamente las
+  secciones, variantes y tokens registrados por el sistema.
+- Los validadores de **consistencia** y **QA** bloquean la generación si
+  detectan contaminación entre productos, datos incompatibles, assets rotos o
+  fallos técnicos.
+- El **renderer** ensambla la landing de forma determinista y mantiene aislados
+  el checkout, Shopify, SumUp, Redis y el resto de la infraestructura crítica.
+
+La línea Fixed de este repositorio usa la composición visual de
+[AstraVibe](https://astravibe.bamzuk.com/) como plantilla canónica. En ese modo,
+entre un producto y el siguiente cambian los datos —textos, imágenes, precios,
+colores, favicon y handle de Shopify—, pero no la estructura, el orden de las
+secciones ni la composición responsive.
 
 Eso no es una intención escrita en un documento: es un **test**. Ver
 [Fingerprint estructural](#fingerprint-estructural).
