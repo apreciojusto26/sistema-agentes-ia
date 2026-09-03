@@ -29,3 +29,4 @@ pnpm-debug.log*
 # 87 MB a cada visitante. Las versiones optimizadas viven en
 # src/assets/product/ y pasan por astro:assets.
 public/img/Galeria/IMG_*
+dist-commerce-fixture/
