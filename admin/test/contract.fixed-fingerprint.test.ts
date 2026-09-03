@@ -246,3 +246,65 @@ describe('Stars — contextual value normalization', () => {
     expect(h(a)).not.toBe(h(b));
   });
 });
+
+// ── Media slots: an asset's pixels are metadata, its slot is design ────────
+describe('media slot intrinsic dimensions', () => {
+  const h = (html: string) => structuralFingerprint(html).hash;
+  const slot = (w: number, ht: number, cls = 'aspect-[9/16] object-cover rounded-tile w-full') =>
+    `<img class="${cls}" width="${w}" height="${ht}"/>`;
+
+  it('swapping a photo for one of another size does NOT change the structure', () => {
+    expect(h(slot(914, 1625))).toBe(h(slot(768, 1365)));
+  });
+
+  it('removing width does', () => {
+    expect(h(slot(914, 1625))).not.toBe(h('<img class="aspect-[9/16] object-cover rounded-tile w-full" height="1625"/>'));
+  });
+
+  it('changing the slot classes does', () => {
+    expect(h(slot(914, 1625))).not.toBe(h(slot(914, 1625, 'aspect-square object-cover w-full')));
+  });
+
+  it('a fixed-size template asset OUTSIDE a media slot keeps its dimensions', () => {
+    // The guarantee seal: `mx-auto size-28`, always 112. That is a design
+    // size, not an asset's intrinsic pixels, and it has neither object-cover
+    // nor w-full — which is exactly why the slot signature excludes it.
+    expect(h('<img class="mx-auto size-28" width="112" height="112"/>')).not.toBe(
+      h('<img class="mx-auto size-28" width="140" height="140"/>'),
+    );
+  });
+});
+
+// ── Radio groups: the React id is noise, the GROUPING is not ──────────────
+describe('radio group canonicalization', () => {
+  const h = (html: string) => structuralFingerprint(html).hash;
+  const radios = (names: string[]) =>
+    `<div>${names.map((n) => `<input type="radio" name="${n}"/>`).join('')}</div>`;
+
+  it('a renumbered React id does NOT change the structure', () => {
+    expect(h(radios(['_r17R_3_', '_r17R_3_', '_r17R_0_', '_r17R_0_']))).toBe(
+      h(radios(['_r99R_1_', '_r99R_1_', '_r99R_7_', '_r99R_7_'])),
+    );
+  });
+
+  it('but two groups accidentally FUSED into one does', () => {
+    // The failure a constant `<react-id>` would have hidden entirely.
+    expect(h(radios(['_r17R_3_', '_r17R_3_', '_r17R_0_', '_r17R_0_']))).not.toBe(
+      h(radios(['_r1R_0_', '_r1R_0_', '_r1R_0_', '_r1R_0_'])),
+    );
+  });
+
+  it('and one group SPLIT across two names does', () => {
+    expect(h(radios(['_r1R_0_', '_r1R_0_']))).not.toBe(h(radios(['_r1R_0_', '_r1R_1_'])));
+  });
+
+  it('a hand-written group name is left alone and still compared', () => {
+    expect(h(radios(['shipping', 'shipping']))).not.toBe(h(radios(['billing', 'billing'])));
+  });
+
+  it('a non-radio input is never touched', () => {
+    const a = '<div><input type="text" name="_r1R_0_"/></div>';
+    const b = '<div><input type="text" name="_r9R_4_"/></div>';
+    expect(h(a)).not.toBe(h(b));
+  });
+});

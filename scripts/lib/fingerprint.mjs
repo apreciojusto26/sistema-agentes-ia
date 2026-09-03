@@ -502,7 +502,65 @@ export const CONTEXTUAL_VALUE_RULES = [
     element: { tag: 'path', classes: ['text-gold'] },
     attr: 'opacity',
   },
+  // MEDIA SLOT DIMENSIONS. `width`/`height` on a media slot are the ASSET's
+  // intrinsic pixels — swap a 1200x1200 photo for a 1600x900 one and both
+  // move, though nothing about the template did. The slot's real geometry is
+  // expressed by its wrapper, its classes, its aspect-ratio (kept verbatim in
+  // `style`) and its object-fit, none of which this touches.
+  //
+  // Scoped to the MEDIA slot signature only — an <img> anywhere else keeps its
+  // dimensions and keeps failing, because outside a declared slot a size is a
+  // decision somebody made about one image.
+  //
+  // The NAME survives, so removing width, or adding it where the slot had
+  // none, still moves the hash. The real dimensions are not lost either: they
+  // stay in the asset manifest, where they are metadata rather than design.
+  //
+  // THE SLOT SIGNATURE IS `object-cover` + `w-full`, taken from the real
+  // builds rather than guessed. Three slots carry varying dimensions — the
+  // hero image, the how-it-works MEDIA slot (714 vs 896) and the UGC strip
+  // (four different widths) — and all three have both classes. The guarantee
+  // seal (`mx-auto size-28`, always 112) has NEITHER, so it stays compared:
+  // that 112 is a fixed design size, not an asset's intrinsic pixels.
+  { id: 'media/intrinsic-width', element: { tag: '*', classes: ['object-cover', 'w-full'] }, attr: 'width' },
+  { id: 'media/intrinsic-height', element: { tag: '*', classes: ['object-cover', 'w-full'] }, attr: 'height' },
 ];
+
+/**
+ * React `useId()` output, e.g. `_r17R_3_`. Anchored, so a hand-written group
+ * name like `shipping-method` never matches.
+ */
+const REACT_USE_ID = /^_[rR][0-9a-z]*R?_[0-9a-z]*_$/;
+
+/**
+ * Canonicalizes radio-group names RELATIONALLY, not to a constant.
+ *
+ * `name` on a radio is build identity — it comes from useId() and renumbers
+ * like the island `prefix` does — but it is ALSO the only thing that says
+ * which radios belong together. Rewriting every one to `<react-id>` would
+ * erase that: two groups accidentally fused into one, or one group split
+ * across two names, would both hash as correct.
+ *
+ * So names are numbered by FIRST APPEARANCE. The concrete React id is
+ * discarded; the grouping, the number of distinct groups, and any accidental
+ * collision between them all survive.
+ *
+ * Only `input[type=radio]` whose value matches the React pattern is touched.
+ * A semantic name is left exactly as written.
+ */
+export function canonicalizeRadioGroups(skeleton) {
+  const seen = new Map();
+  return skeleton
+    .split('\n')
+    .map((line) => {
+      if (!/^\s*<input\b/.test(line) || !line.includes('type="radio"')) return line;
+      const m = /\sname="([^"]*)"/.exec(line);
+      if (!m || !REACT_USE_ID.test(m[1])) return line;
+      if (!seen.has(m[1])) seen.set(m[1], `<radio-group-${seen.size + 1}>`);
+      return line.replace(/(\sname)="[^"]*"/, `$1="${seen.get(m[1])}"`);
+    })
+    .join('\n');
+}
 
 /** Rewrites the VALUE of a contextual attribute, keeping the attribute itself. */
 export function normalizeContextualValues(skeleton, rules = CONTEXTUAL_VALUE_RULES) {
@@ -515,19 +573,24 @@ export function normalizeContextualValues(skeleton, rules = CONTEXTUAL_VALUE_RUL
     stack.length = depth;
     stack[depth] = text;
 
+    // EVERY matching rule is applied, not just the first. One element can
+    // carry two dynamic values — a media slot has both `width` and `height` —
+    // and stopping at the first match left the second one comparing an asset's
+    // pixels as if they were layout.
+    let rewritten = text;
     for (const rule of rules) {
       if (!matchesWrapper(text, rule.element)) continue;
-      // `slice(0, depth)` — the element cannot be its own ancestor.
-      if (!stack.slice(0, depth).some((a) => a && matchesWrapper(a, rule.ancestor))) continue;
+      // `ancestor` is OPTIONAL: a rule whose element signature is already
+      // unambiguous (a media slot's own classes) needs no enclosing context,
+      // while `stars/fill` does — a bare `path.text-gold` is not enough to
+      // know it is a star. `slice(0, depth)` because an element is not its
+      // own ancestor.
+      if (rule.ancestor && !stack.slice(0, depth).some((a) => a && matchesWrapper(a, rule.ancestor))) continue;
       // The NAME survives; only the value collapses. An added or removed
-      // opacity attribute therefore still moves the hash.
-      const rewritten = text.replace(
-        new RegExp(`(\\s${rule.attr})="[^"]*"`),
-        `$1="<${rule.id}>"`,
-      );
-      return '  '.repeat(depth) + rewritten;
+      // attribute therefore still moves the hash.
+      rewritten = rewritten.replace(new RegExp(`(\\s${rule.attr})="[^"]*"`), `$1="<${rule.id}>"`);
     }
-    return '  '.repeat(depth) + text;
+    return '  '.repeat(depth) + rewritten;
   });
 
   return out.join('\n');
@@ -539,7 +602,10 @@ export function normalizeContextualValues(skeleton, rules = CONTEXTUAL_VALUE_RUL
  * @returns {{ skeleton: string, hash: string, elements: number }}
  */
 export function structuralFingerprint(html, grammar) {
-  const skeleton = applyGrammar(normalizeContextualValues(structuralSkeleton(html)), grammar);
+  const skeleton = applyGrammar(
+    canonicalizeRadioGroups(normalizeContextualValues(structuralSkeleton(html))),
+    grammar,
+  );
   return {
     skeleton,
     hash: createHash('sha256').update(skeleton).digest('hex'),
