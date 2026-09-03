@@ -43,7 +43,7 @@ const PAGE = `
 <section id="faq" class="bg-white py-12">
   <h2 class="text-display">Todo lo que necesitas saber</h2>
 </section>
-<astro-island uid="Z1qBcD" component-url="/_astro/CartDrawer.9f2a1c.js" component-export="CartDrawer" renderer-url="/_astro/client.ab12.js" props="{&quot;price&quot;:4899}" ssr client="load"></astro-island>
+<astro-island uid="Z1qBcD" prefix="r9" component-url="/_astro/CartDrawer.9f2a1c.js" component-export="CartDrawer" renderer-url="/_astro/client.ab12.js" props="{&quot;price&quot;:4899}" ssr client="load"></astro-island>
 `;
 
 const hashOf = (html: string) => structuralFingerprint(html).hash;
@@ -125,6 +125,19 @@ describe('structural fingerprint — mutations that MUST pass', () => {
 
   it('ignores review statistics rendered as a bar width', () => {
     expect(hashOf(mutate('style="width:72%"', 'style="width:31%"'))).toBe(BASE);
+  });
+
+  it('ignores the island render counter, but not which island it is', () => {
+    // `prefix` is Astro's per-render island counter. It is deterministic —
+    // two identical builds produce identical prefixes — but it RENUMBERS when
+    // an earlier island appears or disappears, so a preview build and a
+    // commerce build disagree on it for every island after the first
+    // difference. It encodes render order and nothing else.
+    expect(hashOf(mutate('prefix="r9"', 'prefix="r42"'))).toBe(BASE);
+
+    // …and the control that makes dropping it safe: the island's IDENTITY is
+    // still compared, so a swap fails even though its counter is ignored.
+    expect(hashOf(mutate('component-export="CartDrawer"', 'component-export="CartSheet"'))).not.toBe(BASE);
   });
 
   it('ignores island build identity and serialized props', () => {

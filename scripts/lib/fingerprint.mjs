@@ -83,9 +83,20 @@ export const VALUE_DROPPED_ATTRS = new Set([
  * change when the product changes or merely when the bundle is rebuilt.
  * `component-export` is deliberately NOT here: WHICH island is mounted at a
  * position is structure, and swapping CartDrawer for something else must fail.
+ *
+ * `prefix` joined them after an audit, not because it broke a hash. It is
+ * Astro's per-render island counter (`r9`, `r10`, …): DETERMINISTIC — two
+ * identical builds produce identical prefixes, verified by building twice —
+ * but it renumbers when an earlier island appears or disappears, so a preview
+ * build and a commerce build disagree on it for every island after the first
+ * difference. It encodes render ORDER and nothing else, and order is already
+ * carried by the skeleton's own sequence plus `component-export`. Dropping it
+ * therefore hides no composition: a moved, swapped or removed island still
+ * fails. See the control test in contract.fixed-fingerprint.test.ts.
  */
 export const FULLY_DROPPED_ATTRS = new Set([
   'uid',
+  'prefix',
   'props',
   'component-url',
   'renderer-url',
