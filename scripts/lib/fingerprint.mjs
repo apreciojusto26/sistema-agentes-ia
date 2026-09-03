@@ -323,12 +323,151 @@ function renderElement(tag, attrs) {
   return `<${isMediaSlot ? 'MEDIA' : tag}${parts.length ? ' ' + parts.join(' ') : ''}>`;
 }
 
+
+// ---------------------------------------------------------------------------
+// REPEATABLE AND OPTIONAL REGIONS — structural GRAMMAR, not rendered instance.
+// ---------------------------------------------------------------------------
+//
+// THE PROBLEM THIS SOLVES. A gallery with four images and a gallery with eight
+// are the same design. The skeleton disagreed, because it recorded one line per
+// rendered element, so element COUNT — which follows array LENGTH — was being
+// compared as if it were layout. Two products of the same template could never
+// hash alike unless their data happened to be the same size.
+//
+// WHAT IT IS NOT. There is no heuristic here: nothing detects "similar
+// siblings" and collapses them. A region is normalized ONLY if an explicit
+// entry in the grammar names its wrapper, and only into the item shapes that
+// entry declares. A blanket sibling-collapse would hide the regressions this
+// module exists to catch.
+//
+// THE EMISSION IS THE DECLARATION, NOT THE OBSERVATION. A region emits every
+// shape its grammar declares, sorted, whether or not this particular build
+// rendered one. That is what lets a product whose variants are all in stock
+// hash identically to one with a sold-out variant: both use the same grammar,
+// and WHICH states occurred is data. Coverage of the declared shapes is proved
+// separately, by tests that materialize each one — see the state-coverage
+// suite. A shape nobody can produce must not sit in the grammar unexercised.
+//
+// THREE THINGS KEEP IT SAFE:
+//
+//   1. The WRAPPER's own line is emitted exactly as before. Change its classes,
+//      its grid, its breakpoint or its role and the hash moves — only its
+//      CHILDREN are abstracted.
+//   2. An item whose sub-skeleton is not among the declared shapes is emitted
+//      VERBATIM. Changed card markup, a new child type or a swapped component
+//      therefore still fails, loudly.
+//   3. A region declared `min` that renders fewer items emits a distinct
+//      marker, so an empty wrapper never hashes as a full one.
+//
+// OPTIONAL regions work the same way and answer a different question: a slot
+// the template declares may legitimately not materialize, because a capability
+// is absent. `OPTIONAL<Shape>` says the template HAS that slot. Whether this
+// product filled it is a capability fact, reported separately and never folded
+// into this hash. Absence is only ever normalized for a registered optional
+// region — a section that vanishes without one is still a failure.
+
+/** Splits a skeleton into `[line, depth]` pairs. Indent is two spaces per level. */
+function parseLines(skeleton) {
+  return skeleton.split('\n').filter(Boolean).map((line) => {
+    const body = line.replace(/^ +/, '');
+    return { text: body, depth: (line.length - body.length) / 2 };
+  });
+}
+
+/** The direct-child blocks of the element at `index`, each as `[from, to)`. */
+function childBlocks(lines, index) {
+  const parentDepth = lines[index].depth;
+  const blocks = [];
+  let i = index + 1;
+  while (i < lines.length && lines[i].depth > parentDepth) {
+    if (lines[i].depth === parentDepth + 1) {
+      const start = i;
+      i += 1;
+      while (i < lines.length && lines[i].depth > parentDepth + 1) i += 1;
+      blocks.push([start, i]);
+    } else {
+      i += 1;
+    }
+  }
+  return blocks;
+}
+
+/** A child block rendered as its own skeleton, re-indented from zero. */
+function blockSkeleton(lines, [from, to]) {
+  const base = lines[from].depth;
+  return lines
+    .slice(from, to)
+    .map((l) => '  '.repeat(l.depth - base) + l.text)
+    .join('\n');
+}
+
+/** Does this element line satisfy a grammar entry's wrapper matcher? */
+function matchesWrapper(text, wrapper) {
+  if (!text.startsWith(`<${wrapper.tag}`) && wrapper.tag !== '*') return false;
+  for (const cls of wrapper.classes ?? []) {
+    // Classes are sorted and space-joined by normalizeClass, so a word-boundary
+    // test is exact without depending on their order.
+    if (!new RegExp(`(^|[" ])${cls.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([" ]|$)`).test(text)) return false;
+  }
+  for (const [name, value] of Object.entries(wrapper.attrs ?? {})) {
+    if (!text.includes(value === true ? ` ${name}` : ` ${name}="${value}"`)) return false;
+  }
+  return true;
+}
+
+/**
+ * Rewrites declared regions into their grammar. Returns the skeleton unchanged
+ * when no grammar is supplied, so every existing caller keeps its behaviour.
+ */
+export function applyGrammar(skeleton, grammar) {
+  if (!grammar || grammar.length === 0) return skeleton;
+  const lines = parseLines(skeleton);
+  /** index -> replacement lines, applied after the scan so indices stay valid. */
+  const rewrites = [];
+
+  for (let i = 0; i < lines.length; i += 1) {
+    for (const region of grammar) {
+      if (!matchesWrapper(lines[i].text, region.wrapper)) continue;
+
+      const blocks = childBlocks(lines, i);
+      const declared = [...region.shapes].sort((a, b) => a.name.localeCompare(b.name));
+      const known = new Map(declared.map((s) => [s.skeleton, s.name]));
+
+      // Every child must be a declared shape. One stranger and the whole
+      // region is left alone — emitted verbatim, so the hash moves and the
+      // difference is reported rather than absorbed.
+      const unknown = blocks.some((b) => !known.has(blockSkeleton(lines, b)));
+      if (unknown) continue;
+
+      const indent = '  '.repeat(lines[i].depth + 1);
+      const body = declared.map((s) => `${indent}${region.kind.toUpperCase()}<${region.id}:${s.name}>`);
+      // An empty region is NOT the same shape as a populated one unless the
+      // grammar says zero is a legitimate cardinality for it.
+      const belowMin = blocks.length < (region.min ?? 0);
+      const head = belowMin ? [`${indent}<UNDERFILLED ${region.id} n=${blocks.length}>`] : [];
+
+      const from = blocks.length ? blocks[0][0] : i + 1;
+      const to = blocks.length ? blocks[blocks.length - 1][1] : i + 1;
+      rewrites.push({ from, to, lines: [...head, ...body] });
+      break;
+    }
+  }
+
+  if (rewrites.length === 0) return skeleton;
+
+  rewrites.sort((a, b) => b.from - a.from);
+  const out = lines.map((l) => '  '.repeat(l.depth) + l.text);
+  for (const r of rewrites) out.splice(r.from, r.to - r.from, ...r.lines);
+  return out.join('\n');
+}
+
 /**
  * @param {string} html rendered page markup
+ * @param {object[]} [grammar] declared repeatable/optional regions
  * @returns {{ skeleton: string, hash: string, elements: number }}
  */
-export function structuralFingerprint(html) {
-  const skeleton = structuralSkeleton(html);
+export function structuralFingerprint(html, grammar) {
+  const skeleton = applyGrammar(structuralSkeleton(html), grammar);
   return {
     skeleton,
     hash: createHash('sha256').update(skeleton).digest('hex'),
