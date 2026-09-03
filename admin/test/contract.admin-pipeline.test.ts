@@ -104,10 +104,12 @@ function fakeRegistry(opts: { archive: string; outDir: string; failKind?: string
         writeFileSync(contentPath, '{}');
         return make('content', p, { stagedPath: contentPath, faqCount: 6 });
       },
-      createDesignJob: (p: any) => {
-        mkdirSync(path.dirname(p.outPath), { recursive: true });
-        writeFileSync(p.outPath, '{}');
-        return make('design', p, { family: 'tech', density: 'balanced', sections: 9 });
+      // A TRIPWIRE, not a participant. The Fixed pipeline must never create a
+      // design job, so the fake no longer knows how to satisfy one — if the
+      // orchestrator reaches for it, the test fails here with a message that
+      // names the regression instead of quietly producing a DesignSpec.
+      createDesignJob: () => {
+        throw new Error('the Fixed pipeline called createDesignJob — the Design Agent must never run');
       },
       createGenerateJob: (p: any) => make('generate', p, { outDir: opts.outDir, slug: p.slug }),
     } as any,
@@ -121,7 +123,7 @@ function fakeOutput(withEnv: boolean) {
   mkdirSync(path.join(dir, '.git'), { recursive: true });
   mkdirSync(path.join(dir, 'src/data'), { recursive: true });
   writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n');
-  writeFileSync(path.join(dir, 'src/data/design.ts'), '');
+  writeFileSync(path.join(dir, 'src/data/product.ts'), '');
   writeFileSync(path.join(dir, 'src/data/images.ts'), '');
   writeFileSync(path.join(dir, '.generation.json'), '{}');
   if (withEnv) writeFileSync(path.join(dir, '.env'), 'PUBLIC_SHOPIFY_PRODUCT_HANDLE=h\n');
@@ -159,13 +161,15 @@ describe('stage order and hand-off', () => {
 
     // content consumes the scrape's canonical product
     expect(byKind('content').scrapeProductPath).toBe(path.join(archive, 'canonical-product.json'));
-    // design consumes BOTH the canonical product and the content agent's file
-    expect(byKind('design').scrapeProductPath).toBe(path.join(archive, 'canonical-product.json'));
-    expect(byKind('design').contentPath).toBe(fake.contentPath);
-    // generate consumes the content, the DesignSpec, the canonical product and the scraped images
+    // NO design job exists to consume anything — the stage is gone, not stubbed.
+    expect(fake.created.some((c) => c.kind === 'design')).toBe(false);
+    // generate consumes the content, the canonical product and the scraped
+    // images. `designPath` is absent rather than null: buildGenerateSpec only
+    // appends `--design` when the key is set, so its ABSENCE is what keeps the
+    // flag off the child's argv.
     const gen = byKind('generate');
     expect(gen.contentPath).toBe(fake.contentPath);
-    expect(gen.designPath).toBe(byKind('design').outPath);
+    expect(gen.designPath).toBeUndefined();
     expect(gen.productJsonPath).toBe(path.join(archive, 'canonical-product.json'));
     expect(gen.imagesDir).toBe(path.join(archive, 'images'));
   });
@@ -187,17 +191,20 @@ describe('stage order and hand-off', () => {
 
 describe('a failed stage stops the pipeline', () => {
   it('marks the failure and SKIPS every later stage — never "failed"', async () => {
-    const fake = fakeRegistry({ archive: fakeArchive(), outDir: fakeOutput(false), failKind: 'design' });
+    // Was 'design' — the stage that used to sit here no longer exists, so the
+    // propagation rule is proved on `content`, the last stage before the
+    // removed one. The property under test is unchanged: the failing stage is
+    // `failed`, everything after it is `skipped`.
+    const fake = fakeRegistry({ archive: fakeArchive(), outDir: fakeOutput(false), failKind: 'content' });
 
     const rec = await runPipeline({ url: 'https://example.com/item/1', slug: 'zz-pipe' }, { registry: fake.registry, runBuild: okBuild });
 
     expect(rec.status).toBe('failed');
-    expect(rec.currentStage).toBe('design');
+    expect(rec.currentStage).toBe('content');
 
     const status = (n: string) => rec.stages.find((s) => s.name === n)!.status;
     expect(status('scrape')).toBe('pass');
-    expect(status('content')).toBe('pass');
-    expect(status('design')).toBe('failed');
+    expect(status('content')).toBe('failed');
     // Never attempted -> skipped, not failed.
     for (const later of ['assets', 'generate', 'build', 'validate']) expect(status(later)).toBe('skipped');
   });
@@ -238,12 +245,19 @@ describe('final validation guards the artefact\'s guarantees', () => {
     expect(rec.error).toContain('.git');
   });
 
-  it('fails when the DesignSpec did not reach the landing', async () => {
+  // WAS: 'fails when the DesignSpec did not reach the landing'. That assertion
+  // encoded the Version A rule that a landing is incomplete without a
+  // Design-Agent-authored src/data/design.ts. Fixed produces no such file, so
+  // the check it guarded is gone from validate and the test would have been
+  // asserting a requirement the architecture dropped. The artefact guarantee
+  // that replaced it is the generated PRODUCT DATA, which Fixed really does
+  // write and really cannot ship without.
+  it('fails when the generated product data did not reach the landing', async () => {
     const out = fakeOutput(false);
-    rmSync(path.join(out, 'src/data/design.ts'), { force: true });
+    rmSync(path.join(out, 'src/data/product.ts'), { force: true });
     const fake = fakeRegistry({ archive: fakeArchive(), outDir: out });
     const rec = await runPipeline({ url: 'https://example.com/item/1', slug: 'zz-pipe' }, { registry: fake.registry, runBuild: okBuild });
-    expect(rec.error).toContain('design.ts');
+    expect(rec.error).toContain('product.ts');
   });
 });
 
@@ -355,15 +369,34 @@ describe('the admin does NOT reimplement any agent', () => {
 
   it('the pipeline delegates through the registry, spawning only the build', () => {
     const src = readFileSync(path.join(SERVER_DIR, 'pipeline.ts'), 'utf-8');
-    for (const call of ['createScrapeJob', 'createContentJob', 'createDesignJob', 'createGenerateJob']) {
+    for (const call of ['createScrapeJob', 'createContentJob', 'createGenerateJob']) {
       expect(src).toContain(`registry.${call}`);
     }
+    // …and createDesignJob is NOT among them. Delegation-through-the-registry
+    // is the rule; which jobs exist is the Fixed architecture, and the Design
+    // Agent is not one of them.
+    expect(src).not.toContain('registry.createDesignJob');
     // Exactly one spawn: `astro build`. Any other would be a second runner.
     expect([...src.matchAll(/\bspawn\(/g)]).toHaveLength(1);
   });
 
-  it('the Design Agent is invoked as the real script', () => {
+  // runner.ts still KNOWS how to spawn generate-design.mjs, and that is
+  // deliberate: the runner is generic job plumbing, and the Design System
+  // tooling that remains in this repo is still driven through it. What matters
+  // for Fixed is that the PIPELINE never asks for that job — proved directly
+  // above and, end to end, in contract.design-bypass.test.ts.
+  it('the runner still knows the Design Agent script, but the pipeline never asks for it', () => {
     const runner = readFileSync(path.join(SERVER_DIR, 'jobs/runner.ts'), 'utf-8');
     expect(runner).toContain("'scripts/generate-design.mjs'");
+    // Comments stripped first — same convention as contract.content-provenance
+    // .test.ts's scanner, and for the same reason: pipeline.ts DOCUMENTS the
+    // script it is forbidden to call, and a scanner that flagged its own
+    // explanation would force the explanation to be deleted.
+    const pipelineCode = readFileSync(path.join(SERVER_DIR, 'pipeline.ts'), 'utf-8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .split('\n')
+      .filter((l) => !/^\s*(\/\/|\*)/.test(l))
+      .join('\n');
+    expect(pipelineCode).not.toContain('generate-design.mjs');
   });
 });

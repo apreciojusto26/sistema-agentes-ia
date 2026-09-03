@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 //
-// The agent dashboard: one form, one pipeline, six blocks over eight stages.
+// The agent dashboard: one form, one pipeline, five blocks over seven stages.
 //
 // The properties worth protecting are structural, not cosmetic: that the
 // client never declares its own stage sequence, that Content and Design stay
@@ -15,7 +15,8 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import PipelinePanel, { slugFromUrl } from './PipelinePanel';
-import { buildBlocks, rollUp, activeBlock, BLOCK_META } from './pipeline-blocks';
+import { buildBlocks, rollUp, activeBlock, emptyBlocks, BLOCK_META } from './pipeline-blocks';
+import { PIPELINE_STAGES } from '../../shared/pipeline-stages';
 import type { PipelineStage, PipelineStageStatus } from '../../server/pipeline';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -24,8 +25,11 @@ const COLUMN_SRC = path.join(__dirname, 'PipelineColumn.tsx');
 const BLOCKS_SRC = path.join(__dirname, 'pipeline-blocks.ts');
 const STYLES_SRC = path.join(__dirname, '../styles.css');
 
-/** The eight real stage names, in the server's order. */
-const STAGE_NAMES = ['scrape', 'normalize', 'content', 'design', 'assets', 'generate', 'build', 'validate'];
+/** The real stage names, in the server's order — read from the server, not
+ *  retyped. A literal list here would let this suite keep asserting a pipeline
+ *  shape the server had already stopped producing, which is exactly what
+ *  happened while `design` was still spelled out below. */
+const STAGE_NAMES = [...PIPELINE_STAGES] as string[];
 
 const stage = (name: string, status: PipelineStageStatus, over: Partial<PipelineStage> = {}): PipelineStage => ({
   name: name as PipelineStage['name'],
@@ -78,22 +82,35 @@ function setValue(el: HTMLInputElement, value: string) {
 const button = (text: string) =>
   [...container.querySelectorAll('button')].find((b) => b.textContent?.includes(text)) as HTMLButtonElement | undefined;
 
-// ── 1 & 2: six blocks over eight stages ────────────────────────────────────
+// ── 1 & 2: five blocks over seven stages ───────────────────────────────────
 
-describe('the six blocks map onto the eight real stages', () => {
+describe('the five blocks map onto the seven real stages', () => {
   const allStages = STAGE_NAMES.map((n) => stage(n, 'pending'));
 
-  it('groups the eight stages into exactly six blocks', () => {
+  it('groups the seven stages into exactly five blocks', () => {
     const blocks = buildBlocks(allStages);
-    expect(blocks).toHaveLength(6);
+    expect(blocks).toHaveLength(5);
     expect(blocks.map((b) => b.meta.id)).toEqual([
       'producto',
       'contenido',
-      'diseno',
       'assets',
       'construccion',
       'validacion',
     ]);
+  });
+
+  it('the idle rail advertises exactly the blocks a real run produces', () => {
+    // emptyBlocks() derives from PIPELINE_STAGES through buildBlocks(), so the
+    // "nothing has run yet" rail and a finished run cannot describe different
+    // teams. Before this, the idle state carried its own list and kept showing
+    // a Design Agent that no run could ever produce.
+    expect(emptyBlocks().map((b) => b.meta.id)).toEqual(buildBlocks(allStages).map((b) => b.meta.id));
+    expect(emptyBlocks().every((b) => b.status === 'pending')).toBe(true);
+  });
+
+  it('no block is a Design Agent', () => {
+    expect(buildBlocks(allStages).map((b) => b.meta.label)).not.toContain('Design Agent');
+    expect(Object.keys(BLOCK_META)).not.toContain('diseno');
   });
 
   it('every stage lands in a block — none is dropped', () => {
@@ -107,14 +124,15 @@ describe('the six blocks map onto the eight real stages', () => {
     expect(blocks.find((b) => b.meta.id === 'construccion')!.stages.map((s) => s.name)).toEqual(['generate', 'build']);
   });
 
-  it('Content and Design are SEPARATE blocks, never merged', () => {
-    const blocks = buildBlocks(allStages);
-    const contenido = blocks.find((b) => b.meta.id === 'contenido')!;
-    const diseno = blocks.find((b) => b.meta.id === 'diseno')!;
+  it('Content is its own block, holding only the content stage', () => {
+    // WAS 'Content and Design are SEPARATE blocks, never merged' — a guard
+    // against the two agents being collapsed into one card. With the Design
+    // Agent gone the merge it prevented is impossible, but the half that still
+    // matters is kept: Content owns exactly one stage and is not quietly
+    // widened to absorb its neighbours.
+    const contenido = buildBlocks(allStages).find((b) => b.meta.id === 'contenido')!;
     expect(contenido.stages.map((s) => s.name)).toEqual(['content']);
-    expect(diseno.stages.map((s) => s.name)).toEqual(['design']);
     expect(BLOCK_META.contenido.agent).toContain('Content');
-    expect(BLOCK_META.diseno.agent).toContain('Design');
   });
 
   it('an unknown stage is still shown, never hidden', () => {
@@ -173,14 +191,13 @@ describe('status roll-up is honest', () => {
     const blocks = buildBlocks([
       stage('scrape', 'pass'),
       stage('normalize', 'pass'),
-      stage('content', 'pass'),
-      stage('design', 'failed'),
+      stage('content', 'failed'),
       stage('assets', 'skipped'),
       stage('generate', 'skipped'),
       stage('build', 'skipped'),
       stage('validate', 'skipped'),
     ]);
-    expect(blocks.find((b) => b.meta.id === 'diseno')!.status).toBe('failed');
+    expect(blocks.find((b) => b.meta.id === 'contenido')!.status).toBe('failed');
     for (const id of ['assets', 'construccion', 'validacion']) {
       expect(blocks.find((b) => b.meta.id === id)!.status).toBe('skipped');
     }

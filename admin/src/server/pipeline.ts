@@ -4,9 +4,10 @@
 // existing capability invoked through the existing JobRegistry:
 //   scrape   -> scraper/scrape.js        (+ normalize, inside its archive step)
 //   content  -> scripts/generate-content.mjs
-//   design   -> scripts/generate-design.mjs
-//   generate -> scripts/generate-landing.mjs   (assets + DesignSpec + handle)
+//   generate -> scripts/generate-landing.mjs   (assets + handle; NO DesignSpec)
 //   build    -> astro build inside outputs/<slug>
+// scripts/generate-design.mjs is deliberately absent from this list — see
+// PIPELINE_STAGES for why the Design Agent is not run at all.
 // There is no second copy of any agent here. `contract.admin-pipeline.test.ts`
 // asserts that structurally, by scanning this directory for the prompts and
 // registries that belong to the scripts.
@@ -19,24 +20,41 @@
 // `failed`, because they never ran — reporting them as failures would invent a
 // verdict about work that was never attempted.
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import type { JobRecord, JobStatus } from '../shared/jobs';
 import type { JobRegistry } from './jobs/registry';
 import { JOBS_DIR, OUTPUTS_DIR, REPO_ROOT, GEMINI_MODEL } from './config';
 
-export const PIPELINE_STAGES = [
-  'scrape',
-  'normalize',
-  'content',
-  'design',
-  'assets',
-  'generate',
-  'build',
-  'validate',
-] as const;
-
-export type PipelineStageName = (typeof PIPELINE_STAGES)[number];
+/**
+ * The stages a Fixed generation actually runs. DEFINED IN src/shared/ and
+ * re-exported here so existing server-side importers keep working — the client
+ * needs the same list as a runtime value, and reaching into this module for it
+ * would drag node:fs into the browser bundle.
+ *
+ * `design` USED TO BE IN IT, between content and assets, and it really ran: it
+ * created a Gemini design job, waited for it, failed the pipeline if no
+ * DesignSpec came back, handed the result to generate as `--design`, and made
+ * validate require the resulting src/data/design.ts. That is the Version A
+ * architecture, and this repo is not Version A.
+ *
+ * Fixed AstraVibe's premise is that every generated product is the SAME PAGE
+ * with different data in it. A Design Agent choosing a composition is the one
+ * thing that premise forbids, so the stage is REMOVED rather than stubbed. No
+ * always-default DesignSpec, no fixed spec written to disk, no "run it and
+ * ignore the output" — those all keep an LLM deciding layout and merely hide
+ * the decision. The job is never created at all.
+ *
+ * The design CONTRACT modules (scripts/lib/design-contract.mjs, design-registry
+ * .mjs, admin/src/server/validation/design.ts) deliberately stay in the tree.
+ * They are still exercised by the Design System suites against
+ * content/landing-base, which is experimental tooling that physically remains
+ * here. Keeping them is not a contradiction: nothing in this list can reach
+ * them, and admin/test/contract.design-bypass.test.ts proves it.
+ */
+export { PIPELINE_STAGES, type PipelineStageName } from '../shared/pipeline-stages';
+import { PIPELINE_STAGES } from '../shared/pipeline-stages';
+import type { PipelineStageName } from '../shared/pipeline-stages';
 
 export type PipelineStageStatus = 'pending' | 'running' | 'pass' | 'failed' | 'skipped';
 
@@ -273,29 +291,10 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
   }
   pass('content', `${(contentDone.result as { faqCount?: number } | null)?.faqCount ?? 0} FAQ entries`);
 
-  // ---- 4. Design Agent ---------------------------------------------------
-  const designStage = begin('design');
-  const designOut = path.join(JOBS_DIR, scrapeJobId, 'design', 'design.json');
-  mkdirSync(path.dirname(designOut), { recursive: true });
-  const designJob = registry.createDesignJob({
-    scrapeJobId,
-    scrapeProductPath: canonicalPath,
-    contentPath,
-    outPath: designOut,
-    model: GEMINI_MODEL,
-    productId: record.productId ?? undefined,
-  });
-  designStage.jobId = designJob.jobId;
-  emit();
-  const designDone = await awaitJob(registry, designJob.jobId);
-  if (designDone.status !== 'succeeded') return fail('design', jobFailure(designDone));
-  if (!existsSync(designOut)) {
-    return fail('design', 'the Design Agent reported success but wrote no DesignSpec');
-  }
-  const dr = designDone.result as { family?: string; density?: string; sections?: number } | null;
-  pass('design', `family=${dr?.family} · density=${dr?.density} · ${dr?.sections} sections`);
-
-  // ---- 5. assets ---------------------------------------------------------
+  // ---- 4. assets ---------------------------------------------------------
+  //
+  // Content is followed directly by assets. There is no Design Agent step: see
+  // PIPELINE_STAGES above for why it was removed rather than defaulted.
   // Like normalize, this stage does not run a separate process: the asset
   // pipeline lives inside generate-landing.mjs and is activated by --product.
   // What is checked here is that the inputs it needs genuinely exist, so a
@@ -307,7 +306,7 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
   }
   pass('assets', 'scraped media ready');
 
-  // ---- 6. generate -------------------------------------------------------
+  // ---- 5. generate -------------------------------------------------------
   const generateStage = begin('generate');
   const generateJob = registry.createGenerateJob({
     slug: input.slug,
@@ -315,7 +314,9 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
     imagesDir,
     force: input.force ?? false,
     productId: record.productId ?? undefined,
-    designPath: designOut,
+    // No designPath. buildGenerateSpec only appends `--design` when this is
+    // set, so omitting it is what actually keeps the flag off the child's
+    // argv — not a null passed through to be ignored downstream.
     productJsonPath: canonicalPath,
     shopifyHandle: input.shopifyHandle ?? null,
   });
@@ -327,20 +328,31 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
   record.outputPath = outDir;
   pass('generate', `outputs/${input.slug}`);
 
-  // ---- 7. build ----------------------------------------------------------
+  // ---- 6. build ----------------------------------------------------------
   begin('build');
   const build = await runBuild(outDir);
   if (!build.ok) return fail('build', build.message ?? 'astro build failed');
   pass('build', 'prerendered');
 
-  // ---- 8. final validation ----------------------------------------------
+  // ---- 7. final validation ----------------------------------------------
   // Structural checks on the artefact itself: the guarantees earlier phases
   // established must all still hold in the thing actually produced.
+  //
+  // `src/data/design.ts (DesignSpec)` LEFT THIS LIST. It was a Version A rule —
+  // it asserted that a Design Agent had chosen a composition and written it
+  // down. With the stage gone nothing produces that file, and the Fixed
+  // template does not ship one, so keeping the check would have failed every
+  // Fixed generation for missing an artefact the architecture no longer has.
+  //
+  // Deliberately NOT replaced with the full F3 validator. What stays is what
+  // Fixed can honestly assert TODAY about the thing on disk: it is its own
+  // repository, it carries its generated data and asset map, it records its
+  // own provenance, and a commerce run wrote its handle.
   begin('validate');
   const missing: string[] = [];
   if (!existsSync(path.join(outDir, '.git'))) missing.push('.git (landing is not its own repository)');
   if (!existsSync(path.join(outDir, '.gitignore'))) missing.push('.gitignore');
-  if (!existsSync(path.join(outDir, 'src/data/design.ts'))) missing.push('src/data/design.ts (DesignSpec)');
+  if (!existsSync(path.join(outDir, 'src/data/product.ts'))) missing.push('src/data/product.ts (product data)');
   if (!existsSync(path.join(outDir, 'src/data/images.ts'))) missing.push('src/data/images.ts (asset map)');
   if (!existsSync(path.join(outDir, '.generation.json'))) missing.push('.generation.json');
   if (input.shopifyHandle && !existsSync(path.join(outDir, '.env'))) missing.push('.env (commerce mode handle)');

@@ -13,6 +13,7 @@ import Fastify from 'fastify';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { registerPipelineRoutes, validateStart } from '../src/server/routes/pipeline';
 import * as store from '../src/server/pipeline-store';
+import { PIPELINE_STAGES } from '../src/shared/pipeline-stages';
 import type { JobRecord } from '../src/shared/jobs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -132,7 +133,14 @@ describe('POST /api/pipeline', () => {
     const { pipeline } = res.json();
     expect(pipeline.pipelineId).toMatch(/^pl_/);
     expect(pipeline.slug).toBe('zz-route');
-    expect(pipeline.stages).toHaveLength(8);
+    // Counted from PIPELINE_STAGES rather than hardcoded. A literal here was
+    // 8 while the Design Agent was a stage; pinning the NUMBER means every
+    // legitimate change to the pipeline shape edits a magic constant in a
+    // route test, which teaches nothing. What this assertion is really for is
+    // that the route returns the server's real stage list, not a fabricated one.
+    expect(pipeline.stages).toHaveLength(PIPELINE_STAGES.length);
+    expect(pipeline.stages.map((s: { name: string }) => s.name)).toEqual([...PIPELINE_STAGES]);
+    expect(pipeline.stages.map((s: { name: string }) => s.name)).not.toContain('design');
     await app.close();
   });
 

@@ -8,9 +8,15 @@
 //
 // A stage with no mapping still renders, in a block of its own named after
 // it. Dropping an unknown stage would hide real work from the operator.
+import { PIPELINE_STAGES } from '../../shared/pipeline-stages';
 import type { PipelineStage, PipelineStageStatus } from '../../server/pipeline';
 
-export type BlockId = 'producto' | 'contenido' | 'diseno' | 'assets' | 'construccion' | 'validacion';
+// `diseno` IS GONE. It mapped the `design` stage to a Design Agent card, and
+// that stage no longer exists: Fixed AstraVibe renders one canonical page, so
+// nothing chooses a composition. The card is not kept as "Design Agent —
+// omitido" either. The rail's job is to show the operator what the team is
+// DOING, and a permanently absent member is repo archaeology, not status.
+export type BlockId = 'producto' | 'contenido' | 'assets' | 'construccion' | 'validacion';
 
 /**
  * `accent` and `avatarSrc` give each agent its own identity in the rail, the
@@ -54,7 +60,6 @@ const STAGE_TO_BLOCK: Record<string, BlockId> = {
   scrape: 'producto',
   normalize: 'producto',
   content: 'contenido',
-  design: 'diseno',
   assets: 'assets',
   generate: 'construccion',
   build: 'construccion',
@@ -87,19 +92,6 @@ export const BLOCK_META: Record<BlockId, BlockMeta> = {
     accentBorder: 'border-t-agent-2',
     avatarSrc: '/content_agent.webp',
     glyph: 'pen',
-  },
-  diseno: {
-    id: 'diseno',
-    label: 'Design Agent',
-    agent: 'Design Agent · Gemini + Impeccable',
-    doing: 'Definiendo la dirección visual',
-    description: 'Define la dirección visual de la landing y genera el DesignSpec.',
-    accentText: 'text-agent-3',
-    accentRing: 'ring-agent-3',
-    accentBar: 'bg-agent-3',
-    accentBorder: 'border-t-agent-3',
-    avatarSrc: '/design_agent.webp',
-    glyph: 'palette',
   },
   assets: {
     id: 'assets',
@@ -147,7 +139,6 @@ export const STAGE_LABEL: Record<string, string> = {
   scrape: 'Extractor',
   normalize: 'Normalizer',
   content: 'Content Agent',
-  design: 'Design Agent',
   assets: 'Assets',
   generate: 'Generate',
   build: 'Build',
@@ -221,17 +212,32 @@ export function buildBlocks(stages: PipelineStage[]): PipelineBlock[] {
 }
 
 /**
- * The six blocks with nothing run yet.
+ * The blocks with nothing run yet, shown BEFORE a pipeline exists so the column
+ * explains the flow on arrival instead of being an empty box.
  *
- * Shown BEFORE a pipeline exists so the column explains the flow on arrival —
- * Producto → Contenido → Diseño → Assets → Construcción → Validación — instead
- * of being an empty box the operator has to start a run to understand.
+ * DERIVED FROM PIPELINE_STAGES, not from a list of its own. It used to be
+ * `Object.values(BLOCK_META)`, and that was the single place in this file that
+ * could disagree with the server: when the Design Agent stage was removed, the
+ * idle rail would still have advertised a sixth member that no run can ever
+ * produce. Going through buildBlocks() means the empty state and a real run are
+ * the SAME grouping of the SAME stage list, so the rail can only ever be wrong
+ * about what is going to happen if the server itself is.
  *
- * These carry no stages, so nothing here can misreport a stage's status: every
+ * These carry no real stages, so nothing here can misreport a status: every
  * block is `pending`, which is exactly true.
  */
 export function emptyBlocks(): PipelineBlock[] {
-  return Object.values(BLOCK_META).map((meta) => ({ meta, stages: [], status: 'pending' as PipelineStageStatus }));
+  return buildBlocks(
+    PIPELINE_STAGES.map((name) => ({
+      name,
+      status: 'pending' as PipelineStageStatus,
+      jobId: null,
+      startedAt: null,
+      endedAt: null,
+      error: null,
+      detail: null,
+    })),
+  );
 }
 
 /** The block the operator should be looking at right now. */
