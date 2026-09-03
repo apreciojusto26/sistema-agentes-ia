@@ -68,7 +68,13 @@ export const VALUE_DROPPED_ATTRS = new Set([
   'placeholder',
   'aria-label',
   'aria-describedby',
-  'aria-labelledby',
+  // `aria-labelledby` is NOT here any more. Its value is a REFERENCE — it names
+  // the element that labels this one — and a reference is a relation, which is
+  // structure. Dropping it meant a panel pointing at the wrong trigger, or at
+  // nothing, hashed exactly like a correct one. Every value in this template is
+  // either a static literal (`checkout-shipping-title`, `cookie-banner-title`)
+  // or a FAQ trigger id, and the latter is made positional-independent by the
+  // relational pass below rather than by throwing the relation away.
   'datetime',
   'download',
   'style', // handled specially below — declarations survive, values are filtered
@@ -392,13 +398,16 @@ function childBlocks(lines, index) {
   return blocks;
 }
 
-/** A child block rendered as its own skeleton, re-indented from zero. */
-function blockSkeleton(lines, [from, to]) {
+/**
+ * A child block rendered as its own skeleton, re-indented from zero.
+ *
+ * `relationalIds` is opted into per region: only where an item legitimately
+ * carries its own DOM identity does the ordinal get canonicalized away.
+ */
+function blockSkeleton(lines, [from, to], { relationalIds = false } = {}) {
   const base = lines[from].depth;
-  return lines
-    .slice(from, to)
-    .map((l) => '  '.repeat(l.depth - base) + l.text)
-    .join('\n');
+  const rows = lines.slice(from, to).map((l) => '  '.repeat(l.depth - base) + l.text);
+  return (relationalIds ? canonicalizeItemIdentity(rows) : rows).join('\n');
 }
 
 /** Does this element line satisfy a grammar entry's wrapper matcher? */
@@ -416,6 +425,45 @@ function matchesWrapper(text, wrapper) {
 }
 
 /**
+ * Rewrites DOM identity RELATIONALLY inside one repeated item.
+ *
+ * An accessible accordion needs a unique id per panel and per trigger, so its
+ * items are structurally unique by construction: `faq-panel-0`, `faq-panel-1`,
+ * … Every item became its own shape and REPEAT could collapse nothing.
+ *
+ * The ordinal is not design. The RELATIONSHIP is. So every id declared inside
+ * one item is numbered by first appearance WITHIN THAT ITEM, and every
+ * reference to one — `aria-controls`, `aria-labelledby` — is rewritten to the
+ * same symbol. Item 0 and item 6 then hash alike, while:
+ *
+ *   - a reference pointing at ANOTHER item's id is not in this item's map, so
+ *     it survives as a raw value and the shape stops matching: cross-links fail
+ *   - a missing id, a missing aria-controls or a missing aria-labelledby
+ *     changes the attribute list: absence fails
+ *   - a swapped relationship (trigger pointing at its own id) maps to a
+ *     different symbol than the panel expects: it fails
+ *
+ * GLOBAL id UNIQUENESS is deliberately NOT this function's job — two items
+ * carrying the same id each canonicalize within their own block and would hash
+ * alike. That is asserted directly, on the rendered HTML, by the accessibility
+ * contract, which is the right instrument for it.
+ */
+function canonicalizeItemIdentity(itemLines) {
+  const symbols = new Map();
+  for (const line of itemLines) {
+    const m = /\sid="([^"]*)"/.exec(line);
+    if (m && !symbols.has(m[1])) symbols.set(m[1], `<item-ref-${symbols.size + 1}>`);
+  }
+  if (symbols.size === 0) return itemLines;
+
+  return itemLines.map((line) =>
+    line.replace(/\s(id|aria-controls|aria-labelledby)="([^"]*)"/g, (whole, attr, value) =>
+      symbols.has(value) ? ` ${attr}="${symbols.get(value)}"` : whole,
+    ),
+  );
+}
+
+/**
  * Rewrites declared regions into their grammar. Returns the skeleton unchanged
  * when no grammar is supplied, so every existing caller keeps its behaviour.
  */
@@ -430,13 +478,63 @@ export function applyGrammar(skeleton, grammar) {
       if (!matchesWrapper(lines[i].text, region.wrapper)) continue;
 
       const blocks = childBlocks(lines, i);
+
+      // TUPLE REPETITION. The comparison grid repeats in GROUPS, not in items:
+      // `rows.map()` returns a fragment emitting three flat sibling cells per
+      // row, into the same grid that holds three header cells. Collapsing its
+      // children one by one would describe a structure that does not exist.
+      //
+      // Deliberately NOT a generic "children divisible by N, probably rows"
+      // heuristic — only a region that declares `tuple` is read this way.
+      if (region.tuple) {
+        const { prefix = 0, size, shapes, lastShape } = region.tuple;
+        const head = blocks.slice(0, prefix);
+        const rest = blocks.slice(prefix);
+        const indent2 = '  '.repeat(lines[i].depth + 1);
+
+        // ARITY IS STRUCTURE. Leftovers are never truncated or ignored: a grid
+        // with a missing or extra cell is a broken grid, and it must say so.
+        if (rest.length === 0 || rest.length % size !== 0) continue;
+
+        const groups = [];
+        for (let g = 0; g < rest.length; g += size) {
+          groups.push(rest.slice(g, g + size).map((b) => blockSkeleton(lines, b)).join('\n'));
+        }
+
+        const known = new Map(shapes.map((sh) => [sh.skeleton, sh.name]));
+        const isLast = (idx) => idx === groups.length - 1;
+        const ok = groups.every((g, idx) => {
+          // POSITION IS STRUCTURE TOO. `last` is not merely another permitted
+          // form — the closing corner belongs at the end. A last-row shape in
+          // the middle, or a plain shape at the end, is a real defect.
+          if (lastShape) return isLast(idx) ? g === lastShape.skeleton : known.has(g);
+          return known.has(g);
+        });
+        if (!ok) continue;
+
+        // The fixed prefix keeps being compared verbatim — a changed, missing
+        // or reordered header still fails.
+        const headLines = head.flatMap((b) => blockSkeleton(lines, b).split('\n').map((l) => indent2 + l));
+        const body = [...shapes]
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .map((sh) => `${indent2}TUPLE_REPEAT<${region.id}:${sh.name}>`);
+        if (lastShape) body.push(`${indent2}TUPLE_LAST<${region.id}:${lastShape.name}>`);
+
+        rewrites.push({
+          from: blocks[0][0],
+          to: blocks[blocks.length - 1][1],
+          lines: [...headLines, ...body],
+        });
+        break;
+      }
       const declared = [...region.shapes].sort((a, b) => a.name.localeCompare(b.name));
       const known = new Map(declared.map((s) => [s.skeleton, s.name]));
 
       // Every child must be a declared shape. One stranger and the whole
       // region is left alone — emitted verbatim, so the hash moves and the
       // difference is reported rather than absorbed.
-      const unknown = blocks.some((b) => !known.has(blockSkeleton(lines, b)));
+      const opts = { relationalIds: region.relationalIds === true };
+      const unknown = blocks.some((b) => !known.has(blockSkeleton(lines, b, opts)));
       if (unknown) continue;
 
       const indent = '  '.repeat(lines[i].depth + 1);

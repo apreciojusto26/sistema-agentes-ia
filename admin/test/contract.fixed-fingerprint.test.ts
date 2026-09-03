@@ -308,3 +308,99 @@ describe('radio group canonicalization', () => {
     expect(h(a)).not.toBe(h(b));
   });
 });
+
+// ── Repeated items that carry their own DOM identity ──────────────────────
+describe('relational identity inside a repeated item', () => {
+  const item = (n: number, controls?: number) =>
+    `<div class="faqitem"><button id="faq-trigger-${n}" aria-controls="faq-panel-${controls ?? n}"></button>` +
+    `<div id="faq-panel-${n}" aria-labelledby="faq-trigger-${n}"></div></div>`;
+  const faq = (ids: number[], crossLink = false) =>
+    `<div class="divide-y rounded-tile">${ids.map((n, i) => item(n, crossLink && i === 0 ? ids[1] : undefined)).join('')}</div>`;
+
+  const SHAPE =
+    '<div class="faqitem">\n' +
+    '  <button aria-controls="<item-ref-2>" id="<item-ref-1>">\n' +
+    '  <div aria-labelledby="<item-ref-1>" id="<item-ref-2>">';
+  const GRAMMAR = [
+    {
+      id: 'faq/items',
+      wrapper: { tag: 'div', classes: ['divide-y', 'rounded-tile'] },
+      kind: 'repeat',
+      relationalIds: true,
+      shapes: [{ name: 'FaqItem', skeleton: SHAPE }],
+    },
+  ];
+  const h = (html: string) => structuralFingerprint(html, GRAMMAR).hash;
+
+  it('a different NUMBER of items does not change the grammar', () => {
+    expect(h(faq([0, 1, 2, 3]))).toBe(h(faq([0, 1, 2, 3, 4, 5, 6])));
+  });
+
+  it('a different ORDINAL does not either', () => {
+    expect(h(faq([0, 1]))).toBe(h(faq([5, 9])));
+  });
+
+  it('but a trigger pointing at ANOTHER item\'s panel fails', () => {
+    // The ordinal is wiring; the RELATION is structure. A cross-link leaves a
+    // reference this item's map does not contain, so its shape stops matching.
+    expect(h(faq([0, 1, 2, 3]))).not.toBe(h(faq([0, 1, 2, 3], true)));
+  });
+
+  it('and a missing aria-controls fails', () => {
+    expect(h(faq([0, 1]))).not.toBe(h(faq([0, 1]).replace(/ aria-controls="[^"]*"/, '')));
+  });
+});
+
+// ── Tuple repetition: a grid whose rows are flat sibling cells ────────────
+describe('tuple repetition', () => {
+  const cell = (c: string) => `<div class="${c}"></div>`;
+  const grid = (rows: number, opts: { lastInMiddle?: boolean; noLast?: boolean } = {}) => {
+    const body = Array.from({ length: rows }, (_, i) => {
+      const last = i === rows - 1;
+      const closed = opts.lastInMiddle ? i === 0 : last && !opts.noLast;
+      return cell('row') + cell(closed ? 'rounded-b-card' : 'ours') + cell(closed ? 'rounded-b-card' : 'theirs');
+    }).join('');
+    return `<div class="grid">${cell('h1')}${cell('h2')}${cell('h3')}${body}</div>`;
+  };
+  const GRAMMAR = [
+    {
+      id: 'comparison/rows',
+      wrapper: { tag: 'div', classes: ['grid'] },
+      kind: 'repeat',
+      tuple: {
+        prefix: 3,
+        size: 3,
+        shapes: [{ name: 'Row', skeleton: '<div class="row">\n<div class="ours">\n<div class="theirs">' }],
+        lastShape: {
+          name: 'LastRow',
+          skeleton: '<div class="row">\n<div class="rounded-b-card">\n<div class="rounded-b-card">',
+        },
+      },
+    },
+  ];
+  const h = (html: string) => structuralFingerprint(html, GRAMMAR).hash;
+
+  it('3 rows and 6 rows are the same grammar', () => {
+    expect(h(grid(3))).toBe(h(grid(6)));
+  });
+
+  it('a missing cell fails — arity is structure, never truncated', () => {
+    expect(h(grid(3))).not.toBe(h(grid(3).replace('<div class="theirs"></div>', '')));
+  });
+
+  it('an extra cell fails too', () => {
+    expect(h(grid(3))).not.toBe(h(grid(3).replace('</div>', `${cell('extra')}</div>`)));
+  });
+
+  it('a changed header fails — the prefix is compared verbatim', () => {
+    expect(h(grid(3))).not.toBe(h(grid(3).replace('class="h2"', 'class="hX"')));
+  });
+
+  it('the closing style in the MIDDLE fails — position is structure', () => {
+    expect(h(grid(3))).not.toBe(h(grid(3, { lastInMiddle: true })));
+  });
+
+  it('and the closing style missing from the last row fails', () => {
+    expect(h(grid(3))).not.toBe(h(grid(3, { noLast: true })));
+  });
+});
