@@ -1,4 +1,13 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const mocks = vi.hoisted(() => ({
+  env: {} as Record<string, string | undefined>,
+}));
+
+vi.mock('astro:env/server', () => ({
+  getSecret: (key: string) => mocks.env[key],
+}));
+
 import { getAdminToken, type AdminTokenPorts } from '@/lib/shopify/admin-token';
 
 function ports(overrides: Partial<AdminTokenPorts> = {}): AdminTokenPorts {
@@ -11,6 +20,18 @@ function ports(overrides: Partial<AdminTokenPorts> = {}): AdminTokenPorts {
 }
 
 describe('getAdminToken', () => {
+  beforeEach(() => {
+    mocks.env = {
+      SHOPIFY_CLIENT_ID: 'test-client-id',
+      SHOPIFY_CLIENT_SECRET: 'test-client-secret',
+    };
+    vi.stubEnv('PUBLIC_SHOPIFY_STORE_DOMAIN', 'test.myshopify.com');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it('returns the cached token without minting a new one', async () => {
     const fetchToken = vi.fn();
 
