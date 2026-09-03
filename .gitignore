@@ -12,3 +12,9 @@ outputs/*
 !outputs/.gitkeep
 admin/.jobs/
 admin/.staged/
+
+# pnpm local content-addressable store (regenerable, matches at any depth)
+.pnpm-store/
+
+# skill-registry cache — regenerated on demand, never source
+.skill-registry.cache.json
