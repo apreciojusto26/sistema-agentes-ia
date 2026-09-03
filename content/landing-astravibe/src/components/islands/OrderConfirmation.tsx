@@ -2,6 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { $cart, clearCart } from '@/stores/cart';
 import { centsToUnits, trackEvent } from '@/lib/analytics';
 import { product } from '@/data/product';
+import { policy, returnsHeadline, shippingLine } from '@/lib/policy';
+
+// Same two policy claims as the checkout form. The delivery step keeps its
+// place in the confirmation timeline either way — dropping a numbered step
+// would misrepresent the process — but states the ETA only when configured.
+const shippingEta = policy ? shippingLine(policy) : null;
+const returnsLine = policy ? returnsHeadline(policy) : null;
 import { ICONS } from '@/lib/icons';
 import { trackCheckoutEvent } from '@/lib/telemetry/client';
 
@@ -162,7 +169,7 @@ export function OrderConfirmation({ paymentRef }: OrderConfirmationProps) {
               title: 'Preparamos tu envío',
               text: `Empaquetamos tu ${product.brand} y te avisamos en cuanto salga.`,
             },
-            { title: 'Llega a tu casa', text: product.shipping.etaLabel + ', con envío gratis a España.' },
+            { title: 'Llega a tu casa', text: shippingEta ? shippingEta + ', con envío gratis a España.' : 'Con envío gratis a España.' },
           ].map((step, index) => (
             <li key={step.title} className="flex gap-3">
               <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-grape-tint font-display text-xs font-bold text-grape">
@@ -186,7 +193,7 @@ export function OrderConfirmation({ paymentRef }: OrderConfirmationProps) {
         <div className="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 text-[0.6875rem] font-medium text-steel">
           <ConfirmationTrustItem icon="lock">Pago seguro</ConfirmationTrustItem>
           <ConfirmationTrustItem icon="truck">Envío gratis a España</ConfirmationTrustItem>
-          <ConfirmationTrustItem icon="shield">{product.guarantee.title}</ConfirmationTrustItem>
+          {returnsLine && <ConfirmationTrustItem icon="shield">{returnsLine}</ConfirmationTrustItem>}
         </div>
       </div>
     );

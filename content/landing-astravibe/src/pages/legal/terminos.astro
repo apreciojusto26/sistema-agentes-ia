@@ -1,9 +1,11 @@
 ---
 import Legal from '@/layouts/Legal.astro';
 import { legal } from '@/data/legal';
-import { product } from '@/data/product';
+import { policy, shippingLine } from '@/lib/policy';
 
 const { identity } = legal;
+const commercialGuaranteeDays = policy?.commercialGuarantee?.days ?? null;
+const eta = policy ? shippingLine(policy).replace('Envío de ', '') : null;
 ---
 
 <Legal
@@ -47,8 +49,9 @@ const { identity } = legal;
 
   <h2>4. Disponibilidad y entrega</h2>
   <p>
-    El plazo estimado de entrega es de <strong>{product.shipping.etaLabel.replace('Envío de ', '')}</strong> desde la
-    confirmación del pedido. Los plazos son estimativos y pueden variar por causas ajenas a nuestra voluntad. Si un
+    {eta
+      ? <Fragment>El plazo estimado de entrega es de <strong>{eta}</strong> desde la confirmación del pedido.</Fragment>
+      : <Fragment>El plazo estimado de entrega se indicará antes de confirmar el pedido.</Fragment>} Los plazos son estimativos y pueden variar por causas ajenas a nuestra voluntad. Si un
     producto no estuviera disponible, te lo comunicaremos y te reembolsaremos el importe íntegro.
   </p>
   <p>Más información en <a href="/legal/envios">envíos y entregas</a>.</p>
@@ -56,9 +59,16 @@ const { identity } = legal;
   <h2>5. Desistimiento y devoluciones</h2>
   <p>
     Dispones de <strong>{legal.withdrawalDays} días naturales</strong> desde la recepción para desistir de la compra sin
-    justificación, conforme al Real Decreto Legislativo 1/2007. Adicionalmente ofrecemos una
-    <strong>garantía de satisfacción de {product.guarantee.days} días</strong>, que amplía voluntariamente ese plazo
-    legal.
+    justificación, conforme al Real Decreto Legislativo 1/2007.{' '}
+    {/* The additional commercial guarantee is stated ONLY when configured. The
+        statutory withdrawal period above is a right and is unaffected either
+        way — the two must never be presented as one promise. */}
+    {commercialGuaranteeDays !== null && (
+      <Fragment>
+        Adicionalmente ofrecemos una <strong>garantía de satisfacción de {commercialGuaranteeDays} días</strong>, que
+        amplía voluntariamente ese plazo legal.
+      </Fragment>
+    )}
   </p>
   <p>Consulta el procedimiento completo en <a href="/legal/devoluciones">devoluciones y desistimiento</a>.</p>
 

@@ -200,8 +200,30 @@ export interface ProductContent {
   ugcStrip: MediaRef[];
   steps: HowToStep[]; // exactly 3, uses the REAL photos
   comparison: ComparisonRow[];
-  guarantee: Guarantee;
-  shipping: { etaLabel: string; freeOverCents: number | null };
+  /**
+   * `guarantee: Guarantee` AND `shipping.etaLabel` WERE HERE. Both were
+   * marketing copy, and both were policy.
+   *
+   * The guarantee object said `days: 30`, "te devolvemos el dinero. Sin
+   * vueltas.", and listed "Devolución simple dentro de los 30 días",
+   * "Reembolso completo, sin preguntas". Nothing configured any of it: the
+   * scraper supplies no returns window and no guarantee, so the 30 and every
+   * condition-implying adjective — "simple", "completo", "sin preguntas" —
+   * were written by whoever wrote the copy. `etaLabel` had the same problem:
+   * "Envío de 8 días hábiles" is a promise the merchant makes, not a fact
+   * about the product.
+   *
+   * Commercial policy now comes from src/data/merchant.ts and is turned into
+   * words in ONE place, src/lib/policy.ts. Change the configured fact and
+   * every surface moves together, because there is a single sentence-builder
+   * per claim — and with no merchant configured there is no policy, so the
+   * surfaces state nothing rather than defaulting to a plausible 30.
+   *
+   * `freeOverCents` STAYS. It is not a promise about returns or delivery: it
+   * is the store's own pricing threshold, which the cart reads to draw its
+   * free-shipping progress. Keeping it here is deliberate, not an oversight.
+   */
+  shipping: { freeOverCents: number | null };
   ugc: MediaRef[]; // strip + RealResults grid
   cta: { primary: string; sticky: string; checkout: string; pending: string; soldOut: string };
   /** Customer-facing label for the 9-value variant option group. NOT `optionName`

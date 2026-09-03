@@ -6,6 +6,12 @@ import { PlaceholderShot } from '@/components/islands/parts/PlaceholderShot';
 import { formatPrice } from '@/lib/format';
 import { ICONS } from '@/lib/icons';
 import { product } from '@/data/product';
+import { policy, returnsHeadline } from '@/lib/policy';
+
+// Was product.guarantee.title — a guarantee headline written as copy.
+// States the configured returns window instead, and nothing when no
+// merchant is configured.
+const returnsLine = policy ? returnsHeadline(policy) : null;
 import type { ProductCommerce } from '@/lib/shopify/types';
 
 interface CartDrawerProps {
@@ -229,7 +235,7 @@ export function CartDrawer({ commerce }: CartDrawerProps) {
                 <svg viewBox={ICONS.shield.viewBox} className="size-3.5 text-gold" aria-hidden="true">
                   <path fill="currentColor" d={ICONS.shield.path} />
                 </svg>
-                {product.guarantee.title}
+                {returnsLine}
               </span>
             </div>
           </div>

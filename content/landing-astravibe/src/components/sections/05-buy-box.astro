@@ -4,6 +4,7 @@ import { getProductCommerce } from '@/lib/shopify/catalog';
 import Stars from '@/components/ui/Stars.astro';
 import PaymentLogos from '@/components/ui/PaymentLogos.astro';
 import { product } from '@/data/product';
+import { policy, returnsHeadline, shippingLine } from '@/lib/policy';
 
 const commerce = await getProductCommerce();
 
@@ -12,6 +13,13 @@ const giftThresholdUnits = popularPack?.units ?? 2;
 // Nullable: a product whose listing published no rating makes no rating claim
 // here. No `?? 0` — a zeroed average rendered as stars would be a fabricated
 // verdict, and a worse one than the missing line it replaced.
+// The two trust lines under the payment logos are POLICY, not copy. They were
+// product.shipping.etaLabel and product.guarantee.title — a delivery promise
+// and a guarantee headline, both written by whoever wrote the copy. In preview
+// there is no merchant, so neither line is stated at all.
+const shippingEta = policy ? shippingLine(policy) : null;
+const returnsLine = policy ? returnsHeadline(policy) : null;
+
 const rating = product.ratingAverage;
 const ratingLabel = rating === null ? null : rating.toFixed(1).replace('.', ',');
 const ratingCountLabel =
@@ -61,16 +69,20 @@ const ratingCountLabel =
     <PaymentLogos />
 
     <div class="mt-4 space-y-1.5 text-xs text-steel">
+      {shippingEta && (
       <p class="flex items-center gap-1.5">
         <svg viewBox="0 0 24 24" class="size-4 text-grape" aria-hidden="true">
         <path fill="currentColor" d="M3 6a1 1 0 011-1h9a1 1 0 011 1v3h2.5a1 1 0 01.8.4l2.5 3.33a1 1 0 01.2.6V16a1 1 0 01-1 1h-1.17a2.5 2.5 0 01-4.66 0H9.83a2.5 2.5 0 01-4.66 0H4a1 1 0 01-1-1V6z"/>
       </svg>
-        {product.shipping.etaLabel}
+        {shippingEta}
       </p>
+      )}
+      {returnsLine && (
       <p class="flex items-center gap-1.5">
         <svg viewBox="0 0 24 24" class="size-4 text-gold" aria-hidden="true"><path fill="currentColor" d="M12 2l8 3.5v5.25c0 5.06-3.4 9.62-8 11.25-4.6-1.63-8-6.19-8-11.25V5.5L12 2z"/></svg>
-        {product.guarantee.title}
+        {returnsLine}
       </p>
+      )}
     </div>
     </div>
   </div>

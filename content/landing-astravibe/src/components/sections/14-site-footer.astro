@@ -2,6 +2,7 @@
 import Container from '@/components/ui/Container.astro';
 import { product } from '@/data/product';
 import { legal } from '@/data/legal';
+import { policy, returnsHeadline } from '@/lib/policy';
 
 /**
  * Every entry resolves to a real destination — an anchor on the storefront or
@@ -37,6 +38,8 @@ const columns = [
   },
 ];
 
+const returnsFooterLine = policy ? returnsHeadline(policy) : null;
+
 const year = new Date().getFullYear();
 ---
 
@@ -51,9 +54,12 @@ const year = new Date().getFullYear();
         >
           {product.brand}<span class="align-super text-[0.6em] text-grape">™</span>
         </a>
+        {/* "Garantía de N días" read product.guarantee.days — a number nothing
+            configured. It states the RETURNS window now, from merchant config,
+            and says nothing at all when no merchant is configured. The free
+            shipping line stays: shipping.freeOverCents:0 makes it true. */}
         <p class="mt-2 leading-relaxed text-bone/50">
-          Envío gratis a España<br />
-          Garantía de {product.guarantee.days} días
+          Envío gratis a España{returnsFooterLine && <><br />{returnsFooterLine}</>}
         </p>
       </div>
       {

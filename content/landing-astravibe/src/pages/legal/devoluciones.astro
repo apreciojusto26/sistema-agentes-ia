@@ -1,9 +1,10 @@
 ---
 import Legal from '@/layouts/Legal.astro';
 import { legal } from '@/data/legal';
-import { product } from '@/data/product';
+import { policy } from '@/lib/policy';
 
 const { identity } = legal;
+const commercialGuaranteeDays = policy?.commercialGuarantee?.days ?? null;
 ---
 
 <Legal
@@ -25,10 +26,17 @@ const { identity } = legal;
         <td><strong>{legal.withdrawalDays} días</strong></td>
         <td>Derecho legal de desistimiento (RDL 1/2007). Puedes devolver sin dar explicaciones.</td>
       </tr>
+      {/* The COMMERCIAL guarantee row, and only when one is configured. It is
+          an additional, voluntary promise — separate from the statutory
+          withdrawal period above, which is a right and is never conditional on
+          it. Reading `product.guarantee.days` made this table state a promise
+          nobody had configured, next to a legal right that was real. */}
+      {commercialGuaranteeDays !== null && (
       <tr>
-        <td><strong>{product.guarantee.days} días</strong></td>
+        <td><strong>{commercialGuaranteeDays} días</strong></td>
         <td>Nuestra garantía de satisfacción. Ampliación voluntaria del plazo legal.</td>
       </tr>
+      )}
     </tbody>
   </table>
   <p>

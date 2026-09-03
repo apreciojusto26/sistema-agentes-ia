@@ -1,30 +1,92 @@
 ---
+// THE POLICY SECTION. Facts from merchant config, words derived from facts.
+//
+// ─── WHAT IT USED TO READ ─────────────────────────────────────────────────
+//
+// `product.guarantee` — days, title, text and a three-point list, all copy.
+// It rendered "Garantía de 30 días", "te devolvemos el dinero. Sin vueltas.",
+// and promised a "Devolución simple", a "Reembolso completo" and one "sin
+// preguntas". Nothing configured the 30 and nothing supported a single one of
+// those conditions; they are exactly the adjectives lib/policy.ts refuses to
+// derive, because no field states them.
+//
+// ─── THE DISTINCTION THIS SECTION NOW KEEPS ───────────────────────────────
+//
+// A RETURNS WINDOW is what the merchant configured. A COMMERCIAL GUARANTEE is
+// an ADDITIONAL promise, optional, and absent unless configured — absent means
+// absent, never 30. Collapsing the two is how a page ends up claiming a
+// guarantee it never made. So the headline states returns, and the guarantee
+// line appears only when there is one.
+//
+// ─── PREVIEW RENDERS NOTHING ──────────────────────────────────────────────
+//
+// With no merchant there are no policy facts, and a policy section with no
+// facts is decoration that invites a default. The section is omitted whole
+// rather than shown empty. This is a structural change the fingerprint must
+// see, and it is the correct one: a preview landing genuinely has no policy
+// to state.
+//
+// ─── THE SHELL IS PRESERVED ───────────────────────────────────────────────
+//
+// Same id, same surface, same rhythm, same seal, same centred container, same
+// three-column grid of icon-over-text cells. Only the sentences changed, and
+// the cells are now built from facts instead of a copy array.
 import Container from '@/components/ui/Container.astro';
 import { ICONS } from '@/lib/icons';
-import { product } from '@/data/product';
+import {
+  policy,
+  returnsHeadline,
+  returnShippingLine,
+  commercialGuaranteeHeadline,
+  shippingLine,
+} from '@/lib/policy';
 
 const shield = ICONS.shield;
-const { guarantee } = product;
+const facts = policy;
+
+// Derived once so the section cannot disagree with itself.
+const headline = facts ? returnsHeadline(facts) : null;
+const guaranteeLine = facts ? commercialGuaranteeHeadline(facts) : null;
+
+// The three cells that replaced `guarantee.points`. Each is a configured fact
+// rendered as a sentence — who pays the return leg, how long delivery takes,
+// and the additional guarantee IF one exists. The list is built, not written,
+// so it can never grow a claim nobody configured.
+const cells = facts
+  ? [returnShippingLine(facts), shippingLine(facts), ...(guaranteeLine ? [guaranteeLine] : [])]
+  : [];
 ---
 
-<section id="garantia" class="scroll-mt-4 bg-gold-tint py-12 md:py-16">
-  <Container class="text-center">
-    <img src="/sello-garantia.webp" width="112" height="112" alt={`Sello de garantía de ${guarantee.days} días`} class="mx-auto size-28" loading="lazy" decoding="async" />
+{
+  facts && headline && (
+    <section id="garantia" class="scroll-mt-4 bg-gold-tint py-12 md:py-16">
+      <Container class="text-center">
+        {/* alt describes the seal, not a day count it would otherwise have to
+            invent when no commercial guarantee is configured. */}
+        <img
+          src="/sello-garantia.webp"
+          width="112"
+          height="112"
+          alt="Sello de garantía"
+          class="mx-auto size-28"
+          loading="lazy"
+          decoding="async"
+        />
 
-    <h2 class="mt-4 text-display md:text-4xl">{guarantee.title}</h2>
-    <p class="mx-auto mt-2 max-w-md text-sm text-steel">{guarantee.text}</p>
+        <h2 class="mt-4 text-display md:text-4xl">{headline}</h2>
+        <p class="mx-auto mt-2 max-w-md text-sm text-steel">{returnShippingLine(facts)}</p>
 
-    <div class="mx-auto mt-8 grid max-w-lg grid-cols-1 gap-3 sm:grid-cols-3">
-      {
-        guarantee.points.map((point) => (
-          <div class="flex flex-col items-center gap-2 text-xs text-graphite">
-            <svg viewBox={shield.viewBox} class="size-6 text-gold" aria-hidden="true">
-              <path fill="currentColor" d={shield.path} />
-            </svg>
-            <span>{point}</span>
-          </div>
-        ))
-      }
-    </div>
-  </Container>
-</section>
+        <div class="mx-auto mt-8 grid max-w-lg grid-cols-1 gap-3 sm:grid-cols-3">
+          {cells.map((cell) => (
+            <div class="flex flex-col items-center gap-2 text-xs text-graphite">
+              <svg viewBox={shield.viewBox} class="size-6 text-gold" aria-hidden="true">
+                <path fill="currentColor" d={shield.path} />
+              </svg>
+              <span>{cell}</span>
+            </div>
+          ))}
+        </div>
+      </Container>
+    </section>
+  )
+}

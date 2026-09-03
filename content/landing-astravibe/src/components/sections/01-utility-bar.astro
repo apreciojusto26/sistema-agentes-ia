@@ -1,7 +1,19 @@
 ---
 import { product } from '@/data/product';
+import { policy, policyTickerItems } from '@/lib/policy';
 
-const ticker = product.trustTicker;
+// TWO AUTHORITIES, CONCATENATED HERE RATHER THAN MERGED UPSTREAM.
+//
+// `product.trustTicker` is copy and comes from whoever writes copy.
+// `policyTickerItems()` is derived from merchant config and comes from nobody.
+// Joining them at the render is what keeps a policy claim from being written
+// into a copy array — which is how "Garantía de 30 días" ended up scrolling
+// across the top of /legal/devoluciones while that page's body stated the
+// configured window instead.
+//
+// In PREVIEW there is no merchant, so there is no policy half and the bar
+// carries product copy alone. It does not fall back to a plausible default.
+const ticker = [...product.trustTicker, ...(policy ? policyTickerItems(policy) : [])];
 ---
 
 <div class="sticky top-0 z-50 flex h-9 items-center gap-6 overflow-hidden bg-gradient-to-r from-violet-950 via-purple-800 to-purple-700 px-5 text-[0.75rem] font-bold text-white">

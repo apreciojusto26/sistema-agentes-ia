@@ -2,6 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '@nanostores/react';
 import { $cart } from '@/stores/cart';
 import { product } from '@/data/product';
+import { policy, returnsHeadline, shippingLine } from '@/lib/policy';
+
+// Checkout trust row: both items were copy asserting policy — a delivery
+// promise and a guarantee headline. Derived from merchant config now, and
+// omitted entirely in preview rather than defaulted.
+const shippingEta = policy ? shippingLine(policy) : null;
+const returnsLine = policy ? returnsHeadline(policy) : null;
 import { formatPrice } from '@/lib/format';
 import { ICONS } from '@/lib/icons';
 import { validateCheckoutForm, type CheckoutFormData, type CheckoutFormField } from '@/lib/checkout/validation';
@@ -338,7 +345,7 @@ export function CheckoutForm({ commerce }: CheckoutFormProps) {
           </div>
           <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs font-medium text-steel">
             {hasFreeShipping && <TrustItem icon="truck">Envío gratis a España</TrustItem>}
-            <TrustItem icon="clock">{product.shipping.etaLabel}</TrustItem>
+            {shippingEta && <TrustItem icon="clock">{shippingEta}</TrustItem>}
           </div>
         </section>
 
@@ -412,7 +419,7 @@ function TrustSignals({ hasFreeShipping }: { hasFreeShipping: boolean }) {
     <div className="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 text-[0.6875rem] font-medium text-steel">
       <TrustItem icon="lock">Pago seguro</TrustItem>
       {hasFreeShipping && <TrustItem icon="truck">Envío gratis a España</TrustItem>}
-      <TrustItem icon="shield">{product.guarantee.title}</TrustItem>
+      {returnsLine && <TrustItem icon="shield">{returnsLine}</TrustItem>}
     </div>
   );
 }

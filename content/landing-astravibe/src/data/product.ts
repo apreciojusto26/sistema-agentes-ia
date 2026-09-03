@@ -40,7 +40,11 @@ export const product = {
   // numbers were written by hand — no source publishes them and no average can
   // imply them. See the note in types/content.ts.
 
-  badges: ['Envío gratis', 'Cable USB incluido', 'Garantía 30 días'],
+  // 'Garantía 30 días' LEFT THIS LIST. A badge is copy, and copy may not
+  // assert a policy: the 30 was never configured anywhere. The guarantee claim
+  // now appears only where lib/policy.ts derives it from merchant config, and
+  // only when a merchant actually configured one.
+  badges: ['Envío gratis', 'Cable USB incluido'],
 
   // '+120 reseñas de 5 estrellas' WAS THE THIRD ITEM AND WAS REMOVED.
   //
@@ -53,10 +57,22 @@ export const product = {
   //
   // Removing an entry changes the rendered element count: this marquee maps
   // the array to <span>s, twice. Recorded as an approved F2 canonicalization.
+  // 'Garantía de 30 días' LEFT THIS LIST TOO, for the same reason and with a
+  // sharper edge: the ticker renders in the UtilityBar on EVERY page, so
+  // /legal/devoluciones showed "Garantía de 30 días" in its own header while
+  // its body read the configured window. One page, two numbers, both about the
+  // same promise.
+  //
+  // What remains is product copy. The POLICY half of the ticker is appended at
+  // the render by policyTickerItems() — see 01-utility-bar.astro — so the two
+  // authorities stay visibly separate instead of being one array a model can
+  // write policy into.
+  //
+  // 'Envío gratis a España' STAYS: `shipping.freeOverCents: 0` is a configured
+  // commerce fact that makes it true unconditionally.
   trustTicker: [
     'Envío gratis a España',
     'Pago 100% seguro',
-    'Garantía de 30 días',
     'Hasta 24 proyecciones intercambiables',
   ],
 
@@ -280,19 +296,15 @@ export const product = {
     { feature: 'Material ABS resistente', ours: true, rival: true },
   ],
 
-  guarantee: {
-    days: 30,
-    title: 'Garantía de 30 días',
-    text: 'Si AstraVibe no supera tus expectativas, te devolvemos el dinero. Sin vueltas.',
-    points: [
-      'Devolución simple dentro de los 30 días',
-      'Reembolso completo, sin preguntas',
-      'Atención al cliente en español',
-    ],
-  },
+  // `guarantee` WAS HERE — days:30, "te devolvemos el dinero. Sin vueltas.",
+  // and three bullet points promising a "simple" return, a "completo" refund
+  // "sin preguntas", and Spanish-language support. Nothing configured any of
+  // it. So was `shipping.etaLabel: 'Envío de 8 días hábiles'`. Both are
+  // merchant policy now: src/data/merchant.ts holds the facts and
+  // src/lib/policy.ts turns them into the one set of sentences every surface
+  // shares. See the note in types/content.ts.
 
   shipping: {
-    etaLabel: 'Envío de 8 días hábiles',
     // 0 = free on EVERY order, no minimum — shipping cost and margin are
     // already priced INTO the product, so there is nothing left to recover at
     // checkout. Also keeps the summary consistent with the unconditional

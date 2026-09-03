@@ -1,10 +1,14 @@
 ---
 import Legal from '@/layouts/Legal.astro';
 import { legal } from '@/data/legal';
-import { product } from '@/data/product';
+import { policy, shippingLine } from '@/lib/policy';
 
 const { identity } = legal;
-const eta = product.shipping.etaLabel.replace('Envío de ', '');
+// Was product.shipping.etaLabel — a delivery promise written as product copy.
+// A legal page stating a delivery term it read from marketing is the exact
+// shape of claim this layer exists to stop. `null` in preview: the section
+// below says the term is pending configuration rather than inventing one.
+const eta = policy ? shippingLine(policy).replace('Envío de ', '') : null;
 ---
 
 <Legal title="Envíos y entregas" description="Plazos, costes y cobertura de los envíos.">
