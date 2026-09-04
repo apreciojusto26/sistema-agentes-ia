@@ -147,10 +147,18 @@ describe('merchant facts are configured, never invented', () => {
     // `commercialGuaranteeDays` is OPTIONAL, and that is the point: a
     // satisfaction guarantee is NOT the returns window and is not implied by
     // it. Absent means the merchant configured none — never 30.
+    //
+    // `freeShippingOverCents` JOINED THEM IN F3, and the reason is the same
+    // shape as shippingEtaLabel's. It used to arrive through content.json,
+    // which made a language model the author of a commercial threshold — and a
+    // model asked for one supplies a confident 4900 for a store that offers no
+    // free shipping at all. It is OPTIONAL because absence is a real answer:
+    // no threshold, no progress bar, no claim.
     expect(merchantLib.MERCHANT_OPTIONAL_FIELDS).toEqual([
-      'dataControllerEmail', 'commercialGuaranteeDays',
+      'dataControllerEmail', 'commercialGuaranteeDays', 'freeShippingOverCents',
     ]);
     expect(merchantLib.MERCHANT_REQUIRED_FIELDS).not.toContain('commercialGuaranteeDays');
+    expect(merchantLib.MERCHANT_REQUIRED_FIELDS).not.toContain('freeShippingOverCents');
   });
 
   test('an absent config is reported, not defaulted', () => {

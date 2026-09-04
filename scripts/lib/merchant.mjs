@@ -57,6 +57,28 @@
 //                        sentence, so it is not given a third enum value that
 //                        would render as a half-truth.
 //
+//   freeShippingOverCents  OPTIONAL. The order total above which this STORE
+//                        ships free, in cents. `0` means free on every order;
+//                        ABSENT MEANS THE MERCHANT OFFERS NO THRESHOLD, and
+//                        the cart then draws no free-shipping progress bar and
+//                        claims nothing.
+//
+//                        IT LIVES HERE BECAUSE IT IS A PRICING DECISION, not a
+//                        sentence about the product. It reached the landing
+//                        through content.json until F3, which made a model the
+//                        author of a commercial threshold — and a model asked
+//                        for one supplies a confident 4900 for a store that
+//                        offers no free shipping at all. The Version A seal in
+//                        contract.commercial-policy.test.ts forbids the word
+//                        'shipping' in content-contract.mjs precisely to keep
+//                        that door shut, and it is right to.
+//
+//                        NOT EXPOSED ON THE RENDERED `Merchant` OBJECT. The
+//                        legal pages do not state it; the cart does, through
+//                        product.ts's `shipping.freeOverCents` slot, which the
+//                        Fixed assembler fills FROM HERE. One render copy, one
+//                        author — see normalizeMerchant below.
+//
 //   commercialGuaranteeDays  OPTIONAL. A satisfaction/money-back guarantee is
 //                        NOT the returns window and is not implied by it.
 //                        ABSENT MEANS ABSENT — the merchant has not configured
@@ -65,7 +87,7 @@
 //                        the landing used to assert a 30-day "garantía" that no
 //                        one had configured, while the returns page said 14.
 //
-// So: 9 required, 2 optional.
+// So: 9 required, 3 optional.
 
 export const MERCHANT_REQUIRED_FIELDS = [
   'legalName',
@@ -79,7 +101,11 @@ export const MERCHANT_REQUIRED_FIELDS = [
   'returnShippingPaidBy',
 ];
 
-export const MERCHANT_OPTIONAL_FIELDS = ['dataControllerEmail', 'commercialGuaranteeDays'];
+export const MERCHANT_OPTIONAL_FIELDS = [
+  'dataControllerEmail',
+  'commercialGuaranteeDays',
+  'freeShippingOverCents',
+];
 
 export const MERCHANT_ALL_FIELDS = [...MERCHANT_REQUIRED_FIELDS, ...MERCHANT_OPTIONAL_FIELDS];
 
@@ -96,6 +122,7 @@ export const MERCHANT_FIELD_PAGES = {
   returnShippingPaidBy: 'devoluciones',
   dataControllerEmail: 'privacidad',
   commercialGuaranteeDays: 'la sección Guarantee, cuando el merchant la configura',
+  freeShippingOverCents: 'la barra de envío gratis del carrito y del checkout',
 };
 
 /** Who bears the cost of the return leg. Closed domain — see the field audit. */
@@ -178,6 +205,24 @@ export function collectMerchantIssues(input) {
     }
   }
 
+  // A threshold in CENTS, and `0` is meaningful here in a way it is not for a
+  // guarantee: it means free shipping on every order. Negative is nonsense and
+  // a float would render a fractional cent, so both are rejected rather than
+  // rounded — a silently rounded price is how a store advertises a number it
+  // does not honour.
+  if (input.freeShippingOverCents !== undefined && input.freeShippingOverCents !== null) {
+    const n = input.freeShippingOverCents;
+    if (!Number.isInteger(n) || n < 0) {
+      issues.push({
+        code: 'merchant-field-invalid',
+        field: 'freeShippingOverCents',
+        message:
+          'merchant.freeShippingOverCents must be a non-negative integer number of cents when present ' +
+          `(0 = free on every order), got ${JSON.stringify(n)}`,
+      });
+    }
+  }
+
   // Closed domain. A free string here would put whatever someone typed onto the
   // returns page as a statement of who pays.
   if (input.returnShippingPaidBy !== undefined) {
@@ -235,9 +280,31 @@ export function isMerchantComplete(input) {
 }
 
 /**
+ * The store's free-shipping threshold, in cents, or `null` when it offers none.
+ *
+ * READ THIS RATHER THAN THE RAW OBJECT. `undefined` and `null` are the same
+ * answer — the merchant configured no threshold — and callers that check only
+ * one of them are how "no free shipping" turns into a progress bar to nowhere.
+ *
+ * @param {unknown} input a merchant config, or null
+ * @returns {number | null}
+ */
+export function merchantFreeShippingOverCents(input) {
+  if (!input || typeof input !== 'object') return null;
+  const v = input.freeShippingOverCents;
+  return v === undefined || v === null ? null : v;
+}
+
+/**
  * Normalises for the renderer. `dataControllerEmail` falls back to
  * `contactEmail` — the only derivation in this module, and it is stated on the
  * privacy page rather than silently substituted.
+ *
+ * `freeShippingOverCents` IS DELIBERATELY ABSENT from the result. It is a valid
+ * merchant config field, but the legal pages never state it — the cart does,
+ * through product.ts's `shipping.freeOverCents`, which the Fixed assembler
+ * fills from this same config. Emitting it here too would put one number in two
+ * generated modules, and two copies of a price is how they drift.
  */
 export function normalizeMerchant(input) {
   if (!input) return null;

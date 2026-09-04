@@ -17,6 +17,7 @@ import { DEFAULT_ERRORS, ContentContractError, validateContent } from './lib/con
 import { isProductId } from './lib/product-id.cjs';
 import { buildFaviconSvg, buildFaviconIco, pickForeground } from './lib/favicon.mjs';
 import { collectMerchantIssues, normalizeMerchant, MERCHANT_REQUIRED_FIELDS } from './lib/merchant.mjs';
+import { assembleFixedProductData, FixedAssemblyError } from './lib/fixed-product-data.mjs';
 import { isShopifyHandle } from './lib/shopify-handle.mjs';
 import { FIXED_TEMPLATE_RELATIVE } from './lib/fixed-template.mjs';
 import { writeLandingGitignore, initLandingRepo } from './lib/landing-scaffold.mjs';
@@ -217,7 +218,82 @@ function writeEnvKey(envPath, key, value, headerLines = []) {
   );
 }
 
-function buildProductTs(product, shopifyHandle) {
+/**
+ * Fills in the three BOOLEAN pack flags that `as const` turns into a trap.
+ *
+ * PricePack declares `popular?`, `default?` and `freeGift?` as optional, and a
+ * Content Agent reading that type will reasonably omit them on the packs where
+ * they do not apply. But the generated src/data/product.ts ends in
+ * `as const satisfies Product`, and `as const` does not widen: each pack keeps
+ * its own literal type, so `product.packs` becomes a union whose members do not
+ * share those keys. Then 05-buy-box.astro's `packs.find((p) => p.popular)` —
+ * perfectly valid against PricePack — fails to compile against the union.
+ *
+ * The template's own product.ts never hit this because both of its packs happen
+ * to spell out `popular` and `default`. That is an undeclared invariant, and an
+ * invariant nothing enforces is one every generated product gets to violate.
+ *
+ * Only the booleans are filled: `false` is a real answer to "is this the
+ * popular pack". `sublabel`, `badge` and `discountPercent` are left omitted,
+ * because there is no honest default for a string or a discount, and their read
+ * sites are inside islands where the `PricePack[]` prop type widens anyway.
+ */
+function normalizePacks(packs) {
+  return packs.map((pack) => ({
+    ...pack,
+    popular: pack.popular ?? false,
+    default: pack.default ?? false,
+    freeGift: pack.freeGift ?? false,
+  }));
+}
+
+/**
+ * Splits content.json into the two authorities that were tangled inside it.
+ *
+ * THE SPLIT IS THE POINT. content.json is the Content Agent's document, but it
+ * has always also carried `gallery` — which photographs the landing shows.
+ * That is an asset decision wearing a content field's clothes, and while the
+ * two travelled in one object nothing could tell them apart.
+ *
+ * So the provenance is made explicit HERE, at the one place that has both, and
+ * the assembler downstream refuses a content output that still carries media.
+ * The historical fixtures keep working unchanged: they hand this function a
+ * mixed document and it does the separating, which is exactly the job a
+ * boundary exists to do.
+ */
+function splitContentSources(product, canonicalProduct) {
+  const { gallery, ...contentOutput } = product;
+
+  // heroExtras are the product's OWN clips, and they come from the scrape's
+  // video media — which TODAY IS ALWAYS EMPTY: CanonicalProduct.media.videos is
+  // typed `[]` and product-normalizer.mjs never populates it.
+  //
+  // That empty list is not the silent default it replaces. Before this split
+  // the field was UNREACHABLE — the generator read `product.heroExtras ?? []`
+  // while the content contract rejected any content.json that carried it, so
+  // the fallback was the only branch there was. Now it is the asset pipeline
+  // stating, on the record, that this product has no clips; the moment the
+  // scraper supplies video it fills with no further change.
+  const videos = Array.isArray(canonicalProduct?.media?.videos) ? canonicalProduct.media.videos : [];
+  const toRef = (v) => ({ asset: typeof v === 'string' ? v : (v?.localPath ?? v?.src ?? ''), kind: 'video' });
+
+  return {
+    contentOutput,
+    assetOutput: {
+      gallery: gallery ?? [],
+      heroExtras: videos.map(toRef),
+      // ALWAYS EMPTY, and not for want of a source. `ugcStrip` is customer
+      // media — someone else's photograph of the thing they bought — and this
+      // pipeline has no channel that collects it. Filling it from the
+      // catalogue shots would present the seller's own product photography as
+      // customer content, which is the review-fabrication defect F2 removed,
+      // wearing different clothes.
+      ugcStrip: [],
+    },
+  };
+}
+
+function buildProductTs(product, shopifyHandle, fixed) {
   const errors = product.errors ?? DEFAULT_ERRORS;
   const lines = [
     `import type { Product } from '@/types/content';`,
@@ -262,9 +338,13 @@ function buildProductTs(product, shopifyHandle) {
     ``,
     `  specs: ${serialize(product.specs, 2, 1)},`,
     ``,
-    `  packs: ${serialize(product.packs, 2, 1)},`,
+    `  packs: ${serialize(normalizePacks(fixed.commercial.packs), 2, 1)},`,
     ``,
-    `  gallery: ${serialize(product.gallery, 2, 1)},`,
+    // FROM THE ASSEMBLER, not from content.json. The value is the same one the
+    // Content Agent's document carried, but it now arrives having passed
+    // through the media authority — and a content output that tried to set it
+    // directly would have been rejected before reaching here.
+    `  gallery: ${serialize(fixed.media.gallery, 2, 1)},`,
     ``,
     `  steps: ${serialize(product.steps, 2, 1)},`,
     ``,
@@ -281,11 +361,18 @@ function buildProductTs(product, shopifyHandle) {
     // THESE THREE ARE NEW, and each is read by a section the Fixed page really
     // renders: the hero's own clips, the scrolling strip, and the store's
     // free-shipping threshold that the cart reads for its progress bar.
-    `  heroExtras: ${serialize(product.heroExtras ?? [], 2, 1)},`,
+    //
+    // EACH ONE NOW HAS AN AUTHOR. They used to be read off content.json as
+    // `?? []` while the content contract rejected any document that supplied
+    // them, so the fallback was the only reachable branch and every generated
+    // landing shipped the same three empty answers. The media pair comes from
+    // the asset pipeline and the threshold from merchant config; whether they
+    // are empty is now a statement by the layer that would know.
+    `  heroExtras: ${serialize(fixed.media.heroExtras, 2, 1)},`,
     ``,
-    `  ugcStrip: ${serialize(product.ugcStrip ?? [], 2, 1)},`,
+    `  ugcStrip: ${serialize(fixed.media.ugcStrip, 2, 1)},`,
     ``,
-    `  shipping: ${serialize(product.shipping ?? { freeOverCents: null }, 2, 1)},`,
+    `  shipping: ${serialize({ freeOverCents: fixed.commercial.freeShippingOverCents }, 2, 1)},`,
     ``,
     `  cta: ${serialize(product.cta, 2, 1)},`,
     `} as const satisfies Product;`,
@@ -326,6 +413,22 @@ const CSS_VAR_MAP = {
 // --- copy (excludes build artifacts / secrets, never touches locked paths)
 
 const EXCLUDE_DIRS = new Set(['node_modules', 'dist', '.astro', '.vercel', '.git']);
+/**
+ * Build output under any name, not just `dist`.
+ *
+ * The A/B fingerprint harness writes `dist-ab-{a,b}-{preview,commerce}/` inside
+ * the template. Those are gitignored, so they never showed up in a diff — and
+ * they were being copied verbatim into every generated landing, where `astro
+ * check` then walked minified React bundles and reported warnings against code
+ * the operator never wrote.
+ */
+const EXCLUDE_DIR_PATTERN = /^dist(-|$)/;
+/**
+ * The template's alternate Astro configs alias `src/data/*` onto files under
+ * `test-fixtures/`, which copyTemplate already refuses to copy. Shipping a
+ * config that resolves to nothing is the same defect as shipping the tests.
+ */
+const EXCLUDE_FILE_PATTERN = /^astro\.config\..+\.mjs$/;
 const EXCLUDE_FILES = new Set(['.env', '.DS_Store']);
 
 /**
@@ -404,8 +507,10 @@ function copyTemplate(dest) {
     recursive: true,
     filter: (src) => {
       const base = path.basename(src);
-      if (EXCLUDE_DIRS.has(base) && statSync(src).isDirectory()) return false;
+      const isDir = statSync(src).isDirectory();
+      if (isDir && (EXCLUDE_DIRS.has(base) || EXCLUDE_DIR_PATTERN.test(base))) return false;
       if (EXCLUDE_FILES.has(base)) return false;
+      if (!isDir && EXCLUDE_FILE_PATTERN.test(base)) return false;
       // The template's own contract tests are DEVELOPMENT artefacts of the
       // generator, not part of a shipped landing. Copying them also broke
       // portability outright: renderer.integration.test.ts imports a fixture
@@ -556,6 +661,13 @@ function main() {
         );
       }
       parsed.__merchant = normalizeMerchant(merchantRaw);
+      // The RAW config is kept alongside the normalised one because they answer
+      // different questions. `__merchant` is what merchant.ts renders for the
+      // legal pages; `__merchantConfig` is the operator's commercial
+      // configuration, and it is where the Fixed assembler reads the
+      // free-shipping threshold from. normalizeMerchant deliberately drops that
+      // field so the number exists in exactly one generated module.
+      parsed.__merchantConfig = merchantRaw;
     }
 
 
@@ -683,7 +795,49 @@ function main() {
   }
 
   withStage('write-data', () => {
-    writeFileSync(path.join(outDir, 'src/data/product.ts'), buildProductTs(input.product, args.shopifyHandle));
+    // THE ASSEMBLY BOUNDARY. Every field written below arrives having been
+    // attributed to the authority allowed to state it.
+    //
+    // The CanonicalProduct is PRE-READ here rather than validated: --product's
+    // real gate, with its own fail codes, still runs in the copy-images stage
+    // exactly where it did, and moving it would change the failure ordering
+    // that contract.generate-landing.test.ts pins. This read only needs the
+    // media list, and a document too broken to parse simply yields null and is
+    // rejected properly a few stages later.
+    let canonicalProduct = null;
+    if (args.productJson && existsSync(args.productJson)) {
+      try {
+        canonicalProduct = JSON.parse(readFileSync(args.productJson, 'utf-8'));
+      } catch {
+        canonicalProduct = null;
+      }
+    }
+
+    const { contentOutput, assetOutput } = splitContentSources(input.product, canonicalProduct);
+    let fixed;
+    try {
+      fixed = assembleFixedProductData({
+        // Without --product the scrape is not part of this generation at all,
+        // and identity falls back to the content document's own factual
+        // fields. That is the legacy path, not the Fixed one.
+        canonicalProduct: canonicalProduct ?? { identity: { brand: input.product.brand, name: input.product.name } },
+        contentOutput,
+        assetOutput,
+        merchantConfig: input.__merchantConfig ?? null,
+        // Preview is the ABSENCE of a link. --shopify-handle names the product
+        // but carries neither shop nor storefront, which are server-side
+        // configuration — so it cannot construct one, and F3C wires the real
+        // link through its own argument.
+        shopifyProductLink: null,
+      });
+    } catch (err) {
+      if (err instanceof FixedAssemblyError) {
+        fail(`FixedProductData assembly rejected: ${err.issues.map((i) => i.message).join(' | ')}`, err.issues[0].code);
+      }
+      throw err;
+    }
+
+    writeFileSync(path.join(outDir, 'src/data/product.ts'), buildProductTs(input.product, args.shopifyHandle, fixed));
     writeFileSync(path.join(outDir, 'src/data/faq.ts'), buildFaqTs(input.faq));
     writeFileSync(path.join(outDir, 'src/data/testimonials.ts'), buildTestimonialsTs(input.testimonials));
 
