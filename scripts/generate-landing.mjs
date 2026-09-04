@@ -824,6 +824,8 @@ async function main() {
   let packsConfigured = false;
   /** The real asset production, when a scrape drove it. Reused by copy-images. */
   let producedAssets = null;
+  /** Set when the template's social cover was removed for want of a PNG. */
+  let ogCoverRemoved = null;
   /** The operator's palette, or null. Read once, applied in patch-theme. */
   const themeOverride = input.__theme ?? null;
   /**
@@ -1021,6 +1023,7 @@ async function main() {
 
   const todos = [];
 
+
   // SAID OUT LOUD, never papered over. FIXED_GRAMMAR seals buy/packs at min 1
   // with zero: 'invalid-input', so a landing with no bundles does not pass
   // structural validation. Packs are merchant configuration now, and the only
@@ -1128,6 +1131,33 @@ async function main() {
         // stock: resolveMedia() looks every `asset` ref up here, and returns
         // an EMPTY placeholder for a key it cannot find.
         writeFileSync(path.join(outDir, 'src/data/images.ts'), buildImagesModule(plan));
+
+        // THE SOCIAL PREVIEW.
+        //
+        // Every landing shipped the template's og-cover.png, so a pillow posted
+        // to WhatsApp previewed as AstraVibe's star projector — someone else's
+        // product, on a link claiming to be yours.
+        //
+        // Base.astro requests a FIXED `/og-cover.png` and that file lives under
+        // content/landing-astravibe/src/layouts, which scope-boundaries
+        // protects alongside kv.ts, shopify and the API routes. So the head
+        // cannot be pointed elsewhere, and this repo has no raster transcoder
+        // to turn a scraped JPEG into a PNG — nor may it grow one during a
+        // product generation.
+        //
+        // What is left is the rule already established for the brand mark:
+        // ABSENCE BEATS THE WRONG IDENTITY. A PNG passes straight through; any
+        // other format means the template's cover is DELETED rather than
+        // shipped, and the operator is told. A missing preview is honest; a
+        // competitor's product is not.
+        const ogSource = plan.assets[0];
+        const ogTarget = path.join(outDir, 'public/og-cover.png');
+        if (ogSource && path.extname(ogSource.dest).toLowerCase() === '.png') {
+          cpSync(ogSource.srcPath, ogTarget);
+        } else if (existsSync(ogTarget)) {
+          rmSync(ogTarget);
+          ogCoverRemoved = ogSource ? path.extname(ogSource.dest) : null;
+        }
 
         // PROVENANCE, WRITTEN DOWN. Enough to prove no file was invented: each
         // copied asset tied back to the source reference the scrape recorded,
@@ -1309,6 +1339,18 @@ async function main() {
       todos.push(
         'PREVIEW MODE — no --shopify-handle was passed, so this landing is NOT buyable. It builds and previews ' +
           'with real content, design and images; purchase controls render unavailable because there is no trustworthy price.',
+      );
+    }
+
+    // Reported HERE rather than where `todos` is declared: the flag is set by
+    // the copy-images stage, which runs later, so a push at declaration time
+    // always read null. Same ordering trap the packs TODO hit.
+    if (ogCoverRemoved !== null) {
+      todos.push(
+        `NO SOCIAL PREVIEW — the product's main image is ${ogCoverRemoved || 'not a PNG'} and Base.astro ` +
+          "requests a fixed /og-cover.png. The template's own cover was DELETED rather than shipped, because " +
+          "sharing this link would otherwise preview AstraVibe's product instead of yours. Supply a PNG main " +
+          'image, or place one by hand at public/og-cover.png.',
       );
     }
 

@@ -94,6 +94,189 @@ export const VERSION_A_ONLY_FIELDS = [
   'comparisonRival',
 ];
 
+// ─── ITEM SHAPES ──────────────────────────────────────────────────────────
+//
+// content-contract.mjs validates that a COLLECTION KEY exists and, for
+// testimonials, which keys each item carries. It does not check that the values
+// inside an item are usable — which is how a `steps` array missing `media`
+// reached Astro and aborted a build with "Cannot read properties of undefined".
+//
+// The renderer is the wrong place to find out. Every rule below is derived from
+// a real consumer in landing-astravibe, not from copying the historical types:
+//
+//   faq          FaqItem      { id, question, answer }            faq.ts
+//   testimonials Testimonial  { id, author, rating, date, body,   testimonials.ts
+//                               variant, title?, media? }
+//   comparison   ComparisonRow{ feature, ours, rival }            10-comparison
+//   steps        HowToStep    { step, title, text } + asset media 06-how-it-works
+//
+// SHAPE, NOT SEMANTICS. A non-empty string is checkable; whether an answer
+// answers its question is not, and a regex pretending otherwise would only
+// reject honest copy.
+
+/** Stars is a closed domain: 1-5, integral. A 4.5 renders half a glyph. */
+export const TESTIMONIAL_RATINGS = [1, 2, 3, 4, 5];
+
+/** Layout slots, not product variants — the names collide, the meanings do not. */
+export const TESTIMONIAL_LAYOUTS = ['quote', 'card', 'reel'];
+
+const isFilledString = (v) => typeof v === 'string' && v.trim() !== '';
+
+/** A comparison cell is a claim (boolean) or a value (string). Never a third thing. */
+const isComparisonCell = (v) => typeof v === 'boolean' || isFilledString(v);
+
+/**
+ * Validates the collections a Fixed page renders, item by item.
+ *
+ * @param {object} content a Fixed content output
+ * @returns {{code: string, path: string, message: string}[]}
+ */
+export function collectFixedItemIssues(content) {
+  const issues = [];
+  const at = (code, where, message) => issues.push({ code, path: where, message });
+  const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+
+  // ─── faq ───────────────────────────────────────────────────────────────
+  if (content?.faq !== undefined) {
+    if (!Array.isArray(content.faq)) {
+      at('content-faq-not-an-array', 'faq', 'faq must be an array');
+    } else {
+      content.faq.forEach((item, i) => {
+        if (!isObj(item)) return at('content-faq-item-invalid', `faq[${i}]`, `faq[${i}] must be an object`);
+        for (const key of ['question', 'answer']) {
+          if (!isFilledString(item[key])) {
+            at('content-faq-item-invalid', `faq[${i}].${key}`, `faq[${i}].${key} must be a non-empty string`);
+          }
+        }
+      });
+    }
+  }
+
+  // ─── reviews ───────────────────────────────────────────────────────────
+  if (content?.reviews !== undefined) {
+    if (!Array.isArray(content.reviews)) {
+      at('content-review-not-an-array', 'reviews', 'reviews must be an array');
+    } else {
+      content.reviews.forEach((item, i) => {
+        if (!isObj(item)) {
+          return at('content-review-item-invalid', `reviews[${i}]`, `reviews[${i}] must be an object`);
+        }
+        // `author` may be '' — a source that recorded none is a real state, and
+        // the mask IS the provenance. It must still be a string.
+        if (typeof item.author !== 'string') {
+          at('content-review-item-invalid', `reviews[${i}].author`, `reviews[${i}].author must be a string`);
+        }
+        if (!isFilledString(item.body)) {
+          at('content-review-item-invalid', `reviews[${i}].body`, `reviews[${i}].body must be a non-empty string`);
+        }
+        if (!TESTIMONIAL_RATINGS.includes(item.rating)) {
+          at(
+            'content-review-item-invalid',
+            `reviews[${i}].rating`,
+            `reviews[${i}].rating must be one of ${TESTIMONIAL_RATINGS.join(', ')} — Stars is a closed ` +
+              `domain and a fractional value renders half a glyph, got ${JSON.stringify(item.rating)}`,
+          );
+        }
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(item.date ?? '')) {
+          at(
+            'content-review-item-invalid',
+            `reviews[${i}].date`,
+            `reviews[${i}].date must be ISO YYYY-MM-DD, got ${JSON.stringify(item.date)}`,
+          );
+        }
+        // MEDIA IS THE ASSET LAYER'S, here as everywhere else. `Testimonial.media`
+        // has no consumer in the mounted page at all, so a ref here would be a
+        // file nobody renders chosen by an authority that does not own media.
+        if ('media' in item) {
+          at(
+            'content-review-media-forbidden',
+            `reviews[${i}].media`,
+            `reviews[${i}] carries media. Media comes from the asset pipeline, and no mounted section ` +
+              'reads a testimonial media ref at all.',
+          );
+        }
+        for (const banned of ['location', 'verified']) {
+          if (banned in item) {
+            at(
+              'content-review-item-invalid',
+              `reviews[${i}].${banned}`,
+              `reviews[${i}].${banned} was removed in F2 — nothing upstream can supply it, so it could ` +
+                'only be invented about a stranger.',
+            );
+          }
+        }
+      });
+    }
+  }
+
+  // ─── comparison ────────────────────────────────────────────────────────
+  if (content?.comparison !== undefined) {
+    if (!Array.isArray(content.comparison)) {
+      at('content-comparison-not-an-array', 'comparison', 'comparison must be an array');
+    } else {
+      content.comparison.forEach((row, i) => {
+        if (!isObj(row)) {
+          return at('content-comparison-item-invalid', `comparison[${i}]`, `comparison[${i}] must be an object`);
+        }
+        if (!isFilledString(row.feature)) {
+          at(
+            'content-comparison-item-invalid',
+            `comparison[${i}].feature`,
+            `comparison[${i}].feature must be a non-empty string`,
+          );
+        }
+        for (const cell of ['ours', 'rival']) {
+          if (!isComparisonCell(row[cell])) {
+            at(
+              'content-comparison-item-invalid',
+              `comparison[${i}].${cell}`,
+              `comparison[${i}].${cell} must be a boolean or a non-empty string. The sealed grammar knows ` +
+                `exactly those two cell shapes; a third renders a cell no R-shape matches and the whole ` +
+                `region stops collapsing, got ${JSON.stringify(row[cell])}`,
+            );
+          }
+        }
+      });
+    }
+  }
+
+  // ─── steps ─────────────────────────────────────────────────────────────
+  if (content?.steps !== undefined) {
+    if (!Array.isArray(content.steps)) {
+      at('content-step-not-an-array', 'steps', 'steps must be an array');
+    } else {
+      content.steps.forEach((step, i) => {
+        if (!isObj(step)) return at('content-step-item-invalid', `steps[${i}]`, `steps[${i}] must be an object`);
+        for (const key of ['title', 'text']) {
+          if (!isFilledString(step[key])) {
+            at('content-step-item-invalid', `steps[${i}].${key}`, `steps[${i}].${key} must be a non-empty string`);
+          }
+        }
+        if (step.step !== undefined && !Number.isInteger(step.step)) {
+          at(
+            'content-step-item-invalid',
+            `steps[${i}].step`,
+            `steps[${i}].step must be an integer when present, got ${JSON.stringify(step.step)}`,
+          );
+        }
+        // The F4 boundary, restated where a content document is checked. The
+        // projection drops it; a caller building a Fixed content output by hand
+        // gets told instead.
+        if ('media' in step) {
+          at(
+            'content-step-media-forbidden',
+            `steps[${i}].media`,
+            `steps[${i}] carries media. Which photograph illustrates a step is an asset decision — the ` +
+              'Content Agent writes the title and the text.',
+          );
+        }
+      });
+    }
+  }
+
+  return issues;
+}
+
 /** Copy slots with no honest default — absence makes the page incomplete. */
 const REQUIRED = ['name', 'tagline', 'subtagline', 'cta', 'variantGroupLabel', 'trustTicker'];
 
@@ -181,6 +364,8 @@ export function collectFixedContentIssues(input) {
       message: `the Fixed content output is missing required copy: ${missing.join(', ')}`,
     });
   }
+
+  issues.push(...collectFixedItemIssues(input));
 
   const unknown = Object.keys(input).filter(
     (k) => !FIXED_CONTENT_FIELDS.includes(k) && !FIXED_CONTENT_FOREIGN_FIELDS.includes(k),
