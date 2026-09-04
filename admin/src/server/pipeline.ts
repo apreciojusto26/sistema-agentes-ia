@@ -146,6 +146,10 @@ export type PipelineInput = {
   slug: string;
   /** Operator-supplied. Its PRESENCE selects commerce mode (Fase 5). */
   shopifyHandle?: string | null;
+  /** F3: the operator's commercial configuration — identity, policy and packs. */
+  merchantPath?: string | null;
+  /** F3: an explicit asset-pipeline output. Absent = media derived from the scrape. */
+  assetsPath?: string | null;
   force?: boolean;
 };
 
@@ -314,10 +318,11 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
     imagesDir,
     force: input.force ?? false,
     productId: record.productId ?? undefined,
-    // No designPath. buildGenerateSpec only appends `--design` when this is
-    // set, so omitting it is what actually keeps the flag off the child's
-    // argv — not a null passed through to be ignored downstream.
+    // No design anything: buildGenerateSpec no longer knows how to append the
+    // flag, so there is nothing here to omit.
     productJsonPath: canonicalPath,
+    merchantPath: input.merchantPath ?? null,
+    assetsPath: input.assetsPath ?? null,
     shopifyHandle: input.shopifyHandle ?? null,
   });
   generateStage.jobId = generateJob.jobId;
@@ -395,10 +400,39 @@ async function defaultRunBuild(outDir: string): Promise<{ ok: boolean; message: 
   return runOnce(local, ['build'], outDir);
 }
 
-/** Spawns a command, resolving to the root-cause line on failure. */
+/**
+ * Spawns a command, resolving to the root-cause line on failure.
+ *
+ * THE CHILD DOES NOT INHERIT THE PARENT'S BUILD ENVIRONMENT, and that is a bug
+ * fix rather than a preference.
+ *
+ * Vite — and therefore Vitest — exports its `import.meta.env` values as real
+ * environment variables: DEV, PROD, MODE, SSR, TEST, BASE_URL. A child `astro
+ * build` picks them up, so an Admin running under any Vite-based parent
+ * produced a DEV BUILD of the landing.
+ *
+ * It is not cosmetic. Astro's Image component emits `data-image-component`
+ * only under DEV, so the shipped HTML changed SHAPE: the generated landing's
+ * structural fingerprint stopped matching the sealed profile with nothing in
+ * the data different. Found exactly that way, by an end-to-end run whose page
+ * was structurally wrong for a reason no fixture could explain.
+ *
+ * `astro build` is a production build by definition. There is no caller for
+ * whom inheriting a dev environment is the right answer.
+ */
+const VITE_ENV_KEYS = ['DEV', 'PROD', 'MODE', 'SSR', 'TEST', 'BASE_URL'];
+
+function productionEnv(): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...process.env, NODE_ENV: 'production' };
+  for (const key of Object.keys(env)) {
+    if (VITE_ENV_KEYS.includes(key) || key.startsWith('VITEST')) delete env[key];
+  }
+  return env;
+}
+
 function runOnce(bin: string, args: string[], cwd: string): Promise<{ ok: boolean; message: string | null }> {
   return new Promise((resolve) => {
-    const child = spawn(bin, args, { cwd, env: { ...process.env } });
+    const child = spawn(bin, args, { cwd, env: productionEnv() });
     let stderr = '';
     child.stderr.on('data', (c) => {
       stderr += String(c);

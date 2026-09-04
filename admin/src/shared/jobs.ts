@@ -34,8 +34,26 @@ export type GenerateParams = {
   force: boolean;
   /** Product identity lineage (design D1/D5). Optional — absent means no ownership check is asserted at this call site. */
   productId?: string;
-  /** Fase 2: the DesignSpec produced by the Design Agent. Absent = legacy generation. */
-  designPath?: string | null;
+  /**
+   * F3: the operator's commercial configuration.
+   *
+   * NOT OPTIONAL IN PRACTICE, only in the type. Packs moved to merchant config
+   * in F3 and FIXED_GRAMMAR seals buy/packs at min 1, so a landing generated
+   * without one has no bundles and fails structural validation. It stays
+   * nullable because the generator still accepts a merchant-less run and says
+   * so in its TODO block, which is more useful than refusing to produce
+   * anything an operator could look at.
+   */
+  merchantPath?: string | null;
+  /**
+   * F3: the asset pipeline's output — gallery, hero clips, UGC strip.
+   *
+   * The Admin does not yet PRODUCE one; this is the plumbing that lets an
+   * asset authority speak at all. Without it the media slots can only be
+   * derived from the content document and the scrape's (always empty) video
+   * list, which is how a generated landing ends up with no UGC region.
+   */
+  assetsPath?: string | null;
   /** Fase 4: the CanonicalProduct whose media[] drives the asset pipeline. Absent = legacy filename matching. */
   productJsonPath?: string | null;
   /** Fase 5: operator-supplied Shopify handle. Its PRESENCE switches the landing to commerce mode. Never agent-produced. */

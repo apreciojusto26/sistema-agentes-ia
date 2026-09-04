@@ -166,8 +166,13 @@ export function buildGenerateSpec(params: GenerateParams, opts: SpecOpts): RunSp
   // Fase 2/4/5 flags, each additive and each only pushed when the caller
   // actually supplied it — a pipeline run passes all three, a legacy call
   // passes none and its argv stays byte-identical to before.
-  if (params.designPath) args.push('--design', params.designPath);
+  // `--design` IS NOT BUILT HERE ANY MORE. It used to be appended when
+  // params.designPath was set, and after F3B removed the flag that line could
+  // only ever produce a child that exits with "Unknown argument: --design".
+  // Dead code that spawns a guaranteed failure is worse than dead code.
   if (params.productJsonPath) args.push('--product', params.productJsonPath);
+  if (params.merchantPath) args.push('--merchant', params.merchantPath);
+  if (params.assetsPath) args.push('--assets', params.assetsPath);
   if (params.shopifyHandle) args.push('--shopify-handle', params.shopifyHandle);
 
   return {

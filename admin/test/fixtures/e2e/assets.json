@@ -1,0 +1,43 @@
+{
+  "gallery": [
+    {
+      "id": "g1",
+      "asset": "gallery-01",
+      "alt": "Vista frontal",
+      "ratio": "4/5",
+      "label": "Frontal"
+    },
+    {
+      "id": "g2",
+      "asset": "gallery-02",
+      "alt": "Detalle de la curva",
+      "ratio": "4/5",
+      "label": "Detalle"
+    },
+    {
+      "id": "g3",
+      "asset": "gallery-03",
+      "alt": "Funda lavable",
+      "ratio": "4/5",
+      "label": "Funda"
+    }
+  ],
+  "heroExtras": [],
+  "ugcStrip": [
+    {
+      "asset": "ugc-01",
+      "alt": "En un dormitorio con luz de mañana",
+      "ratio": "9/16"
+    },
+    {
+      "asset": "ugc-02",
+      "alt": "Apoyada sobre un edredón claro",
+      "ratio": "9/16"
+    },
+    {
+      "asset": "ugc-03",
+      "alt": "Detalle de la costura lateral",
+      "ratio": "9/16"
+    }
+  ]
+}
