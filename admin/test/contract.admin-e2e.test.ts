@@ -38,7 +38,10 @@ import { archiveScrape } from '../src/server/jobs/archive';
 import { runPipeline, PIPELINE_STAGES, type PipelineRecord } from '../src/server/pipeline';
 import { FIXED_TEMPLATE_NAME, FIXED_TEMPLATE_RELATIVE } from '../../scripts/lib/fixed-template.mjs';
 import { structuralFingerprint } from '../../scripts/lib/fingerprint.mjs';
-import { FIXED_GRAMMAR, FIXED_OPTIONAL_SLOTS } from '../../scripts/lib/fixed-grammar.mjs';
+// V2 IS THE CURRENT PROFILE for generated output: it models a product with
+// no factual reviews as OPTIONAL<ReviewsSection> rather than as an empty
+// carousel. V1 remains the sealed historical record and keeps its own tests.
+import { FIXED_GRAMMAR_V2 as FIXED_GRAMMAR, FIXED_OPTIONAL_SLOTS_V2 as FIXED_OPTIONAL_SLOTS } from '../../scripts/lib/fixed-grammar-v2.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ADMIN_ROOT = path.resolve(__dirname, '..');

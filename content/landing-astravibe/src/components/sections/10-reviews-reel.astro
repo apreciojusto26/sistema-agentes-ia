@@ -22,6 +22,32 @@ const reelReviews = testimonials
   <WaveDivider fill="grape-tint" />
 </div>
 
+{
+  /*
+    NO FACTUAL REVIEWS, NO SECTION.
+
+    Social proof is projected from CanonicalProduct.socialProof.reviews, so a
+    product whose provider published nothing usable has none — and this reel
+    rendered its wrapper regardless, leaving an empty carousel and empty dots
+    where evidence should be. 07-featured-testimonial.astro has guarded exactly
+    this way since it was written; this now matches it.
+
+    THE SECTION'S INSIDE IS UNTOUCHED: same wrapper, same classes, same
+    carousel, same dots, same spacing. The only change is whether it exists,
+    which ASTRAVIBE_FIXED_STRUCTURAL_GRAMMAR_V2 models as
+    OPTIONAL<ReviewsSection>.
+
+    THE WAVE DIVIDER ABOVE IS DELIBERATELY NOT GUARDED. It renders as
+    `<div class="bg-white">`, and so does the hero's grid wrapper — two lines
+    the structural matcher cannot tell apart, since it discriminates on tag,
+    classes and attributes only. Making them distinguishable would mean
+    changing markup that is present in every landing, which is exactly what the
+    seal protects. So the divider stays: a decorative transition, no claim
+    about anything, and the one thing an absent reviews section costs.
+  */
+}
+{
+  reelReviews.length > 0 && (
 <div class="bg-grape-tint">
   <section class="mx-3 rounded-card bg-grape-tint py-10 md:mx-6 md:py-12 xl:mx-auto xl:max-w-[80rem]">
     <Container>
@@ -52,3 +78,5 @@ const reelReviews = testimonials
     </Container>
   </section>
 </div>
+  )
+}

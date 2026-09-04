@@ -421,6 +421,19 @@ function matchesWrapper(text, wrapper) {
   for (const [name, value] of Object.entries(wrapper.attrs ?? {})) {
     if (!text.includes(value === true ? ` ${name}` : ` ${name}="${value}"`)) return false;
   }
+  // EXACT CLASS SET, opt-in. `classes` asks "does it carry these"; a Tailwind
+  // page has many elements carrying any one utility, so a class like
+  // `bg-grape-tint` matches both a section wrapper and a table cell that
+  // happens to share the colour. Where a slot needs to name ONE element and no
+  // attribute distinguishes it, this asks "is this class list exactly that".
+  //
+  // Additive: no V1 declaration sets it, so nothing about V1's matching or its
+  // rendered artifact changes.
+  if (wrapper.exactClasses) {
+    const found = /class="([^"]*)"/.exec(text)?.[1] ?? '';
+    const want = [...wrapper.exactClasses].sort().join(' ');
+    if (found.split(' ').filter(Boolean).sort().join(' ') !== want) return false;
+  }
   return true;
 }
 

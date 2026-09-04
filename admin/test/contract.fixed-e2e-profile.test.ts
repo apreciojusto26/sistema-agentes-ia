@@ -28,7 +28,10 @@ import { collectMerchantIssues } from '../../scripts/lib/merchant.mjs';
 import { assembleFixedProductData } from '../../scripts/lib/fixed-product-data.mjs';
 import { projectFixedContent } from '../../scripts/lib/fixed-content-output.mjs';
 import { structuralFingerprint } from '../../scripts/lib/fingerprint.mjs';
-import { FIXED_GRAMMAR, FIXED_OPTIONAL_SLOTS } from '../../scripts/lib/fixed-grammar.mjs';
+// V2 IS THE CURRENT PROFILE for generated output: it models a product with
+// no factual reviews as OPTIONAL<ReviewsSection> rather than as an empty
+// carousel. V1 remains the sealed historical record and keeps its own tests.
+import { FIXED_GRAMMAR_V2 as FIXED_GRAMMAR, FIXED_OPTIONAL_SLOTS_V2 as FIXED_OPTIONAL_SLOTS } from '../../scripts/lib/fixed-grammar-v2.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');

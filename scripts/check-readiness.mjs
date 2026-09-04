@@ -20,6 +20,7 @@ import { collectAssetOutputIssues } from './lib/fixed-asset-output.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const GRAMMAR_V1 = 'a2fc51ddf61b7dfa6a145eee7e25497a12e10669a7dfd714f07600aa586d77cd';
+const GRAMMAR_V2 = '82e3913a2cb7268da0b9f75f72f058fb3e248ba20aee8cf120866d0de80c9f24';
 
 /** @type {{name: string, ok: boolean, detail: string}[]} */
 const results = [];
@@ -54,10 +55,14 @@ const json = (rel) => JSON.parse(read(rel));
 // ─── the seal ──────────────────────────────────────────────────────────────
 
 check('Structural Grammar sealed', () => {
-  const artifact = readFileSync(path.join(ROOT, 'scripts/lib/ASTRAVIBE_FIXED_STRUCTURAL_GRAMMAR_V1.txt'));
-  const hash = createHash('sha256').update(artifact).digest('hex');
-  must(hash === GRAMMAR_V1, `grammar artifact hashes ${hash}, not the sealed V1`);
-  return GRAMMAR_V1.slice(0, 16) + '…';
+  // BOTH seals. V1 is the historical record and V2 is the current profile for
+  // generated output; a landing is only trustworthy if neither has moved.
+  for (const [name, expected] of [['V1', GRAMMAR_V1], ['V2', GRAMMAR_V2]]) {
+    const artifact = readFileSync(path.join(ROOT, `scripts/lib/ASTRAVIBE_FIXED_STRUCTURAL_GRAMMAR_${name}.txt`));
+    const hash = createHash('sha256').update(artifact).digest('hex');
+    must(hash === expected, `the ${name} artifact hashes ${hash}, not its seal`);
+  }
+  return `V1 ${GRAMMAR_V1.slice(0, 12)}… · V2 ${GRAMMAR_V2.slice(0, 12)}…`;
 });
 
 // ─── provenance ────────────────────────────────────────────────────────────

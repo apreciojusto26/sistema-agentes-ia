@@ -411,6 +411,65 @@ describe('scope-boundaries (Batch G — machine-checkable, spec R14)', () => {
       const output = gitPorcelain(protectedRelPaths);
       expect(output.trim()).toBe('');
     });
+
+    // ─── ONE REVIEWED EXCEPTION, PINNED BY CONTENT ───────────────────────
+    //
+    // F7 approved exactly one structural mutation inside the protected
+    // template: 10-reviews-reel.astro renders nothing when there are no
+    // factual reviews. Social proof is projected from CanonicalReview now, so
+    // a product whose provider published none has none — and this section used
+    // to render its wrapper regardless, leaving an empty carousel and empty
+    // dots where evidence should be.
+    //
+    // THE DIRECTORY IS NOT UNLOCKED. `content/landing-astravibe/src/components`
+    // stays in protectedRelPaths above and the git check still covers every
+    // other file in it. What follows pins the ONE approved change by its
+    // content, so the exception cannot quietly become a licence: the guard must
+    // be present, and the section's inside must still be the shape the seal
+    // protects.
+    describe('the approved F7 exception: OPTIONAL<ReviewsSection>', () => {
+      const REEL = 'content/landing-astravibe/src/components/sections/10-reviews-reel.astro';
+      const src = () => readFileSync(path.join(REPO_ROOT, REEL), 'utf-8');
+
+      it('carries the approved guard, and derives it from the data', () => {
+        // Not a flag, not a prop, not an env check: the list itself.
+        expect(src()).toMatch(/\{\s*reelReviews\.length > 0 && \(/);
+      });
+
+      it('leaves the section\'s inside exactly as the seal protects it', () => {
+        // The only approved change is WHETHER the section exists. Its wrapper,
+        // classes, carousel and dots are the shape V1 sealed and V2 still
+        // requires whenever the section is present.
+        const text = src();
+        expect(text).toContain('<div class="bg-grape-tint">');
+        expect(text).toContain(
+          '<section class="mx-3 rounded-card bg-grape-tint py-10 md:mx-6 md:py-12 xl:mx-auto xl:max-w-[80rem]">',
+        );
+        expect(text).toContain('<ReviewCarousel client:visible reviews={reelReviews} />');
+      });
+
+      it('introduces no OTHER conditional into the section', () => {
+        // One exception means one. A second guard would be a second structural
+        // decision nobody reviewed.
+        const conditionals = [...src().matchAll(/\.length > 0 &&/g)];
+        expect(conditionals).toHaveLength(1);
+      });
+
+      it('and no sibling section was quietly guarded along with it', () => {
+        // The git check above already covers them; this states the intent so a
+        // future reader knows the exception was scoped to one file on purpose.
+        const dir = path.join(REPO_ROOT, 'content/landing-astravibe/src/components/sections');
+        for (const file of readdirSync(dir).filter((f) => f.endsWith('.astro') && !f.startsWith('10-'))) {
+          const text = readFileSync(path.join(dir, file), 'utf-8');
+          // 07-featured-testimonial.astro has ALWAYS guarded — it is the
+          // precedent this exception follows, not a second exception.
+          if (file.startsWith('07-')) continue;
+          expect(text, `${file} grew a length-based guard outside the approved exception`).not.toMatch(
+            /\.length > 0 && \(/,
+          );
+        }
+      });
+    });
   });
 
   describe('boundary: no authentication/authorization surface added to admin/', () => {

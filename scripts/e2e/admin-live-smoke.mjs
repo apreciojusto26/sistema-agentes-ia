@@ -167,7 +167,8 @@ if (report.status !== 'succeeded') {
 
 if (existsSync(path.join(outDir, 'dist/client/index.html'))) {
   const { structuralFingerprint } = await import('../lib/fingerprint.mjs');
-  const { FIXED_GRAMMAR, FIXED_OPTIONAL_SLOTS } = await import('../lib/fixed-grammar.mjs');
+  const { FIXED_GRAMMAR_V2: FIXED_GRAMMAR, FIXED_OPTIONAL_SLOTS_V2: FIXED_OPTIONAL_SLOTS } =
+    await import('../lib/fixed-grammar-v2.mjs');
   const { readFileSync } = await import('node:fs');
   const fp = structuralFingerprint(
     readFileSync(path.join(outDir, 'dist/client/index.html'), 'utf-8'),

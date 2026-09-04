@@ -16,6 +16,8 @@ function wrapperOf(w) {
   const parts = [w.tag === '*' ? 'any' : w.tag];
   for (const c of w.classes ?? []) parts.push(`.${c}`);
   for (const [k, v] of Object.entries(w.attrs ?? {})) parts.push(v === true ? `[${k}]` : `[${k}=${v}]`);
+  // Rendered only when set, so V1's artifact is byte-identical to what it was.
+  if (w.exactClasses) parts.push(`{exactly:${[...w.exactClasses].sort().join('.')}}`);
   return parts.join('');
 }
 
