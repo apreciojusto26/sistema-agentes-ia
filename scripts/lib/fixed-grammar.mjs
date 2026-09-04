@@ -174,4 +174,66 @@ export const FIXED_GRAMMAR = [
       { name: 'S01', skeleton: "<div class=\"flex flex-col gap-2 items-center text-graphite text-xs\">\n  <svg aria-hidden=\"true\" class=\"size-6 text-gold\" viewbox=\"0 0 24 24\">\n    <path d=\"M12 2l8 3.5v5.25c0 5.06-3.4 9.62-8 11.25-4.6-1.63-8-6.19-8-11.25V5.5L12 2zm0 2.22L6 6.7v4.05c0 4 2.6 7.68 6 9.1 3.4-1.42 6-5.1 6-9.1V6.7l-6-2.48z\" fill=\"currentColor\">\n  <span>" },
     ],
   },
+  {
+    // THE TWELFTH REGION, and the only one that does not repeat by item. The
+    // comparison grid is a flat CSS grid: `rows.map()` returns a fragment
+    // emitting THREE sibling cells per row into the same wrapper that holds
+    // three header cells. Collapsing its children one at a time would describe
+    // a structure that does not exist.
+    id: 'comparison/rows',
+    wrapper: { tag: 'div', classes: ['grid', 'grid-cols-[1.3fr_1fr_1fr]'] },
+    kind: 'repeat',
+    min: 1,
+    zero: 'invalid-input',
+    shapes: [],
+    tuple: {
+      // The three header cells, compared verbatim.
+      prefix: 3,
+      size: 3,
+      shapes: [
+        { name: 'R01', skeleton: "<div class=\"bg-surface border-graphite/10 border-t p-3 text-graphite\">\n<div class=\"bg-grape-tint border-graphite/10 border-t p-3 text-center text-graphite\">\n  <span class=\"text-xs\">\n<div class=\"bg-white border-graphite/10 border-t p-3 text-center text-graphite\">\n  <span class=\"text-xs\">" },
+        { name: 'R02', skeleton: "<div class=\"bg-surface border-graphite/10 border-t p-3 text-graphite\">\n<div class=\"bg-grape-tint border-graphite/10 border-t p-3 text-center text-graphite\">\n  <svg aria-hidden=\"true\" class=\"mx-auto size-5 text-grape\" viewbox=\"0 0 20 20\">\n    <path d=\"M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z\" fill=\"currentColor\">\n<div class=\"bg-white border-graphite/10 border-t p-3 text-center text-graphite\">\n  <span class=\"text-xs\">" },
+        { name: 'R03', skeleton: "<div class=\"bg-surface border-graphite/10 border-t p-3 text-graphite\">\n<div class=\"bg-grape-tint border-graphite/10 border-t p-3 text-center text-graphite\">\n  <svg aria-hidden=\"true\" class=\"mx-auto size-5 text-grape\" viewbox=\"0 0 20 20\">\n    <path d=\"M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z\" fill=\"currentColor\">\n<div class=\"bg-white border-graphite/10 border-t p-3 text-center text-graphite\">\n  <svg aria-hidden=\"true\" class=\"mx-auto size-5 text-steel-light\" viewbox=\"0 0 20 20\">\n    <path d=\"M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z\" fill=\"currentColor\">" },
+        { name: 'R04', skeleton: "<div class=\"bg-surface border-graphite/10 border-t p-3 text-graphite\">\n<div class=\"bg-grape-tint border-graphite/10 border-t p-3 text-center text-graphite\">\n  <svg aria-hidden=\"true\" class=\"mx-auto size-5 text-grape\" viewbox=\"0 0 20 20\">\n    <path d=\"M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z\" fill=\"currentColor\">\n<div class=\"bg-white border-graphite/10 border-t p-3 text-center text-graphite\">\n  <svg aria-hidden=\"true\" class=\"mx-auto size-5 text-steel-light\" viewbox=\"0 0 20 20\">\n    <path d=\"M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z\" fill=\"currentColor\">" },
+      ],
+      // A SET, because the closing row inherits the same cell branches as any
+      // other: a table ending in a text row and one ending in a boolean row
+      // are both legitimate closings. Position is still structure — a closing
+      // shape in the middle, or a plain one at the end, fails.
+      lastShapes: [
+        { name: 'L01', skeleton: "<div class=\"bg-surface border-graphite/10 border-t p-3 text-graphite\">\n<div class=\"bg-grape-tint border-graphite/10 border-t p-3 rounded-b-card text-center text-graphite\">\n  <span class=\"text-xs\">\n<div class=\"bg-white border-graphite/10 border-t p-3 text-center text-graphite\">\n  <span class=\"text-xs\">" },
+        { name: 'L02', skeleton: "<div class=\"bg-surface border-graphite/10 border-t p-3 text-graphite\">\n<div class=\"bg-grape-tint border-graphite/10 border-t p-3 rounded-b-card text-center text-graphite\">\n  <svg aria-hidden=\"true\" class=\"mx-auto size-5 text-grape\" viewbox=\"0 0 20 20\">\n    <path d=\"M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z\" fill=\"currentColor\">\n<div class=\"bg-white border-graphite/10 border-t p-3 text-center text-graphite\">\n  <svg aria-hidden=\"true\" class=\"mx-auto size-5 text-steel-light\" viewbox=\"0 0 20 20\">\n    <path d=\"M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z\" fill=\"currentColor\">" },
+      ],
+    },
+  },
+];
+
+/**
+ * OPTIONAL SLOTS — regions the template declares that a product may leave
+ * unfilled, without that being a different design.
+ *
+ * `after` is the ANCHOR, and it is what makes an absent region representable:
+ * a marker cannot be placed "where the section isn't" by reading HTML, but the
+ * grammar knows the canonical sequence, so it knows the slot sits immediately
+ * after section#como-funciona. Present or absent, the same marker lands in the
+ * same place.
+ *
+ * `shape` is the region's canonical subtree, transcribed from a build that
+ * fills it. Present-but-different does NOT canonicalize: it is left verbatim
+ * and the hash moves, so the section's insides stay protected. Present-but-
+ * elsewhere does not canonicalize either, because position is structure.
+ *
+ * `capability` names the data fact that decides presence. The binding —
+ * capability true if and only if the region is there — is a claim about DATA
+ * and is asserted by its own contract, not by this hash.
+ */
+export const FIXED_OPTIONAL_SLOTS = [
+  {
+    id: 'FeaturedTestimonial',
+    capability: 'featuredTestimonial',
+    after: { tag: 'section', attrs: { id: 'como-funciona' } },
+    before: { tag: 'section', classes: ['bg-white', 'overflow-hidden', 'py-8'] },
+    wrapper: { tag: 'section', classes: ['bg-grape-tint', 'text-center', 'relative'] },
+    shape: "<section class=\"bg-grape-tint md:py-16 overflow-hidden px-5 py-12 relative text-center\">\n  <div aria-hidden=\"true\" class=\"-left-20 -top-24 absolute bg-grape-soft/20 blur-3xl pointer-events-none rounded-full size-64\">\n  <div aria-hidden=\"true\" class=\"-bottom-28 -right-16 absolute bg-gold/10 blur-3xl pointer-events-none rounded-full size-72\">\n  <div class=\"bg-surface max-w-[48rem] md:px-12 md:py-7 mx-auto overflow-hidden px-6 py-6 relative rounded-card shadow-lift w-full\">\n    <div class=\"relative z-10\">\n      <div aria-label class=\"gap-0.5 inline-flex items-center justify-center\" role=\"img\">\n        <svg aria-hidden=\"true\" class=\"shrink-0 size-4 size-5\" viewbox=\"0 0 20 20\">\n          <path class=\"text-gold\" d=\"M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z\" fill=\"currentColor\" opacity=\"<stars/fill>\">\n        <svg aria-hidden=\"true\" class=\"shrink-0 size-4 size-5\" viewbox=\"0 0 20 20\">\n          <path class=\"text-gold\" d=\"M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z\" fill=\"currentColor\" opacity=\"<stars/fill>\">\n        <svg aria-hidden=\"true\" class=\"shrink-0 size-4 size-5\" viewbox=\"0 0 20 20\">\n          <path class=\"text-gold\" d=\"M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z\" fill=\"currentColor\" opacity=\"<stars/fill>\">\n        <svg aria-hidden=\"true\" class=\"shrink-0 size-4 size-5\" viewbox=\"0 0 20 20\">\n          <path class=\"text-gold\" d=\"M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z\" fill=\"currentColor\" opacity=\"<stars/fill>\">\n        <svg aria-hidden=\"true\" class=\"shrink-0 size-4 size-5\" viewbox=\"0 0 20 20\">\n          <path class=\"text-gold\" d=\"M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z\" fill=\"currentColor\" opacity=\"<stars/fill>\">\n      <p class=\"leading-[1.5] max-w-[39rem] md:leading-relaxed md:text-xl mt-4 mx-auto text-[1.0625rem] text-graphite\">\n      <div class=\"flex items-center justify-center mt-5\">\n        <div class=\"text-center\">\n          <p class=\"font-bold text-graphite text-sm\">",
+  },
 ];

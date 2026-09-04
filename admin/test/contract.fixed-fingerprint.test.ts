@@ -371,10 +371,16 @@ describe('tuple repetition', () => {
         prefix: 3,
         size: 3,
         shapes: [{ name: 'Row', skeleton: '<div class="row">\n<div class="ours">\n<div class="theirs">' }],
-        lastShape: {
-          name: 'LastRow',
-          skeleton: '<div class="row">\n<div class="rounded-b-card">\n<div class="rounded-b-card">',
-        },
+        // A SET, because the closing row inherits the same cell branches as
+        // any other: a table ending in a text row and one ending in a boolean
+        // row are both legitimate closings of the same grammar. Position is
+        // still structure — the two cases below prove it.
+        lastShapes: [
+          {
+            name: 'LastRow',
+            skeleton: '<div class="row">\n<div class="rounded-b-card">\n<div class="rounded-b-card">',
+          },
+        ],
       },
     },
   ];

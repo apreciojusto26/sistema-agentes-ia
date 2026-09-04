@@ -1,0 +1,132 @@
+ASTRAVIBE FIXED — CANONICAL STRUCTURAL GRAMMAR
+
+## REGIONS
+
+utility/ticker  [repeat]
+  wrapper   div.animate-marquee
+  min       1
+  zero      optional-capability
+    REPEAT<S01>  e583ba2b9cb9
+
+hero/dots  [repeat]
+  wrapper   div.absolute.bottom-3[role=tablist]
+  min       1
+  zero      invalid-input
+    REPEAT<S01>  ad2f3a94a95a
+    REPEAT<S02>  76c0dfbb570a
+
+buy/variants  [repeat]
+  wrapper   div.grid-cols-3.grid
+  min       1
+  zero      profile-requirement
+    REPEAT<S01>  098b2e047353
+    REPEAT<S02>  f779e1beb511
+    REPEAT<S03>  d3e2956226f2
+    REPEAT<S04>  8435f5bd1315
+    REPEAT<S05>  ce69bc8f84e5
+    REPEAT<S06>  bc8bee403462
+
+buy/packs  [repeat]
+  wrapper   div.space-y-3[role=radiogroup]
+  min       1
+  zero      invalid-input
+    REPEAT<S01>  15293c36837b
+    REPEAT<S02>  2472ae19f7a2
+    REPEAT<S03>  8d41ea458d84
+    REPEAT<S04>  22e04f771d46
+    REPEAT<S05>  1260afd7f43b
+    REPEAT<S06>  b0c97a2353aa
+    REPEAT<S07>  a72f2d2ab3a7
+    REPEAT<S08>  2a90e088b71e
+    REPEAT<S09>  418ec2e22a4f
+    REPEAT<S10>  b241ef4880cd
+    REPEAT<S11>  79a1606ab45e
+    REPEAT<S12>  a09d346a091b
+    REPEAT<S13>  661f7e05946b
+    REPEAT<S14>  1bd0385f0e06
+
+howitworks/cards  [repeat]
+  wrapper   div.snap-mandatory.gap-3
+  min       1
+  zero      invalid-input
+    REPEAT<S01>  c4fa1d4cc14a
+    REPEAT<S02>  d3e8e5c9a5e6
+    REPEAT<S03>  4c46ae5e6b88
+
+howitworks/dots  [repeat]
+  wrapper   div[data-step-indicators]
+  min       1
+  zero      invalid-input
+    REPEAT<S01>  3ae898c3b8c3
+    REPEAT<S02>  2abc7d6adbf5
+
+ugc/track  [repeat]
+  wrapper   div.gap-3.pr-3
+  min       1
+  zero      optional-capability
+    REPEAT<S01>  5599a58542d8
+    REPEAT<S02>  4b576109c471
+    REPEAT<S03>  b411cab83df7
+    REPEAT<S04>  e5a9e47e4dee
+    REPEAT<S05>  64c3f875adea
+    REPEAT<S06>  cc561adac366
+
+reviews/cards  [repeat]
+  wrapper   div.snap-mandatory.gap-4
+  min       1
+  zero      optional-capability
+    REPEAT<S01>  f467263dc96a
+
+reviews/dots  [repeat]
+  wrapper   div.mt-3[role=tablist]
+  min       1
+  zero      optional-capability
+    REPEAT<S01>  4f899a69af60
+    REPEAT<S02>  751db7a3915b
+
+faq/items  [repeat, relational-ids]
+  wrapper   div.divide-y.rounded-tile
+  min       1
+  zero      invalid-input
+    REPEAT<S01>  63a62d17bee5
+
+guarantee/cells  [repeat]
+  wrapper   div.max-w-lg.grid
+  min       2
+  zero      optional-capability
+    REPEAT<S01>  c3d4ed4c4346
+
+comparison/rows  [repeat]
+  wrapper   div.grid.grid-cols-[1.3fr_1fr_1fr]
+  min       1
+  zero      invalid-input
+  tuple     prefix=3 size=3
+    TUPLE_REPEAT<R01>  59ff119eca69
+    TUPLE_REPEAT<R02>  bd1810df46ab
+    TUPLE_REPEAT<R03>  6c5aa1004d2d
+    TUPLE_REPEAT<R04>  8ba254cc123c
+    TUPLE_LAST<L01>    1d39ffaabdd0
+    TUPLE_LAST<L02>    0da345854711
+
+## OPTIONAL SLOTS
+
+A slot the template declares and a product may leave unfilled. Its
+position is fixed; its shape is checked when it is there.
+
+OPTIONAL<FeaturedTestimonial>
+  capability  featuredTestimonial
+  after       section[id=como-funciona]
+  before      section.bg-white.overflow-hidden.py-8
+  wrapper     section.bg-grape-tint.text-center.relative
+  shape       9d16de704bff
+
+## VALUE RULES
+
+Which attribute VALUES are product data rather than design.
+  stars/fill                   opacity on path.text-gold within div.inline-flex.gap-0.5[role=img]
+  media/intrinsic-width        width on any.object-cover.w-full
+  media/intrinsic-height       height on any.object-cover.w-full
+
+  build-identity attrs   component-url integrity nonce opts prefix props renderer-url ssr uid
+  value-dropped attrs    alt aria-describedby aria-label content datetime download href placeholder poster src srcset style title value
+  relational rules       radio-group names; ids/aria within a repeated item

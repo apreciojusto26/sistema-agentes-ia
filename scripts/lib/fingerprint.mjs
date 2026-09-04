@@ -487,7 +487,10 @@ export function applyGrammar(skeleton, grammar) {
       // Deliberately NOT a generic "children divisible by N, probably rows"
       // heuristic — only a region that declares `tuple` is read this way.
       if (region.tuple) {
-        const { prefix = 0, size, shapes, lastShape } = region.tuple;
+        // `lastShapes` is a SET, not one shape: the closing row inherits its
+        // own cell branches, so a table ending in a text row and one ending in
+        // a boolean row are both legitimate closings of the same grammar.
+        const { prefix = 0, size, shapes, lastShapes } = region.tuple;
         const head = blocks.slice(0, prefix);
         const rest = blocks.slice(prefix);
         const indent2 = '  '.repeat(lines[i].depth + 1);
@@ -502,12 +505,13 @@ export function applyGrammar(skeleton, grammar) {
         }
 
         const known = new Map(shapes.map((sh) => [sh.skeleton, sh.name]));
+        const closing = new Map((lastShapes ?? []).map((sh) => [sh.skeleton, sh.name]));
         const isLast = (idx) => idx === groups.length - 1;
         const ok = groups.every((g, idx) => {
-          // POSITION IS STRUCTURE TOO. `last` is not merely another permitted
-          // form — the closing corner belongs at the end. A last-row shape in
-          // the middle, or a plain shape at the end, is a real defect.
-          if (lastShape) return isLast(idx) ? g === lastShape.skeleton : known.has(g);
+          // POSITION IS STRUCTURE TOO. A closing row is not merely another
+          // permitted form — the closed corner belongs at the end. A closing
+          // shape in the middle, or a plain one at the end, is a real defect.
+          if (closing.size > 0) return isLast(idx) ? closing.has(g) : known.has(g);
           return known.has(g);
         });
         if (!ok) continue;
@@ -518,7 +522,9 @@ export function applyGrammar(skeleton, grammar) {
         const body = [...shapes]
           .sort((a, b) => a.name.localeCompare(b.name))
           .map((sh) => `${indent2}TUPLE_REPEAT<${region.id}:${sh.name}>`);
-        if (lastShape) body.push(`${indent2}TUPLE_LAST<${region.id}:${lastShape.name}>`);
+        for (const sh of [...(lastShapes ?? [])].sort((a, b) => a.name.localeCompare(b.name))) {
+          body.push(`${indent2}TUPLE_LAST<${region.id}:${sh.name}>`);
+        }
 
         rewrites.push({
           from: blocks[0][0],
@@ -694,15 +700,101 @@ export function normalizeContextualValues(skeleton, rules = CONTEXTUAL_VALUE_RUL
   return out.join('\n');
 }
 
+
+/**
+ * OPTIONAL SLOTS — a region the template declares that a given product may or
+ * may not fill.
+ *
+ * THE PROBLEM THIS SOLVES. Product A has a featured testimonial and product B
+ * has none, because B's reviews contain no `quote`. Both are correct, and
+ * both use the same template — but one rendered a section the other did not,
+ * so their skeletons could never match. Making the section required would
+ * force inventing a testimonial to keep the structure; dropping it from the
+ * hash entirely would stop protecting its insides.
+ *
+ * THE ANCHOR COMES FROM THE DECLARATION, NOT THE DOM. That is what makes this
+ * work. A marker cannot be inserted "where the section isn't" by looking at
+ * the HTML — there is nothing to look at. But the grammar already knows the
+ * canonical sequence, so it knows the slot sits between `section#como-funciona`
+ * and the UGC strip. Present or absent, the same marker lands in the same
+ * place, and the two products agree.
+ *
+ * TWO anchors rather than "the anchor's next sibling", because Astro emits a
+ * hydration <script> between the two sections. Bracketing the slot survives
+ * anything the framework inserts, while still pinning the position exactly.
+ *
+ * WHAT STAYS PROTECTED, which is the whole point of not simply eliding it:
+ *
+ *   position  the region is only canonicalized where the grammar says it
+ *             belongs. Found anywhere else — earlier, later, nested, twice —
+ *             it is left verbatim and the hash moves.
+ *   shape     its subtree must equal the declared canonical shape. A changed
+ *             wrapper, class, spacing or child composition does not match, so
+ *             it is left verbatim and the hash moves.
+ *
+ * WHAT IT DELIBERATELY DOES NOT DECIDE is whether this product SHOULD have
+ * filled the slot. `capability === true` implying presence is a different
+ * claim about data, asserted by the capability-binding contract.
+ */
+export function applyOptionalSlots(skeleton, slots) {
+  if (!slots || slots.length === 0) return skeleton;
+  const lines = parseLines(skeleton);
+  const out = lines.map((l) => '  '.repeat(l.depth) + l.text);
+
+  // Applied back-to-front so earlier indices stay valid.
+  const edits = [];
+
+  for (const slot of slots) {
+    const openIdx = lines.findIndex((l) => matchesWrapper(l.text, slot.after));
+    const closeIdx = lines.findIndex((l) => matchesWrapper(l.text, slot.before));
+    // Either anchor missing means the page is not the shape this slot belongs
+    // to. Leave it alone; it fails on its own terms.
+    if (openIdx === -1 || closeIdx === -1 || closeIdx <= openIdx) continue;
+
+    const depth = lines[closeIdx].depth;
+    const found = [];
+    for (let k = 0; k < lines.length; k += 1) {
+      if (matchesWrapper(lines[k].text, slot.wrapper)) found.push(k);
+    }
+    // Outside its bracket, or more than once, is a MISPLACEMENT rather than an
+    // optional absence — position is structure. Leave the page verbatim.
+    if (found.length > 1) continue;
+    if (found.length === 1 && (found[0] < openIdx || found[0] > closeIdx)) continue;
+
+    const at = found.length === 1 ? found[0] : closeIdx;
+    const here = found.length === 1;
+
+    if (!here) {
+      // ABSENT. No DOM is fabricated: the marker is inserted into the
+      // canonical representation at the position the grammar declares.
+      edits.push({ from: at, to: at, lines: ['  '.repeat(depth) + `OPTIONAL<${slot.id}>`] });
+      continue;
+    }
+
+    // PRESENT. Its subtree must be exactly the declared shape.
+    let end = at + 1;
+    while (end < lines.length && lines[end].depth > depth) end += 1;
+    const base = lines[at].depth;
+    const observed = lines.slice(at, end).map((l) => '  '.repeat(l.depth - base) + l.text).join('\n');
+    if (observed !== slot.shape) continue; // changed markup: left verbatim, hash moves
+
+    edits.push({ from: at, to: end, lines: ['  '.repeat(depth) + `OPTIONAL<${slot.id}>`] });
+  }
+
+  edits.sort((a, b) => b.from - a.from);
+  for (const e of edits) out.splice(e.from, e.to - e.from, ...e.lines);
+  return out.join('\n');
+}
+
 /**
  * @param {string} html rendered page markup
  * @param {object[]} [grammar] declared repeatable/optional regions
  * @returns {{ skeleton: string, hash: string, elements: number }}
  */
-export function structuralFingerprint(html, grammar) {
-  const skeleton = applyGrammar(
-    canonicalizeRadioGroups(normalizeContextualValues(structuralSkeleton(html))),
-    grammar,
+export function structuralFingerprint(html, grammar, slots) {
+  const skeleton = applyOptionalSlots(
+    applyGrammar(canonicalizeRadioGroups(normalizeContextualValues(structuralSkeleton(html))), grammar),
+    slots,
   );
   return {
     skeleton,
