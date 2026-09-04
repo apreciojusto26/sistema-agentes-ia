@@ -23,6 +23,13 @@ echo "==> preview"
 node scripts/generate-landing.mjs --slug zz-fixed-preview "${COMMON[@]}"
 (cd outputs/zz-fixed-preview && pnpm install --silent && pnpm exec astro check && pnpm exec astro build)
 
+# A RECOLOURED PREVIEW. Same product, same media, a different palette — the
+# proof that colour is the one thing a Fixed product may change and that
+# changing it does not move the structural fingerprint.
+echo "==> preview (recoloured)"
+node scripts/generate-landing.mjs --slug zz-fixed-preview-alt --theme admin/test/fixtures/e2e/theme.json "${COMMON[@]}"
+(cd outputs/zz-fixed-preview-alt && pnpm install --silent && pnpm exec astro build)
+
 echo "==> commerce"
 node scripts/generate-landing.mjs --slug zz-fixed-commerce --shopify-handle nubecalma-almohada-cervical "${COMMON[@]}"
 cd outputs/zz-fixed-commerce

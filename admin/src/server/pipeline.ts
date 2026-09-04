@@ -152,6 +152,8 @@ export type PipelineInput = {
   merchantPath?: string | null;
   /** F3: an explicit asset-pipeline output. Absent = media derived from the scrape. */
   assetsPath?: string | null;
+  /** F5: the operator's palette. Absent = the canonical AstraVibe colours. */
+  themePath?: string | null;
   force?: boolean;
 };
 
@@ -363,6 +365,7 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
     merchantPath: input.merchantPath ?? null,
     // The stage's own output takes precedence; an explicit input is the escape hatch.
     assetsPath: assetsPath ?? input.assetsPath ?? null,
+    themePath: input.themePath ?? null,
     shopifyHandle: input.shopifyHandle ?? null,
   });
   generateStage.jobId = generateJob.jobId;

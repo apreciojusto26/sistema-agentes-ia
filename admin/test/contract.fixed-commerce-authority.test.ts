@@ -198,9 +198,17 @@ describe('the Fixed pipeline no longer depends on landing-base', () => {
   });
 
   test('but the palette path survives — recolouring is what Fixed DOES allow', () => {
-    // patchThemeBlock reads content.json's `design` key, not a DesignSpec. It
-    // rewrites custom-property values and never markup, which is exactly why
-    // the structural fingerprint does not move when a product recolours.
-    expect(generator).toMatch(/patchThemeBlock\(css, input\.design/);
+    // STILL TRUE, THROUGH A DIFFERENT DOOR. Recolouring rewrites custom-property
+    // values and never markup, which is why the structural fingerprint does not
+    // move when a product changes colours.
+    //
+    // This used to assert `patchThemeBlock(css, input.design)`. That path read
+    // content.json's `design` key, which nothing validated, and interpolated the
+    // value into the stylesheet — so a language model could close the @theme
+    // block and inject a rule. F5 replaced it with an operator-owned palette of
+    // sixteen colour tokens, hex only. The capability survived; the hole did not.
+    expect(generator).toMatch(/resolveFixedTheme\(/);
+    expect(generator).toMatch(/applyPalette\(css, theme\)/);
+    expect(generator, 'the unvalidated content-driven patcher is back').not.toMatch(/patchThemeBlock/);
   });
 });

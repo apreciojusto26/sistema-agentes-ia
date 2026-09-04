@@ -54,6 +54,15 @@ export type GenerateParams = {
    * list, which is how a generated landing ends up with no UGC region.
    */
   assetsPath?: string | null;
+  /**
+   * F5: the operator's palette.
+   *
+   * Colour values only, and only for tokens the template declares. It replaces
+   * `content.json`'s `design` key on the Fixed path — that one was unvalidated
+   * and written straight into the stylesheet, which made a language model the
+   * author of arbitrary CSS.
+   */
+  themePath?: string | null;
   /** Fase 4: the CanonicalProduct whose media[] drives the asset pipeline. Absent = legacy filename matching. */
   productJsonPath?: string | null;
   /** Fase 5: operator-supplied Shopify handle. Its PRESENCE switches the landing to commerce mode. Never agent-produced. */

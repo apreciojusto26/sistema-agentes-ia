@@ -17,6 +17,7 @@
 //            the job registry, its child processes and its recorded state
 //            archiveScrape and the normalizer -> canonical-product.json
 //            THE ASSET PRODUCER — selection, dedupe, slot assignment
+//            THE PALETTE RESOLVER — precedence, contrast, stylesheet write
 //            generate-landing.mjs and the assembler
 //            content/landing-astravibe
 //            astro build
@@ -112,6 +113,10 @@ beforeAll(async () => {
       // NO assetsPath. The assets stage PRODUCES its own output now — that is
       // the whole point of F4, and passing a fixture here would test the
       // plumbing rather than the producer.
+      //
+      // The palette IS passed, because it is operator configuration: nothing in
+      // any runtime can read a pixel, so there is no derived palette to produce.
+      themePath: path.join(E2E, 'theme.json'),
     },
     { registry: hermeticRegistry(scrapeOut) },
   );
@@ -247,6 +252,42 @@ describe('the generated landing respects every Fixed authority', () => {
     const stepsBlock = /steps: \[([\s\S]*?)\n  \],/.exec(productTs)?.[1] ?? '';
     expect(stepsBlock).toMatch(/product-0\d/);
     expect(stepsBlock, 'a content-chosen slot key survived into the steps').not.toMatch(/ugc-0\d|step-01/);
+  });
+});
+
+describe('the palette is the operator\'s, and only colour moved', () => {
+  const css = () => readFileSync(path.join(OUT_DIR, 'src/styles/global.css'), 'utf-8');
+
+  test('the operator\'s colours reached the stylesheet', () => {
+    expect(css()).toMatch(/--color-grape:\s*#0F766E;/);
+    expect(css()).toMatch(/--color-grape-tint:\s*#E6FFFA;/);
+  });
+
+  test('tokens the operator did not state kept the canonical value', () => {
+    // Precedence is per token: changing an accent must not blank the rest.
+    expect(css()).toMatch(/--color-bone:\s*#F7F3EC;/);
+    expect(css()).toMatch(/--color-steel:\s*#63686E;/);
+  });
+
+  test('nothing but colour values changed', () => {
+    // A recolour rewrites numbers inside @theme. It never touches a class,
+    // never adds a declaration and never makes markup depend on colour — which
+    // is exactly why the structural fingerprint below does not move.
+    const template = readFileSync(
+      path.join(REPO_ROOT, 'content/landing-astravibe/src/styles/global.css'),
+      'utf-8',
+    );
+    expect(css().split('\n')).toHaveLength(template.split('\n').length);
+    const stripHex = (t: string) => t.replace(/#[0-9A-Fa-f]{6}/g, '#XXXXXX');
+    expect(stripHex(css())).toBe(stripHex(template));
+  });
+
+  test('the theme manifest records where every token came from', () => {
+    const manifest = JSON.parse(readFileSync(path.join(OUT_DIR, '.theme.json'), 'utf-8'));
+    expect(manifest.sources.grape).toBe('override');
+    expect(manifest.sources.bone).toBe('canonical');
+    expect(manifest.adjustments).toEqual([]);
+    expect(Math.min(...manifest.contrast.map((c: { ratio: number }) => c.ratio))).toBeGreaterThanOrEqual(4.5);
   });
 });
 

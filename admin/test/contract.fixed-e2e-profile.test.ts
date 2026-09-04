@@ -19,7 +19,7 @@
 // placeholders and rendered blank frames with no error — the exact silent
 // degradation this suite exists to catch. Every media ref below resolves.
 import { describe, test, expect } from 'vitest';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { collectContentErrors } from '../../scripts/lib/content-contract.mjs';
@@ -158,6 +158,8 @@ const GENERATED = {
   preview: path.join(REPO_ROOT, 'outputs/zz-fixed-preview/dist/client/index.html'),
   commerce: path.join(REPO_ROOT, 'outputs/zz-fixed-commerce/dist-commerce/client/index.html'),
 };
+/** The same product built with a different palette — F5's A/B. */
+const RECOLOURED = path.join(REPO_ROOT, 'outputs/zz-fixed-preview-alt');
 
 const fingerprint = (p: string) =>
   structuralFingerprint(readFileSync(p, 'utf-8'), FIXED_GRAMMAR, FIXED_OPTIONAL_SLOTS);
@@ -205,3 +207,38 @@ describe.runIf(existsSync(GENERATED.commerce))('the generated commerce landing p
     expect(page).not.toMatch(/0,00\s*€/);
   });
 });
+
+// ───────────────────────────────────────────────────────────────────────────
+// A RECOLOUR CHANGES COLOURS AND NOTHING ELSE
+// ───────────────────────────────────────────────────────────────────────────
+
+describe.runIf(existsSync(path.join(RECOLOURED, 'dist/client/index.html')) && existsSync(GENERATED.preview))(
+  'two palettes, one structure',
+  () => {
+    const cssOf = (root: string) => {
+      const dir = path.join(root, 'dist/client/_astro');
+      return readdirSync(dir)
+        .filter((f) => f.endsWith('.css'))
+        .map((f) => readFileSync(path.join(dir, f), 'utf-8'))
+        .join('\n');
+    };
+
+    test('the two builds really do ship different colours', () => {
+      // Asserted on the COMPILED stylesheet, not on the source token: a test
+      // that only read global.css would pass even if the value never reached
+      // the bundle.
+      expect(cssOf(path.dirname(path.dirname(path.dirname(GENERATED.preview))))).toMatch(/#7c3aed/i);
+      expect(cssOf(RECOLOURED)).toMatch(/#0f766e/i);
+      expect(cssOf(RECOLOURED)).not.toMatch(/#7c3aed/i);
+    });
+
+    test('and both fingerprint identically to the sealed Preview profile', () => {
+      const profile = fingerprint(PROFILE.preview);
+      const plain = fingerprint(GENERATED.preview);
+      const recoloured = fingerprint(path.join(RECOLOURED, 'dist/client/index.html'));
+      expect(plain.hash).toBe(profile.hash);
+      expect(recoloured.hash).toBe(profile.hash);
+      expect(recoloured.elements).toBe(profile.elements);
+    });
+  },
+);

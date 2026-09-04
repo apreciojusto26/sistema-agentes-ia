@@ -20,6 +20,7 @@ import { collectMerchantIssues, normalizeMerchant, MERCHANT_REQUIRED_FIELDS } fr
 import { assembleFixedProductData, FixedAssemblyError } from './lib/fixed-product-data.mjs';
 import { projectFixedContent } from './lib/fixed-content-output.mjs';
 import { produceFixedAssets, collectUnresolvedRefs, FixedAssetError } from './lib/fixed-asset-producer.mjs';
+import { readCanonicalPalette, resolveFixedTheme, applyPalette, FixedThemeError } from './lib/fixed-theme.mjs';
 import { isShopifyHandle } from './lib/shopify-handle.mjs';
 import { FIXED_TEMPLATE_RELATIVE } from './lib/fixed-template.mjs';
 import { writeLandingGitignore, initLandingRepo } from './lib/landing-scaffold.mjs';
@@ -125,6 +126,17 @@ function parseArgs(argv) {
     // Present, it REPLACES the derived media wholesale — a half-overridden
     // media set would leave nobody able to say where a given photograph came
     // from, which is the property this argument exists to restore.
+    // THE OPERATOR'S PALETTE. A person decides the brand colours; the Content
+    // Agent does not, and after F5 cannot — `content.json`'s `design` key no
+    // longer reaches the stylesheet on the Fixed path.
+    else if (a === '--theme') {
+      const value = argv[i + 1];
+      if (value === undefined || value.startsWith('--')) {
+        fail('Missing --theme <path-to-json>', 'theme-argument-missing');
+      }
+      args.theme = value;
+      i++;
+    }
     else if (a === '--assets') {
       const value = argv[i + 1];
       if (value === undefined || value.startsWith('--')) {
@@ -440,14 +452,13 @@ function buildTestimonialsTs(testimonials) {
 
 // --- design token patching (whitelist-only, never touches structural vars)
 
-const CSS_VAR_MAP = {
-  colors: (k) => `--color-${k}`,
-  fonts: (k) => `--font-${k}`,
-  radius: (k) => `--radius-${k}`,
-  shadow: (k) => `--shadow-${k}`,
-};
-
-
+// CSS_VAR_MAP AND patchThemeBlock WERE HERE, and they are deleted rather than
+// left unused. The map let a caller address `--font-*`, `--radius-*` and
+// `--shadow-*`, which are typography and shape rather than palette; the patcher
+// interpolated the value into the stylesheet with no validation of any kind.
+// Together they were a CSS injection vector whose input came from a language
+// model. scripts/lib/fixed-theme.mjs replaces both: sixteen colour tokens, hex
+// only, re-normalised at the moment of writing.
 
 // --- copy (excludes build artifacts / secrets, never touches locked paths)
 
@@ -489,56 +500,6 @@ const EXCLUDE_FILES = new Set(['.env', '.DS_Store']);
  */
 function escapeRegExp(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function patchThemeBlock(css, design, { strict = false } = {}) {
-  if (!design) return css;
-  let out = css;
-
-  const unpatchable = (label, varName) => {
-    if (strict) {
-      fail(
-        `design token ${label} → ${varName} is not declared in global.css's @theme block. ` +
-          `A validated DesignSpec may only address real tokens; nothing was written.`,
-        'design-token-unknown',
-      );
-    }
-    console.warn(`  ! design.${label} → ${varName} not found in global.css, skipped`);
-  };
-
-  for (const group of ['colors', 'fonts', 'radius', 'shadow']) {
-    if (!design[group]) continue;
-    for (const [key, value] of Object.entries(design[group])) {
-      const varName = CSS_VAR_MAP[group](key);
-      const re = new RegExp(`(${escapeRegExp(varName)}:\\s*)[^;]+;`);
-      if (!re.test(out)) {
-        unpatchable(`${group}.${key}`, varName);
-        continue;
-      }
-      out = out.replace(re, `$1${value};`);
-    }
-  }
-
-  if (design.text) {
-    for (const [key, val] of Object.entries(design.text)) {
-      const patches = {
-        [`--text-${key}`]: val.size,
-        [`--text-${key}--line-height`]: val.lineHeight,
-        [`--text-${key}--letter-spacing`]: val.letterSpacing,
-      };
-      for (const [varName, value] of Object.entries(patches)) {
-        if (value === undefined) continue;
-        const re = new RegExp(`(${escapeRegExp(varName)}:\\s*)[^;]+;`);
-        if (!re.test(out)) {
-          unpatchable(`text.${key}`, varName);
-          continue;
-        }
-        out = out.replace(re, `$1${value};`);
-      }
-    }
-  }
-
-  return out;
 }
 
 function copyTemplate(dest) {
@@ -709,6 +670,15 @@ function main() {
       parsed.__merchantConfig = merchantRaw;
     }
 
+    if (args.theme !== undefined) {
+      if (!existsSync(args.theme)) fail(`Theme file not found: ${args.theme}`, 'theme-file-missing');
+      try {
+        parsed.__theme = JSON.parse(readFileSync(args.theme, 'utf-8'));
+      } catch (err) {
+        fail(`--theme file is not valid JSON: ${err.message}`, 'theme-unparseable');
+      }
+    }
+
 
     return parsed;
   });
@@ -839,6 +809,8 @@ function main() {
   let packsConfigured = false;
   /** The real asset production, when a scrape drove it. Reused by copy-images. */
   let producedAssets = null;
+  /** The operator's palette, or null. Read once, applied in patch-theme. */
+  const themeOverride = input.__theme ?? null;
 
   withStage('write-data', () => {
     // THE ASSEMBLY BOUNDARY. Every field written below arrives having been
@@ -951,14 +923,32 @@ function main() {
   // there is nothing for such a document to decide and none is written.
 
   withStage('patch-theme', () => {
-    // THE PALETTE IS THE ONE THING A PRODUCT MAY CHANGE, and it arrives in
-    // content.json's `design` key — NOT from a DesignSpec. Recolouring rewrites
-    // the custom-property VALUES inside global.css's @theme block; it never
-    // touches markup, which is why the structural fingerprint does not move
-    // and why this survived the switch while explicit design mode did not.
+    // THE PALETTE IS THE ONE THING A PRODUCT MAY CHANGE. Recolouring rewrites
+    // custom-property VALUES inside global.css's @theme block and never touches
+    // markup, which is why the structural fingerprint does not move.
+    //
+    // `content.json`'s `design` KEY IS NO LONGER READ HERE. It used to be, and
+    // nothing validated it: content-contract.mjs has no rule for `design` and
+    // the old patcher interpolated the value straight into the stylesheet, so a
+    // value of `red; } body { display: none } /*` closed the block and injected
+    // a rule — written by a language model. The palette now comes from the
+    // operator, falling back to the template's own canonical colours.
     const cssPath = path.join(outDir, 'src/styles/global.css');
     const css = readFileSync(cssPath, 'utf-8');
-    writeFileSync(cssPath, patchThemeBlock(css, input.design, { strict: false }));
+    try {
+      const { theme, manifest } = resolveFixedTheme({
+        override: themeOverride,
+        // No derived palette yet: nothing in any runtime can read a pixel —
+        // see the note on --theme parsing below.
+        derived: null,
+        canonical: readCanonicalPalette(css),
+      });
+      writeFileSync(cssPath, applyPalette(css, theme));
+      writeFileSync(path.join(outDir, '.theme.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+    } catch (err) {
+      if (err instanceof FixedThemeError) fail(err.message, err.issues[0]?.code ?? 'theme-invalid');
+      throw err;
+    }
   });
 
   // FAVICON — after patch-theme on purpose: it reads the tokens that stage
