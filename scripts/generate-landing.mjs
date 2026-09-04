@@ -15,7 +15,7 @@ import { createHash } from 'node:crypto';
 import { execSync } from 'node:child_process';
 import { DEFAULT_ERRORS, ContentContractError, validateContent } from './lib/content-contract.mjs';
 import { isProductId } from './lib/product-id.cjs';
-import { buildFaviconSvg, buildFaviconIco, pickForeground } from './lib/favicon.mjs';
+import { resolveFixedFavicon, writeFaviconFiles, paletteFromCss, FixedFaviconError } from './lib/fixed-favicon.mjs';
 import { collectMerchantIssues, normalizeMerchant, MERCHANT_REQUIRED_FIELDS } from './lib/merchant.mjs';
 import { assembleFixedProductData, FixedAssemblyError } from './lib/fixed-product-data.mjs';
 import { projectFixedContent } from './lib/fixed-content-output.mjs';
@@ -49,12 +49,14 @@ const emit = process.env.LG_EVENTS === '1' ? events.createEmitter('generate') : 
 
 let currentStage = null;
 
-function withStage(stage, fn) {
+async function withStage(stage, fn) {
   currentStage = stage;
   emit('stage.start', stage);
   const t = Date.now();
   try {
-    const r = fn();
+    // Awaited so a stage MAY be async. Every synchronous body behaves exactly
+    // as before — `await` on a non-promise resolves in the same tick.
+    const r = await fn();
     emit('stage.end', stage, { ms: Date.now() - t });
     currentStage = null;
     return r;
@@ -129,6 +131,16 @@ function parseArgs(argv) {
     // THE OPERATOR'S PALETTE. A person decides the brand colours; the Content
     // Agent does not, and after F5 cannot — `content.json`'s `design` key no
     // longer reaches the stylesheet on the Fixed path.
+    // THE OPERATOR'S MARK. PNG only — an SVG is a document, and this repo has
+    // no sanitiser for one.
+    else if (a === '--favicon') {
+      const value = argv[i + 1];
+      if (value === undefined || value.startsWith('--')) {
+        fail('Missing --favicon <path-to-png>', 'favicon-argument-missing');
+      }
+      args.favicon = value;
+      i++;
+    }
     else if (a === '--theme') {
       const value = argv[i + 1];
       if (value === undefined || value.startsWith('--')) {
@@ -620,12 +632,15 @@ function getTemplateCommit() {
 
 // --- main -----------------------------------------------------------------
 
-function main() {
-  const args = withStage('args', () => parseArgs(process.argv.slice(2)));
+// ASYNC because the favicon chain may call an injected provider. Every stage
+// body stays synchronous today; awaiting one that is not a promise resolves in
+// the same tick, so the observable stage sequence is unchanged.
+async function main() {
+  const args = await withStage('args', () => parseArgs(process.argv.slice(2)));
 
   // Design System Fase 2 — the resolved DesignSpec, or null in legacy mode.
   // Filled in by the `validate` stage below.
-  const input = withStage('validate', () => {
+  const input = await withStage('validate', () => {
     if (!existsSync(args.content)) fail(`Content file not found: ${args.content}`);
     const parsed = JSON.parse(readFileSync(args.content, 'utf-8'));
     try {
@@ -697,7 +712,7 @@ function main() {
   let resolvedProductId = null;
   let resolvedLineage = 'legacy';
 
-  withStage('preflight', () => {
+  await withStage('preflight', () => {
     const dirExists = existsSync(outDir);
     let existingManifest = null;
     if (dirExists && existsSync(manifestFilePath)) {
@@ -780,7 +795,7 @@ function main() {
 
   let repoResult = null;
 
-  withStage('copy-template', () => {
+  await withStage('copy-template', () => {
     mkdirSync(outDir, { recursive: true });
     copyTemplate(outDir);
 
@@ -811,8 +826,22 @@ function main() {
   let producedAssets = null;
   /** The operator's palette, or null. Read once, applied in patch-theme. */
   const themeOverride = input.__theme ?? null;
+  /**
+   * A favicon manifest from a PREVIOUS generation of this same slug, read
+   * before the template overwrites the tree. It is what makes "generate once"
+   * real: an artefact whose fingerprint still matches is reused, not remade.
+   */
+  const existingFaviconManifest = (() => {
+    const prior = path.join(OUTPUTS_DIR, args.slug, '.favicon.json');
+    if (!existsSync(prior)) return null;
+    try {
+      return JSON.parse(readFileSync(prior, 'utf-8'));
+    } catch {
+      return null;
+    }
+  })();
 
-  withStage('write-data', () => {
+  await withStage('write-data', () => {
     // THE ASSEMBLY BOUNDARY. Every field written below arrives having been
     // attributed to the authority allowed to state it.
     //
@@ -922,7 +951,7 @@ function main() {
   // and tokens per product; Fixed AstraVibe renders one sealed structure, so
   // there is nothing for such a document to decide and none is written.
 
-  withStage('patch-theme', () => {
+  await withStage('patch-theme', () => {
     // THE PALETTE IS THE ONE THING A PRODUCT MAY CHANGE. Recolouring rewrites
     // custom-property VALUES inside global.css's @theme block and never touches
     // markup, which is why the structural fingerprint does not move.
@@ -955,23 +984,37 @@ function main() {
   // just resolved. Every landing gets its OWN icon; the template's generic
   // favicon is deleted rather than kept as a fallback (owner decision D5), so
   // an output can never silently ship the shared one.
-  withStage('write-favicon', () => {
+  await withStage('write-favicon', async () => {
+    // THE MARK RESOLVES THROUGH A STATED CHAIN: an operator file, a previously
+    // approved artefact with the same fingerprint, a generated one, then the
+    // deterministic monogram. The monogram never fails, so a landing always has
+    // an icon.
+    //
+    // The palette is read from the stylesheet AFTER patch-theme, so the mark is
+    // drawn from the colours this landing actually ships. F5 owns colour; this
+    // consumes its result and decides nothing about it.
     const cssPath = path.join(outDir, 'src/styles/global.css');
-    const css = readFileSync(cssPath, 'utf-8');
-    const token = (name) => {
-      const m = new RegExp(`--color-${name}:\\s*([^;]+);`).exec(css);
-      return m ? m[1].trim() : null;
-    };
+    const palette = paletteFromCss(readFileSync(cssPath, 'utf-8'));
 
-    // Background: the darkest identity token available, so the monogram sits on
-    // a solid block at 16px. Foreground: chosen by measured contrast, never
-    // assumed — the template's own rust-on-bone pair is 3.96:1 and fails.
-    const background = token('graphite') ?? '#1e2124';
-    const foreground = pickForeground(background, [token('bone'), token('surface')].filter(Boolean));
-
-    const brand = input.product?.brand ?? args.slug;
-    writeFileSync(path.join(outDir, 'public/favicon.svg'), buildFaviconSvg({ brand, background, foreground }));
-    writeFileSync(path.join(outDir, 'public/favicon.ico'), buildFaviconIco({ brand, background, foreground }));
+    // NO PROVIDER IS WIRED. There is no image-generation SDK, API, model or
+    // credential anywhere in this repo — audited, not assumed. The slot exists
+    // so a backend plugs in without redesign; until one does, the chain falls
+    // through to the monogram.
+    try {
+      const { files, manifest } = await resolveFixedFavicon({
+        operatorPath: args.favicon ?? null,
+        previous: existingFaviconManifest,
+        generate: null,
+        brand: input.product?.brand ?? null,
+        productName: input.product?.name ?? null,
+        palette,
+      });
+      writeFaviconFiles(path.join(outDir, 'public'), files);
+      writeFileSync(path.join(outDir, '.favicon.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+    } catch (err) {
+      if (err instanceof FixedFaviconError) fail(err.message, err.code);
+      throw err;
+    }
   });
 
   console.log(`✓ outputs/${args.slug} created from ${FIXED_TEMPLATE_RELATIVE}`);
@@ -1031,7 +1074,7 @@ function main() {
   }
 
   if (args.images) {
-    withStage('copy-images', () => {
+    await withStage('copy-images', () => {
       if (!existsSync(args.images)) fail(`--images directory not found: ${args.images}`);
 
       // Ownership gate (design D4 guard #1): a foreign --images directory
@@ -1166,7 +1209,7 @@ function main() {
   // by the NEXT run's preflight (above) and by admin's routes/jobs.ts. Runs
   // unconditionally (not gated by LG_EVENTS): it is structural output, not
   // an observability concern.
-  withStage('write-manifest', () => {
+  await withStage('write-manifest', () => {
     const provenance = input.provenance && typeof input.provenance === 'object' ? input.provenance : {};
     const manifest = {
       schema: GENERATION_SCHEMA_VERSION,
@@ -1206,7 +1249,7 @@ function main() {
     writeFileSync(manifestFilePath, JSON.stringify(manifest, null, 2) + '\n');
   });
 
-  withStage('todos', () => {
+  await withStage('todos', () => {
     // Fase 5: two explicitly separated modes.
     //
     // COMMERCE — `--shopify-handle` given. The handle is written into the
@@ -1287,4 +1330,10 @@ function main() {
   });
 }
 
-main();
+// A rejected promise here must exit non-zero. Without the catch, a throw after
+// the first await would surface as an unhandled rejection and, in some Node
+// versions, an exit code that claims success.
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

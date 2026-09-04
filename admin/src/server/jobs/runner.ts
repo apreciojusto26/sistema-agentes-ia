@@ -174,6 +174,7 @@ export function buildGenerateSpec(params: GenerateParams, opts: SpecOpts): RunSp
   if (params.merchantPath) args.push('--merchant', params.merchantPath);
   if (params.assetsPath) args.push('--assets', params.assetsPath);
   if (params.themePath) args.push('--theme', params.themePath);
+  if (params.faviconPath) args.push('--favicon', params.faviconPath);
   if (params.shopifyHandle) args.push('--shopify-handle', params.shopifyHandle);
 
   return {

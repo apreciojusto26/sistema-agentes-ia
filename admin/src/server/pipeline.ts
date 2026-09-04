@@ -23,6 +23,8 @@ import { spawn } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { produceFixedAssets } from '../../../scripts/lib/fixed-asset-producer.mjs';
 import { collectAssetOutputIssues } from '../../../scripts/lib/fixed-asset-output.mjs';
+import { resolveFixedFavicon, paletteFromCss } from '../../../scripts/lib/fixed-favicon.mjs';
+import { FIXED_TEMPLATE_RELATIVE } from '../../../scripts/lib/fixed-template.mjs';
 import path from 'node:path';
 import type { JobRecord, JobStatus } from '../shared/jobs';
 import type { JobRegistry } from './jobs/registry';
@@ -154,6 +156,8 @@ export type PipelineInput = {
   assetsPath?: string | null;
   /** F5: the operator's palette. Absent = the canonical AstraVibe colours. */
   themePath?: string | null;
+  /** F6: an operator-supplied brand mark (PNG). Absent = generated or monogram. */
+  faviconPath?: string | null;
   force?: boolean;
 };
 
@@ -161,6 +165,14 @@ export type PipelineDeps = {
   registry: JobRegistry;
   /** Seam for tests: replaces the real `astro build` spawn. */
   runBuild?: (outDir: string) => Promise<{ ok: boolean; message: string | null }>;
+  /**
+   * The brand-mark provider. UNSET IN PRODUCTION, because none exists: there is
+   * no image-generation SDK, API, model or credential anywhere in this repo —
+   * audited, not assumed. The seam is here so a backend plugs in without
+   * redesign, and so the hermetic E2E can prove the call-count rules without
+   * touching a network.
+   */
+  generateFavicon?: (input: Record<string, unknown>) => Promise<Buffer | null> | Buffer | null;
   onUpdate?: (record: PipelineRecord) => void;
 };
 
@@ -323,6 +335,7 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
   // decisions become an inspectable artefact rather than something recomputed
   // and forgotten inside a child process.
   let assetsPath: string | null = null;
+  let faviconPath: string | null = null;
   try {
     const canonicalProduct = JSON.parse(readFileSync(canonicalPath, 'utf-8'));
     const stagedContent = JSON.parse(readFileSync(contentPath, 'utf-8'));
@@ -345,6 +358,42 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
       `${JSON.stringify(produced.manifest, null, 2)}\n`,
     );
     assetStage.detail = `${produced.manifest.assets.length} asset(s), ${produced.rejected.length} rejected`;
+
+    // THE BRAND MARK, resolved by the stage that already owns visual files.
+    // Kept in its own module and its own artefact — no new top-level stage,
+    // because the Admin's seven stages are a contract of their own.
+    //
+    // GENERATION IS NOT PART OF THE BUILD. A provider is non-deterministic, so
+    // the mark is resolved once, persisted and reused while its fingerprint
+    // holds. The palette it is drawn from is the one this landing will ship:
+    // the operator's overrides on top of the template's canonical tokens.
+    const templateCss = readFileSync(
+      path.join(REPO_ROOT, FIXED_TEMPLATE_RELATIVE, 'src/styles/global.css'),
+      'utf-8',
+    );
+    const palette = paletteFromCss(templateCss);
+    if (input.themePath && existsSync(input.themePath)) {
+      Object.assign(palette, JSON.parse(readFileSync(input.themePath, 'utf-8')));
+    }
+
+    const priorPath = path.join(scrapeJob.archivePath!, 'fixed-favicon.json');
+    const prior = existsSync(priorPath) ? JSON.parse(readFileSync(priorPath, 'utf-8')) : null;
+
+    const mark = await resolveFixedFavicon({
+      operatorPath: input.faviconPath ?? null,
+      previous: prior,
+      generate: deps.generateFavicon ?? null,
+      brand: canonicalProduct?.identity?.brand ?? null,
+      productName: canonicalProduct?.identity?.name ?? null,
+      palette,
+    });
+
+    writeFileSync(priorPath, `${JSON.stringify(mark.manifest, null, 2)}\n`);
+    const png = mark.files.find((f: { name: string }) => f.name === 'favicon.png');
+    if (png) {
+      faviconPath = path.join(scrapeJob.archivePath!, 'favicon.png');
+      writeFileSync(faviconPath, png.contents as Buffer);
+    }
   } catch (err) {
     return fail('assets', err instanceof Error ? err.message : 'asset production failed');
   }
@@ -366,6 +415,8 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
     // The stage's own output takes precedence; an explicit input is the escape hatch.
     assetsPath: assetsPath ?? input.assetsPath ?? null,
     themePath: input.themePath ?? null,
+    // The stage's resolution wins; an explicit input is the escape hatch.
+    faviconPath: faviconPath ?? input.faviconPath ?? null,
     shopifyHandle: input.shopifyHandle ?? null,
   });
   generateStage.jobId = generateJob.jobId;

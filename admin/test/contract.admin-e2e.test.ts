@@ -18,6 +18,7 @@
 //            archiveScrape and the normalizer -> canonical-product.json
 //            THE ASSET PRODUCER — selection, dedupe, slot assignment
 //            THE PALETTE RESOLVER — precedence, contrast, stylesheet write
+//            THE BRAND-MARK RESOLVER — precedence, fingerprint, reuse
 //            generate-landing.mjs and the assembler
 //            content/landing-astravibe
 //            astro build
@@ -96,6 +97,10 @@ const clean = () => rmSync(OUT_DIR, { recursive: true, force: true });
 // asserted against a stub is not an assertion. One run, shared by every test.
 let record: PipelineRecord;
 let scrapeOut: string;
+/** How many times the fake provider was asked for a mark, across BOTH runs. */
+let faviconCalls = 0;
+/** The second run, used to prove an artefact is reused rather than remade. */
+let secondRun: PipelineRecord;
 
 // FILE-LEVEL, not per-describe. Three describes read the SAME generated
 // landing, and a cleanup scoped to the first one deleted it out from under the
@@ -104,6 +109,13 @@ beforeAll(async () => {
   clean();
   mkdirSync(path.join(ADMIN_ROOT, '.staged'), { recursive: true });
   scrapeOut = path.join(mkdtempSync(path.join(tmpdir(), 'admin-e2e-')), 'output');
+  // A DETERMINISTIC FAKE AT THE PROVIDER BOUNDARY. No real image API is called
+  // — none exists in this repo — and the count is what proves "generate once".
+  const generateFavicon = () => {
+    faviconCalls += 1;
+    return readFileSync(path.join(REPO_ROOT, 'admin/test/fixtures/assets/a/images/img_2.png'));
+  };
+
   record = await runPipeline(
     {
       url: 'https://fixture.invalid/product',
@@ -118,11 +130,31 @@ beforeAll(async () => {
       // any runtime can read a pixel, so there is no derived palette to produce.
       themePath: path.join(E2E, 'theme.json'),
     },
-    { registry: hermeticRegistry(scrapeOut) },
+    { registry: hermeticRegistry(scrapeOut), generateFavicon },
   );
-}, 600_000);
+
+  // A SECOND RUN OVER THE SAME ARCHIVE. Same inputs, same fingerprint — the
+  // provider must not be asked again. The build is skipped: what is under test
+  // is the resolution, and repeating an astro build would double the runtime
+  // for nothing.
+  secondRun = await runPipeline(
+    {
+      scrapeJobId: record.stages.find((s) => s.name === 'scrape')!.jobId!,
+      slug: `${SLUG}-again`,
+      force: true,
+      merchantPath: path.join(E2E, 'merchant.json'),
+      themePath: path.join(E2E, 'theme.json'),
+    },
+    {
+      registry: hermeticRegistry(scrapeOut),
+      generateFavicon,
+      runBuild: async () => ({ ok: true, message: null }),
+    },
+  );
+}, 900_000);
 
 afterAll(() => {
+  rmSync(path.join(REPO_ROOT, 'outputs', `${SLUG}-again`), { recursive: true, force: true });
   // KEEP_E2E=1 leaves the generated landing on disk. The run takes a minute and
   // most of what can go wrong is only visible in the artefact it produces.
   if (process.env.KEEP_E2E !== '1') clean();
@@ -318,5 +350,55 @@ describe('the built preview sells nothing', () => {
     const built = structuralFingerprint(html(), FIXED_GRAMMAR, FIXED_OPTIONAL_SLOTS);
     expect(built.elements).toBe(profile.elements);
     expect(built.hash).toBe(profile.hash);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// THE BRAND MARK
+// ───────────────────────────────────────────────────────────────────────────
+
+describe('the mark is generated once and then reused', () => {
+  const manifestPath = () => {
+    const scrapeStage = record.stages.find((s) => s.name === 'scrape')!;
+    return path.join(ADMIN_ROOT, '.jobs', scrapeStage.jobId!, 'scrape/fixed-favicon.json');
+  };
+
+  test('the fake provider was called EXACTLY once across two runs', () => {
+    // The whole point of persisting the artefact. A provider is
+    // non-deterministic, so calling it per build would ship a different icon
+    // every time and cost an image call for a changed FAQ entry.
+    expect(secondRun.status).toBe('succeeded');
+    expect(faviconCalls).toBe(1);
+  });
+
+  test('the first run generated, the second reused', () => {
+    const manifest = JSON.parse(readFileSync(manifestPath(), 'utf-8'));
+    expect(manifest.source).toBe('generated');
+    expect(manifest.reused).toBe(true);
+    expect(manifest.fingerprint).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  test('the artefact records hashes, and no clock in the deterministic half', () => {
+    const manifest = JSON.parse(readFileSync(manifestPath(), 'utf-8'));
+    for (const file of manifest.files) expect(file.sha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(manifest.operational.generatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    const deterministic = { ...manifest, operational: undefined, reused: undefined };
+    expect(JSON.stringify(deterministic)).not.toMatch(/\d{4}-\d{2}-\d{2}T/);
+  });
+
+  test('the generated mark reached the landing, not just the archive', () => {
+    // Asserting the file exists in public/ is not enough — the browser has to
+    // reference it. This checks the artefact AND the head that points at it.
+    const svg = readFileSync(path.join(OUT_DIR, 'public/favicon.svg'), 'utf-8');
+    expect(svg).toContain('data:image/png;base64,');
+
+    const landingManifest = JSON.parse(readFileSync(path.join(OUT_DIR, '.favicon.json'), 'utf-8'));
+    expect(landingManifest.source).toBe('operator');
+  });
+
+  test('the built HTML really references it', () => {
+    const html = readFileSync(path.join(OUT_DIR, 'dist/client/index.html'), 'utf-8');
+    expect(html).toMatch(/<link[^>]*rel="icon"[^>]*href="\/favicon\.svg"/);
+    expect(existsSync(path.join(OUT_DIR, 'dist/client/favicon.svg'))).toBe(true);
   });
 });

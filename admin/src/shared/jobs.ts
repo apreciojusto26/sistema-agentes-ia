@@ -63,6 +63,8 @@ export type GenerateParams = {
    * author of arbitrary CSS.
    */
   themePath?: string | null;
+  /** F6: the brand mark, already resolved to a PNG on disk. */
+  faviconPath?: string | null;
   /** Fase 4: the CanonicalProduct whose media[] drives the asset pipeline. Absent = legacy filename matching. */
   productJsonPath?: string | null;
   /** Fase 5: operator-supplied Shopify handle. Its PRESENCE switches the landing to commerce mode. Never agent-produced. */

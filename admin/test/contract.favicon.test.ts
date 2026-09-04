@@ -26,10 +26,19 @@ describe('the template ships NO generic favicon to inherit', () => {
     expect(head).toMatch(/rel="icon"[^>]*type="image\/svg\+xml"[^>]*href="\/favicon\.svg"/);
     expect(head).toMatch(/href="\/favicon\.ico"/);
 
+    // THE FILENAMES MOVED, THE GUARANTEE DID NOT. F6 replaced the two inline
+    // writeFileSync calls with a resolver that walks operator -> previous ->
+    // generated -> monogram, so the names live in fixed-favicon.mjs now. What
+    // this still asserts is that the stage exists and that both files are
+    // produced — through the authority rather than by a literal.
     const gen = readFileSync(path.join(REPO_ROOT, 'scripts/generate-landing.mjs'), 'utf-8');
     expect(gen).toContain("withStage('write-favicon'");
-    expect(gen).toContain('public/favicon.svg');
-    expect(gen).toContain('public/favicon.ico');
+    expect(gen).toContain('resolveFixedFavicon(');
+    expect(gen).toContain('writeFaviconFiles(');
+
+    const favicon = readFileSync(path.join(REPO_ROOT, 'scripts/lib/fixed-favicon.mjs'), 'utf-8');
+    expect(favicon).toContain("'favicon.svg'");
+    expect(favicon).toContain("'favicon.ico'");
   });
 });
 
