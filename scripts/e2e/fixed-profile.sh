@@ -17,7 +17,23 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
 FIX=admin/test/fixtures/fixed
-COMMON=(--content "$FIX/content.json" --assets "$FIX/assets.json" --merchant "$FIX/merchant.json" --force)
+# A COMPLETE PRODUCT, not a media fixture. The harness used to pass --assets,
+# which meant the landing had no CanonicalProduct — and therefore no factual
+# reviews, and therefore an empty reviews reel that no sealed profile matches.
+# A profile landing has to be the shape a real product produces, so it now runs
+# the real asset producer over the same scrape fixture the hermetic E2E uses.
+SCRAPE=admin/test/fixtures/e2e/scrape
+COMMON=(--content "$FIX/content.json" --product "$ROOT/$SCRAPE/canonical-product.json" \
+        --images "$ROOT/$SCRAPE/images" --merchant "$FIX/merchant.json" --force)
+
+# The canonical product is derived here rather than committed: it is the
+# normalizer's output, and deriving it keeps the two in step.
+node --input-type=module -e "
+import {normalizeProduct} from './scripts/lib/product-normalizer.mjs';
+import {readFileSync, writeFileSync} from 'node:fs';
+const raw = JSON.parse(readFileSync('$SCRAPE/product.json', 'utf-8'));
+writeFileSync('$SCRAPE/canonical-product.json', JSON.stringify(normalizeProduct(raw), null, 2));
+"
 
 echo "==> preview"
 node scripts/generate-landing.mjs --slug zz-fixed-preview "${COMMON[@]}"

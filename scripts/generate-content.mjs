@@ -113,6 +113,10 @@ export function buildSystemInstruction({ fixed = false } = {}) {
           'IMPORTANTE: "packs" debe ser SIEMPRE un array vacío: "packs": []. Los packs son',
           'configuración comercial de la tienda, no texto tuyo. No inventes precios, descuentos',
           'ni etiquetas de pack: se adjuntan más adelante desde la configuración.',
+          'IMPORTANTE: "testimonials" debe ser SIEMPRE un array vacío: "testimonials": [].',
+          'Las reseñas son hechos sobre personas reales: autor, estrellas y texto de alguien que',
+          'compró el producto. No las escribas. Se toman de las reseñas realmente publicadas en',
+          'la fuente, y si no hay ninguna la sección no se muestra.',
         ]
       : []),
     'NO generes "ratingAverage", "ratingCount" ni "ratingBreakdown". La valoración y el número de',
@@ -549,6 +553,12 @@ async function main() {
   // deleted — the configured bundles are attached at assembly time, and an
   // invented "Pack 3 + 1 GRATIS -30%" never reaches a buyer.
   if (args.fixed === true) parsed.product.packs = [];
+
+  // TESTIMONIALS ARE EMPTIED TOO, and for a stronger reason than packs. A card
+  // with an author, a star rating and a body asserts a stranger's experience —
+  // a model has not had one. They are projected from the source's real reviews
+  // downstream; a model that wrote them anyway does not get them onto a page.
+  if (args.fixed === true) parsed.testimonials = [];
 
   const socialProof = product.socialProof ?? {};
   parsed.product.ratingAverage =

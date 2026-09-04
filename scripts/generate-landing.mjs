@@ -929,7 +929,13 @@ async function main() {
 
     writeFileSync(path.join(outDir, 'src/data/product.ts'), buildProductTs(input.product, args.shopifyHandle, fixed));
     writeFileSync(path.join(outDir, 'src/data/faq.ts'), buildFaqTs(input.faq));
-    writeFileSync(path.join(outDir, 'src/data/testimonials.ts'), buildTestimonialsTs(input.testimonials));
+    // FROM THE ASSEMBLER, which took them from the scrape. `input.testimonials`
+    // is the Content Agent's document and is NOT written here: emitting it
+    // would ship invented customers, which is the whole defect this closes.
+    writeFileSync(
+      path.join(outDir, 'src/data/testimonials.ts'),
+      buildTestimonialsTs(fixed.socialProof.reviews),
+    );
 
     // MERCHANT — written here rather than as its own stage, deliberately. It IS
     // data, and a separate stage would be emitted on every run including the

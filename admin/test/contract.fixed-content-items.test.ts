@@ -53,6 +53,14 @@ describe('review items', () => {
     expect(codes({ reviews: [review()] })).toEqual([]);
   });
 
+  test("the date is the PROVIDER's own string, never forced into ISO", () => {
+    // scrape.js reads "25 AGO 2025" out of a meta line and DECISION-7 forbids
+    // reformatting it. Demanding ISO would demand a precision the source never
+    // gave, and the only way to satisfy it would be to invent one.
+    expect(codes({ reviews: [review({ date: '25 AGO 2025' })] })).toEqual([]);
+    expect(codes({ reviews: [review({ date: '' })] })).toEqual([]);
+  });
+
   test('an empty author is allowed — a source that recorded none is a real state', () => {
     // The mask IS the provenance; absence is not the same as invalid.
     expect(codes({ reviews: [review({ author: '' })] })).toEqual([]);
@@ -62,8 +70,7 @@ describe('review items', () => {
     ['a fractional rating', { rating: 4.5 }],
     ['a rating out of range', { rating: 6 }],
     ['a string rating', { rating: '5' }],
-    ['a non-ISO date', { date: '11/02/2026' }],
-    ['a missing date', { date: undefined }],
+    ['a non-string date', { date: 20260211 }],
     ['an empty body', { body: '' }],
     ['a numeric author', { author: 7 }],
   ])('%s is rejected', (_label, over) => {
@@ -164,7 +171,6 @@ describe('the item rules run as part of the Fixed content contract', () => {
       faq: [{ question: '¿Sí?', answer: 'Sí.' }],
       comparison: [{ feature: 'f', ours: true, rival: false }],
       steps: [{ step: 1, title: 't', text: 'x' }],
-      reviews: [{ author: '', rating: 4, date: '2026-01-01', body: 'b' }],
     });
     expect(issues).toEqual([]);
   });

@@ -25,6 +25,10 @@
 //   step media   -> asset pipeline. The Content Agent writes a step's TITLE
 //                   and TEXT; which photograph illustrates it is a media
 //                   decision, and filenames are not copy.
+//   reviews      -> CanonicalProduct.socialProof. An author, a star rating and
+//   testimonials    a review body are an assertion about a stranger's
+//                   experience. The scraper already collects real ones; a model
+//                   writing them is fabricating evidence.
 //   shipping     -> merchant config
 //
 // ─── WHAT LEAVES BECAUSE NOTHING RENDERS IT ────────────────────────────────
@@ -63,12 +67,16 @@ export const FIXED_CONTENT_FIELDS = [
   // `variant` are dropped because the Fixed page picks its own layout, and a
   // content field that chooses a layout is the drift F3A removed.
   'faq',
-  'reviews',
-  'featuredTestimonial',
 ];
 
 /** Slots owned by another authority. Named so the guard can reject them. */
 export const FIXED_CONTENT_FOREIGN_FIELDS = [
+  // SOCIAL PROOF IS THE SCRAPE'S. A card with an author, a star rating and a
+  // body asserts a stranger's experience, and a language model cannot have one.
+  // scripts/lib/fixed-social-proof.mjs projects these from CanonicalReview.
+  'reviews',
+  'testimonials',
+  'featuredTestimonial',
   'packs',
   'gallery',
   'heroExtras',
@@ -177,11 +185,18 @@ export function collectFixedItemIssues(content) {
               `domain and a fractional value renders half a glyph, got ${JSON.stringify(item.rating)}`,
           );
         }
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(item.date ?? '')) {
+        // THE DATE IS THE PROVIDER'S OWN STRING, not ISO. scrape.js reads
+        // "25 AGO 2025" out of a meta line and product-normalizer's DECISION-7
+        // forbids reformatting it, so demanding ISO here would demand a
+        // precision the source never gave — and the only way to satisfy it
+        // would be to invent one. It must be a string; '' is a real answer for
+        // a review whose meta line did not parse.
+        if (typeof item.date !== 'string') {
           at(
             'content-review-item-invalid',
             `reviews[${i}].date`,
-            `reviews[${i}].date must be ISO YYYY-MM-DD, got ${JSON.stringify(item.date)}`,
+            `reviews[${i}].date must be a string — the provider's own text, or '' when it published none. ` +
+              `Got ${JSON.stringify(item.date)}`,
           );
         }
         // MEDIA IS THE ASSET LAYER'S, here as everywhere else. `Testimonial.media`
@@ -317,15 +332,10 @@ export function projectFixedContent(content) {
     out.steps = out.steps.map(({ media, ...copy }) => copy);
   }
   if (Array.isArray(content?.faq)) out.faq = content.faq;
-  if (Array.isArray(content?.testimonials)) {
-    out.reviews = content.testimonials.map(({ author, rating, date, title, body }) => ({
-      author,
-      rating,
-      date,
-      ...(title === undefined ? {} : { title }),
-      body,
-    }));
-  }
+  // `testimonials` IS DELIBERATELY NOT PROJECTED. A Version A content.json
+  // carries them and its own contract still requires them, so their presence is
+  // the historical format behaving correctly — but they do not reach a Fixed
+  // page. Social proof is projected from the scrape by fixed-social-proof.mjs.
   return out;
 }
 

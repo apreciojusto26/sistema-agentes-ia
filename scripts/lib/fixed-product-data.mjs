@@ -29,6 +29,7 @@
 // content field.
 import { collectAssetOutputIssues } from './fixed-asset-output.mjs';
 import { collectFixedContentIssues, FIXED_CONTENT_FOREIGN_FIELDS } from './fixed-content-output.mjs';
+import { projectFixedSocialProof } from './fixed-social-proof.mjs';
 import { collectMerchantIssues, merchantFreeShippingOverCents, merchantPacks } from './merchant.mjs';
 import { DEFAULT_ERRORS } from './content-contract.mjs';
 
@@ -243,6 +244,8 @@ export function assembleFixedProductData(sources = {}) {
     );
   }
 
+  const socialProof = projectFixedSocialProof(sources.canonicalProduct);
+
   const {
     canonicalProduct,
     contentOutput,
@@ -277,10 +280,17 @@ export function assembleFixedProductData(sources = {}) {
       trustTicker: contentOutput.trustTicker,
     },
     socialProof: {
+      // The AGGREGATE still comes through content, where generate-content.mjs
+      // overwrites whatever the model wrote with the scraper's real numbers.
       ratingAverage: contentOutput.ratingAverage ?? null,
       ratingCount: contentOutput.ratingCount ?? null,
-      reviews: contentOutput.reviews ?? [],
-      featuredTestimonial: contentOutput.featuredTestimonial ?? null,
+      // THE REVIEWS THEMSELVES COME FROM THE SCRAPE, and from nowhere else. A
+      // card carrying an author, a star rating and a body asserts a stranger's
+      // experience; the Content Agent cannot have had one. When the provider
+      // published nothing usable this is empty and the capability is false —
+      // which is a page with no reviews section, not a page with empty cards.
+      reviews: socialProof.testimonials,
+      featuredTestimonial: socialProof.featured,
     },
     narrative: {
       // THE MERGE. Copy from the Content Agent, photograph from the asset

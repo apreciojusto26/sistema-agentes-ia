@@ -101,7 +101,11 @@ describe('the Fixed E2E fixtures are separated by authority', () => {
     expect(fixed.media.ugcStrip, 'the legacy template slot is fed from productMediaStrip').toHaveLength(3);
     expect(fixed.commercial.freeShippingOverCents).toBe(4900);
     expect(fixed.narrative.faq.length).toBeGreaterThan(0);
-    expect(fixed.socialProof.reviews.length).toBeGreaterThan(0);
+    // EMPTY, AND CORRECTLY SO. Social proof is projected from the scrape, and
+    // this fixture carries no canonical product — so there are no real reviews
+    // to show. The Content Agent no longer supplies any.
+    expect(fixed.socialProof.reviews).toEqual([]);
+    expect(fixed.socialProof.featuredTestimonial).toBeNull();
     // Preview is the absence of a link, stated rather than reached.
     expect(fixed.shopifyProductLink).toBeNull();
   });

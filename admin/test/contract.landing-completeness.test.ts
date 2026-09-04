@@ -257,7 +257,7 @@ describe('merchant identity, policy facts and product content do not mix', () =>
   test('and the one overlap is inert for Fixed', () => {
     // The exception above is only acceptable while this holds.
     const fixed = read('scripts/lib/fixed-content-output.mjs');
-    expect(fixed).toMatch(/FIXED_CONTENT_FOREIGN_FIELDS = \[\s*\n\s*'packs',/);
+    expect(fixed).toMatch(/FIXED_CONTENT_FOREIGN_FIELDS = \[[\s\S]{0,600}'packs',/);
   });
 
   test('no agent writes merchant config', () => {

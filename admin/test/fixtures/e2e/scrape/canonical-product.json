@@ -1,0 +1,99 @@
+{
+  "identity": {
+    "productId": "prd_abcdef-12345678",
+    "sourceUrl": "https://www.aliexpress.com/item/1005006123456789.html",
+    "sourceItemId": null,
+    "name": "Almohada Cervical Ortopédica de Espuma Viscoelástica",
+    "brand": "SleepWell"
+  },
+  "commerceFacts": {
+    "variantOptions": [
+      {
+        "name": "Color",
+        "selected": "Gris",
+        "options": [
+          "Gris",
+          "Azul",
+          "Beige"
+        ]
+      },
+      {
+        "name": "Talla",
+        "selected": "Estándar",
+        "options": [
+          "Estándar",
+          "Grande"
+        ]
+      }
+    ]
+  },
+  "socialProof": {
+    "rating": 4.6,
+    "reviewCount": 1284,
+    "reviews": [
+      {
+        "text": "Dormí de un tirón la primera noche, el cuello no se me cargó.",
+        "rating": 5,
+        "author": "M***a",
+        "dateRaw": "11 FEB 2026",
+        "variant": "Color: Gris"
+      },
+      {
+        "text": "Tarda un par de horas en expandirse, después va bien.",
+        "rating": 4,
+        "author": "J***o",
+        "dateRaw": "28 ENE 2026",
+        "variant": "Color: Azul"
+      },
+      {
+        "text": "La funda se lava y no se deforma.",
+        "rating": 5,
+        "author": null,
+        "dateRaw": null,
+        "variant": null
+      },
+      {
+        "text": "",
+        "rating": 5,
+        "author": "X***x",
+        "dateRaw": "01 MAR 2026",
+        "variant": null
+      },
+      {
+        "text": "Sin estrellas en la tarjeta.",
+        "rating": null,
+        "author": "Y***y",
+        "dateRaw": null,
+        "variant": null
+      }
+    ]
+  },
+  "media": {
+    "images": [
+      {
+        "url": "https://fixture.invalid/0.png",
+        "localPath": "images/img_0.png",
+        "order": 0
+      },
+      {
+        "url": "https://fixture.invalid/1.png",
+        "localPath": "images/img_1.png",
+        "order": 1
+      },
+      {
+        "url": "https://fixture.invalid/2.png",
+        "localPath": "images/img_2.png",
+        "order": 2
+      }
+    ],
+    "videos": []
+  },
+  "specifications": [],
+  "description": {
+    "raw": "Almohada ergonómica diseñada para aliviar el dolor cervical durante el sueño. Núcleo de espuma con memoria que se adapta a la forma del cuello."
+  },
+  "provenance": {
+    "scrapedAt": "2026-08-10T14:32:07.512Z",
+    "scrapeJobId": null
+  }
+}
