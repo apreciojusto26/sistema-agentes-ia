@@ -311,10 +311,6 @@ describe('data-aware capability resolution', () => {
     expect(src).toMatch(/attempt\+\+;\s*\n\s*continue;/);
   });
 
-  test('generate-landing gates on content too (the renderer is never first to find out)', () => {
-    const src = read('scripts/generate-landing.mjs');
-    expect(src).toMatch(/checkDesignSupport\(spec,\s*undefined,\s*parsed\)/);
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -324,26 +320,7 @@ describe('data-aware capability resolution', () => {
 describe('theme precedence — base defaults -> family -> DesignSpec', () => {
   const generator = read('scripts/generate-landing.mjs');
 
-  test('the spec override selector out-specifies every family selector', () => {
-    const familyCss = read('content/landing-base/src/styles/design-system.css');
-    // family: one element + one attribute  = (0,1,1)
-    expect(familyCss).toMatch(/body\[data-design-family="energetic"\]/);
-    // spec:   one element + two attributes = (0,2,1)  -> always wins
-    expect(generator).toContain('body[data-design-family][data-density] {');
-  });
 
-  test('both attributes the override relies on are ALWAYS emitted', () => {
-    // A conditional attribute would make the override silently stop matching.
-    const base = read('content/landing-base/src/layouts/Base.astro');
-    expect(base).toMatch(/<body data-design-family=\{[^}]+\} data-density=\{[^}]+\}>/);
-  });
-
-  test('the override is appended to design-system.css, never to global.css', () => {
-    // global.css is scanned by patchThemeBlock's regexes; a second declaration
-    // of any token there would weaken its strict fail-closed check.
-    expect(generator).toMatch(/design-system\.css['"]\)[\s\S]{0,120}override/);
-    expect(generator).not.toMatch(/global\.css[\s\S]{0,80}\+ override/);
-  });
 
   test('token -> CSS var mapping is not duplicated in the template', () => {
     // The override is emitted by the generator precisely so CSS_VAR_MAP stays

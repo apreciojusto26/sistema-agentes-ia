@@ -136,7 +136,10 @@ describe('(C) cardinality-driven surfaces', () => {
     // prose comments like "exactly 4 -> 2x2 grid", which the compiler cannot
     // enforce and a generated product cannot be held to.
     const types = read(`${T}/types/content.ts`);
-    for (const field of ['gallery', 'packs', 'steps', 'comparison', 'ugcStrip', 'ugc', 'heroPills', 'benefits']) {
+    // `ugc`, `heroPills` and `benefits` left this list with the fields
+    // themselves: the F3 audit found no consumer for any of them on the
+    // mounted page, so they are gone from the contract rather than pinned here.
+    for (const field of ['gallery', 'packs', 'steps', 'comparison', 'ugcStrip']) {
       const decl = new RegExp(`^\\s*${field}[?]?:\\s*([^;]+);`, 'm').exec(types)?.[1] ?? '';
       expect(decl, `${field} is not declared`).not.toBe('');
       expect(decl, `${field} unexpectedly pins a length — update the audit`).toMatch(/\[\]$/);

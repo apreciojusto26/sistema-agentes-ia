@@ -85,11 +85,6 @@ export const product = {
 
   shipping: { freeOverCents: 0 },
 
-  ugc: [
-    { asset: 'ugc-01', alt: 'Difusor en un salón', ratio: '9/16' },
-    { asset: 'ugc-02', alt: 'Vapor en penumbra', ratio: '9/16' },
-    { asset: 'video-03', kind: 'video', alt: 'Difusión en movimiento', ratio: '9/16' },
-  ],
 
   cta: { primary: 'Comprar ahora', sticky: 'Agregar al carrito', checkout: 'Finalizar compra', pending: 'Procesando…', soldOut: 'Agotado' },
 } as const satisfies Product;

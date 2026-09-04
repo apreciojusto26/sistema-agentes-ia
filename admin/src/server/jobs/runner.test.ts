@@ -16,6 +16,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { REPO_ROOT } from '../config';
 import type { ParsedLine } from './ndjson';
+import { FIXED_TEMPLATE_RELATIVE } from '../../../../scripts/lib/fixed-template.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE_CHILD = path.join(__dirname, '..', '..', '..', 'test', 'fixtures', 'runner-fixture-child.cjs');
@@ -397,7 +398,9 @@ describe('runner — real end-to-end against generate-landing.mjs (no network, f
       'todos',
     ]);
     expect(resultEvent).not.toBeNull();
-    expect(stdoutLines.join('\n')).toContain(`✓ outputs/${RUNNER_SLUG} created from content/landing-base`);
+    // Through the SAME authority the generator reads, not a repeated literal:
+    // a hardcoded name here would still pass if only one of the constants moved.
+    expect(stdoutLines.join('\n')).toContain(`✓ outputs/${RUNNER_SLUG} created from ${FIXED_TEMPLATE_RELATIVE}`);
 
     // Real file on disk, written by the real child, proving this was not an in-process import.
     const productTs = readFileSync(path.join(RUNNER_OUT_DIR, 'src/data/product.ts'), 'utf8');

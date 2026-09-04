@@ -14,11 +14,11 @@ import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { execSync } from 'node:child_process';
 import { DEFAULT_ERRORS, ContentContractError, validateContent } from './lib/content-contract.mjs';
-import { checkDesignSupport } from './lib/design-contract.mjs';
 import { isProductId } from './lib/product-id.cjs';
 import { buildFaviconSvg, buildFaviconIco, pickForeground } from './lib/favicon.mjs';
 import { collectMerchantIssues, normalizeMerchant, MERCHANT_REQUIRED_FIELDS } from './lib/merchant.mjs';
 import { isShopifyHandle } from './lib/shopify-handle.mjs';
+import { FIXED_TEMPLATE_RELATIVE } from './lib/fixed-template.mjs';
 import { writeLandingGitignore, initLandingRepo } from './lib/landing-scaffold.mjs';
 import { planAssets, materializeAssets, buildImagesModule, describeRejections, TEMPLATE_SLOT_KEYS } from './lib/asset-pipeline.mjs';
 import events from './lib/events.cjs';
@@ -30,7 +30,11 @@ const GENERATION_SCHEMA_VERSION = 1;
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
-const TEMPLATE_DIR = path.join(ROOT, 'content/landing-base');
+// The constant that actually governs a landing's source. admin/src/server/
+// config.ts has one with the same name, but that one only feeds the preview
+// symlink and the health check — both now read the same authority so they
+// cannot disagree.
+const TEMPLATE_DIR = path.join(ROOT, FIXED_TEMPLATE_RELATIVE);
 const OUTPUTS_DIR = path.join(ROOT, 'outputs');
 
 // --- structured progress protocol (spec R5, design §4) --------------------
@@ -86,17 +90,18 @@ function parseArgs(argv) {
         i++;
       }
     }
-    // Design System Fase 2: opting into explicit design mode. Its presence —
-    // not its content — is what switches theme-token sourcing (see the
-    // `validate` stage and patchThemeBlock's `strict` option).
-    else if (a === '--design') {
-      const value = argv[i + 1];
-      if (value === undefined || value.startsWith('--')) {
-        fail('Missing --design <path-to-json>', 'design-argument-missing');
-      }
-      args.design = value;
-      i++;
-    }
+    // `--design` IS NOT AN ARGUMENT OF THIS GENERATOR ANY MORE.
+    //
+    // It took a DesignSpec — a per-product choice of sections, variants and
+    // tokens — and that is precisely what Fixed AstraVibe does not do. The
+    // structure is sealed by ASTRAVIBE_FIXED_STRUCTURAL_GRAMMAR_V1, so there is
+    // nothing for a spec to decide. Passing it now fails as an unknown
+    // argument, which is the honest answer: the flag does not exist here.
+    //
+    // The Design System itself is untouched. scripts/lib/design-contract.mjs
+    // and design-registry.mjs still stand, and the suites that exercise them
+    // against content/landing-base still run. What was removed is Fixed's
+    // ability to CONSUME a spec, not the experimental tooling.
     else if (a === '--merchant') {
       const value = argv[i + 1];
       if (value === undefined || value.startsWith('--')) {
@@ -264,14 +269,23 @@ function buildProductTs(product, shopifyHandle) {
     `  steps: ${serialize(product.steps, 2, 1)},`,
     ``,
     `  comparison: ${serialize(product.comparison, 2, 1)},`,
-    // The GENERIC alternative this product is compared against. Without it
-    // comparisonHeading() throws — deliberately, because the heading it
-    // replaced was a template literal about decorative lamps.
-    `  comparisonRival: ${serialize(product.comparisonRival, 2, 1)},`,
     ``,
+    // `comparisonRival` IS NO LONGER EMITTED. It named the generic alternative
+    // for landing-base's comparison heading; the Fixed template labels that
+    // column "Otros" in its own markup, so the field had no consumer and its
+    // presence failed the `satisfies Product` check outright.
+    //
+    // `ugc` is gone for the same reason: its only reader was
+    // 13-results-gallery.astro, which the Fixed page does not mount.
+    //
+    // THESE THREE ARE NEW, and each is read by a section the Fixed page really
+    // renders: the hero's own clips, the scrolling strip, and the store's
+    // free-shipping threshold that the cart reads for its progress bar.
+    `  heroExtras: ${serialize(product.heroExtras ?? [], 2, 1)},`,
     ``,
+    `  ugcStrip: ${serialize(product.ugcStrip ?? [], 2, 1)},`,
     ``,
-    `  ugc: ${serialize(product.ugc, 2, 1)},`,
+    `  shipping: ${serialize(product.shipping ?? { freeOverCents: null }, 2, 1)},`,
     ``,
     `  cta: ${serialize(product.cta, 2, 1)},`,
     `} as const satisfies Product;`,
@@ -285,18 +299,6 @@ function buildFaqTs(faq) {
     `import type { FaqItem } from '@/types/content';`,
     ``,
     `export const faq: FaqItem[] = ${serialize(faq, 2, 0)};`,
-    ``,
-  ].join('\n');
-}
-
-// Design System Fase 2. Written only in explicit design mode; the template's
-// committed default (the legacy 11-section order) stands otherwise. The spec
-// was already validated in the `validate` stage, so nothing is re-checked here.
-function buildDesignTs(spec) {
-  return [
-    `import type { DesignSpec } from '@/types/design';`,
-    ``,
-    `export const design: DesignSpec = ${serialize(spec, 2, 0)};`,
     ``,
   ].join('\n');
 }
@@ -319,6 +321,13 @@ const CSS_VAR_MAP = {
   shadow: (k) => `--shadow-${k}`,
 };
 
+
+
+// --- copy (excludes build artifacts / secrets, never touches locked paths)
+
+const EXCLUDE_DIRS = new Set(['node_modules', 'dist', '.astro', '.vercel', '.git']);
+const EXCLUDE_FILES = new Set(['.env', '.DS_Store']);
+
 /**
  * Patches the template's `@theme` block with design tokens.
  *
@@ -336,6 +345,10 @@ const CSS_VAR_MAP = {
  *     declare, and silently dropping it would produce a landing that does not
  *     match its own spec.
  */
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function patchThemeBlock(css, design, { strict = false } = {}) {
   if (!design) return css;
   let out = css;
@@ -385,97 +398,6 @@ function patchThemeBlock(css, design, { strict = false } = {}) {
 
   return out;
 }
-
-function escapeRegExp(s) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-/**
- * PRECEDENCE FIX (Design Integrity fase).
- *
- * The intended hierarchy is:  base defaults -> family -> DesignSpec theme.
- * What actually shipped was the middle beating the top:
- *
- *   :root                                 { --color-rust: #ff6347 }  (0,1,0)  spec
- *   body[data-design-family="energetic"]  { --color-rust: #F4511E }  (0,1,1)  family
- *
- * patchThemeBlock() writes the agent's tokens into global.css's `@theme`,
- * which Tailwind compiles to `:root`. design-system.css then re-declares the
- * same custom properties under a body attribute selector — one attribute more
- * specific, so the FAMILY PRESET WON and the per-product palette Gemini chose
- * was silently dead. Verified in a real build: the spec asked for #ff6347 and
- * every `.text-rust` on the page painted #F4511E.
- *
- * The fix keeps family fully alive and makes the spec's explicit choice final,
- * by emitting those same tokens once more at a specificity family cannot
- * reach:
- *
- *   body[data-design-family][data-density]  { ... }                  (0,2,1)
- *
- * Both attributes are emitted unconditionally by Base.astro, so the selector
- * always matches. Family still owns every token the spec does NOT mention —
- * that is the whole point: family is the DIRECTION, the spec is the override.
- *
- * Why here and not in Base.astro: CSS_VAR_MAP is the single source of truth
- * for token -> custom property, and it lives in this file. Recomputing that
- * mapping in the template would make it a second source of truth — the exact
- * drift the repo's anti-duplication doctrine forbids.
- *
- * Why appended to design-system.css and never to global.css: patchThemeBlock's
- * regexes scan the WHOLE of global.css, so a second declaration of any token
- * there would make an undeclared token look patchable and quietly weaken the
- * strict-mode fail-closed guarantee. design-system.css's own header documents
- * this constraint.
- */
-function buildSpecThemeOverrideCss(theme) {
-  if (!theme) return '';
-  const decls = [];
-
-  for (const group of ['colors', 'fonts', 'radius', 'shadow']) {
-    if (!theme[group]) continue;
-    for (const [key, value] of Object.entries(theme[group])) {
-      decls.push(`  ${CSS_VAR_MAP[group](key)}: ${value};`);
-    }
-  }
-
-  if (theme.text) {
-    for (const [key, val] of Object.entries(theme.text)) {
-      const patches = {
-        [`--text-${key}`]: val.size,
-        [`--text-${key}--line-height`]: val.lineHeight,
-        [`--text-${key}--letter-spacing`]: val.letterSpacing,
-      };
-      for (const [varName, value] of Object.entries(patches)) {
-        if (value === undefined) continue;
-        decls.push(`  ${varName}: ${value};`);
-      }
-    }
-  }
-
-  if (decls.length === 0) return '';
-
-  return [
-    '',
-    '/* --- DesignSpec theme overrides (generated) ------------------------------',
-    ' * Emitted by scripts/generate-landing.mjs from this landing\'s design.ts.',
-    ' * Selector carries TWO attributes on purpose: specificity (0,2,1) beats the',
-    ' * family presets above (0,1,1), so a token this product explicitly chose is',
-    ' * never overwritten by its family. Tokens absent here still come from the',
-    ' * family — family sets the direction, the DesignSpec overrides within it.',
-    ' * Do not hand-edit: regenerated on every run.',
-    ' */',
-    'body[data-design-family][data-density] {',
-    ...decls,
-    '}',
-    '',
-  ].join('\n');
-}
-
-
-// --- copy (excludes build artifacts / secrets, never touches locked paths)
-
-const EXCLUDE_DIRS = new Set(['node_modules', 'dist', '.astro', '.vercel', '.git']);
-const EXCLUDE_FILES = new Set(['.env', '.DS_Store']);
 
 function copyTemplate(dest) {
   cpSync(TEMPLATE_DIR, dest, {
@@ -598,9 +520,6 @@ function main() {
 
   // Design System Fase 2 — the resolved DesignSpec, or null in legacy mode.
   // Filled in by the `validate` stage below.
-  let designSpec = null;
-  let explicitThemeCss = null;
-
   const input = withStage('validate', () => {
     if (!existsSync(args.content)) fail(`Content file not found: ${args.content}`);
     const parsed = JSON.parse(readFileSync(args.content, 'utf-8'));
@@ -639,60 +558,6 @@ function main() {
       parsed.__merchant = normalizeMerchant(merchantRaw);
     }
 
-    // Explicit design mode is validated HERE, inside the existing `validate`
-    // stage — deliberately NOT as a stage of its own. A separate stage would
-    // be emitted on EVERY run, including legacy ones, changing the observable
-    // event sequence for generations that pass no --design at all.
-    //
-    // Position matters: `validate` runs before `preflight` and before
-    // `copy-template`, so a rejected spec leaves outputs/{slug}/ untouched —
-    // no partial directory to clean up, nothing to mistake for a real landing.
-    //
-    // Fail-closed on BOTH contract outcomes. `invalid` means the document is
-    // malformed; `unsupported_design` means it asks for a capability the
-    // design system does not have (agents.MD §6.3). Neither may proceed and
-    // neither may be downgraded to a warning — a silently dropped section is
-    // exactly the failure this system exists to prevent.
-    if (args.design) {
-      if (!existsSync(args.design)) fail(`Design file not found: ${args.design}`);
-
-      let spec;
-      try {
-        spec = JSON.parse(readFileSync(args.design, 'utf-8'));
-      } catch (err) {
-        fail(`--design file is not valid JSON: ${err.message}`, 'design-unparseable');
-      }
-
-      // `parsed` is this run's content.json, already validated against the
-      // content contract above. Passing it here makes the gate DATA-AWARE:
-      // a registered capability whose data this content cannot feed is
-      // rejected as `unsatisfied_data` (design-contract.mjs) instead of being
-      // generated into a landing that builds green and renders an empty band.
-      //
-      // Position is what makes this cheap and safe: still inside `validate`,
-      // still BEFORE copy-template, so a rejected pairing leaves
-      // outputs/{slug}/ untouched. This is the semantic check the pipeline's
-      // own `validate` stage could never do with existsSync() — and it needs
-      // no HTML parsing, because the question was never about HTML.
-      const support = checkDesignSupport(spec, undefined, parsed);
-      if (support.status !== 'pass') {
-        const detail = (support.issues ?? [])
-          .map((i) => `${i.code}${i.path ? ` at "${i.path}"` : ''}: ${i.message}`)
-          .join('; ');
-        const missing = support.missingCapability
-          ? ` — missing capability "${support.missingCapability}"`
-          : '';
-        fail(`--design rejected (${support.status})${missing}: ${detail}`, support.status);
-      }
-      designSpec = spec;
-
-      // Strict token validation belongs to the read-only validation boundary,
-      // not to the later write stage. Resolve the final CSS against the
-      // canonical template now so an unpatchable, contract-valid token cannot
-      // leave a partially copied output behind.
-      const templateCss = readFileSync(path.join(TEMPLATE_DIR, 'src/styles/global.css'), 'utf-8');
-      explicitThemeCss = patchThemeBlock(templateCss, spec.theme ?? null, { strict: true });
-    }
 
     return parsed;
   });
@@ -728,15 +593,8 @@ function main() {
     // the identity for legacy content without a productId, but it can never
     // disagree with a higher-authority upstream artifact.
     const canonicalProductId =
-      contentProductId ?? existingManifestId ?? args.productId ?? designSpec?.productId ?? null;
+      contentProductId ?? existingManifestId ?? args.productId ?? null;
 
-    if (designSpec && designSpec.productId !== canonicalProductId) {
-      fail(
-        `DesignSpec productId ${designSpec.productId} does not match the canonical generation ` +
-          `productId ${canonicalProductId} — refusing to write mixed-product artifacts.`,
-        'generation-owner-mismatch',
-      );
-    }
 
     // Additive guard beyond design D5's literal 6-row matrix (documented,
     // not a silent deviation): when --product-id AND content.json's
@@ -792,7 +650,7 @@ function main() {
     } else if (existingManifestId) {
       resolvedLineage =
         existingManifest && typeof existingManifest.lineage === 'string' ? existingManifest.lineage : 'scraped';
-    } else if (args.productId || designSpec) {
+    } else if (args.productId) {
       // No content.json id and no prior manifest — a CLI/design-pinned
       // lineage with nothing else to corroborate it yet.
       resolvedLineage = 'manual';
@@ -847,36 +705,17 @@ function main() {
     }
   });
 
-  // Design System Fase 2. Emitted ONLY in explicit design mode — a legacy run
-  // passes no --design, writes no stage, and keeps the template's own default
-  // src/data/design.ts (which reproduces the legacy 11-section order exactly).
-  if (designSpec) {
-    withStage('write-design', () => {
-      writeFileSync(path.join(outDir, 'src/data/design.ts'), buildDesignTs(designSpec));
-    });
-  }
+  // There is no `write-design` stage. A DesignSpec chose sections, variants
+  // and tokens per product; Fixed AstraVibe renders one sealed structure, so
+  // there is nothing for such a document to decide and none is written.
 
   withStage('patch-theme', () => {
+    // THE PALETTE IS THE ONE THING A PRODUCT MAY CHANGE, and it arrives in
+    // content.json's `design` key — NOT from a DesignSpec. Recolouring rewrites
+    // the custom-property VALUES inside global.css's @theme block; it never
+    // touches markup, which is why the structural fingerprint does not move
+    // and why this survived the switch while explicit design mode did not.
     const cssPath = path.join(outDir, 'src/styles/global.css');
-    // DECISION 1 (owner, fixed): in explicit design mode the DesignSpec's
-    // `theme` is the ONLY source of tokens and content.json's legacy `design`
-    // key is ignored entirely — no merge, no fallback. The two documents
-    // otherwise compete for the same @theme block with no precedence rule.
-    if (designSpec) {
-      // Already resolved fail-closed in `validate`, before copy-template.
-      writeFileSync(cssPath, explicitThemeCss);
-
-      // …and the same tokens again, at a specificity the family presets cannot
-      // beat. See buildSpecThemeOverrideCss(): without this the family silently
-      // wins and the spec's palette never reaches the page.
-      const override = buildSpecThemeOverrideCss(designSpec.theme ?? null);
-      if (override) {
-        const dsPath = path.join(outDir, 'src/styles/design-system.css');
-        writeFileSync(dsPath, readFileSync(dsPath, 'utf-8') + override);
-      }
-      return;
-    }
-
     const css = readFileSync(cssPath, 'utf-8');
     writeFileSync(cssPath, patchThemeBlock(css, input.design, { strict: false }));
   });
@@ -904,7 +743,7 @@ function main() {
     writeFileSync(path.join(outDir, 'public/favicon.ico'), buildFaviconIco({ brand, background, foreground }));
   });
 
-  console.log(`✓ outputs/${args.slug} created from content/landing-base`);
+  console.log(`✓ outputs/${args.slug} created from ${FIXED_TEMPLATE_RELATIVE}`);
 
   const todos = [];
 
@@ -1084,7 +923,7 @@ function main() {
       assets: imagesAssets,
       assetsSourceDir: imagesSourceDir,
       assetsUnmatched: imagesUnmatched,
-      template: { dir: 'content/landing-base', commit: getTemplateCommit() },
+      template: { dir: FIXED_TEMPLATE_RELATIVE, commit: getTemplateCommit() },
       generator: { script: 'scripts/generate-landing.mjs', schema: GENERATION_SCHEMA_VERSION },
       flags: { force: args.force },
     };

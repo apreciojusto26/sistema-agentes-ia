@@ -44,13 +44,16 @@ const gt = (a: [number, number, number], b: [number, number, number]) =>
 describe('theme overrides beat family presets, by construction', () => {
   const GENERATOR = read('scripts/generate-landing.mjs');
   const DESIGN_SYSTEM_CSS = read('content/landing-base/src/styles/design-system.css');
-
-  test('the generator emits the DesignSpec block under a TWO-attribute selector', () => {
-    // If this ever became a single attribute it would tie with the family
-    // presets and fall back to source order — which the bundle does not
-    // guarantee, since the generated block is appended to the same file.
-    expect(GENERATOR).toContain("body[data-design-family][data-density] {");
-  });
+  // TWO TESTS WERE REMOVED HERE, and the capability with them.
+  //
+  // They read scripts/generate-landing.mjs for the DesignSpec override block —
+  // its two-attribute selector and the comment explaining its specificity.
+  // The Fixed generator no longer emits either: it consumes no spec, because
+  // the structure is sealed and there is nothing for one to decide.
+  //
+  // The three assertions that remain inspect content/landing-base's own
+  // stylesheet, which still exists and is still Version A tooling. They are
+  // untouched.
 
   test('that selector outranks EVERY family preset in the stylesheet', () => {
     const familySelectors = [
@@ -81,13 +84,4 @@ describe('theme overrides beat family presets, by construction', () => {
     }
   });
 
-  test('the precedence is DOCUMENTED where it is created', () => {
-    // The mechanism is invisible in the rendered output and was re-derived from
-    // a CSS bundle once already. The comment is load-bearing.
-    const near = GENERATOR.slice(
-      Math.max(0, GENERATOR.indexOf('body[data-design-family][data-density]') - 1400),
-      GENERATOR.indexOf('body[data-design-family][data-density]'),
-    );
-    expect(near).toMatch(/0,2,1|specificity/i);
-  });
 });

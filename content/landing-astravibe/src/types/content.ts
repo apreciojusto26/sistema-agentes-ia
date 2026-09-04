@@ -224,7 +224,15 @@ export interface ProductContent {
    * free-shipping progress. Keeping it here is deliberate, not an oversight.
    */
   shipping: { freeOverCents: number | null };
-  ugc: MediaRef[]; // strip + RealResults grid
+  /**
+   * `ugc: MediaRef[]` WAS HERE, required, and read by exactly one file:
+   * 13-results-gallery.astro, which src/pages/index.astro never mounted. The
+   * section is deleted with it. A required field whose only consumer is dead
+   * code forces every generated product to supply media that never reaches a
+   * visitor — the same audit rule that removed benefits, specs and the rest.
+   *
+   * The strip that IS rendered keeps its own field, `ugcStrip`.
+   */
   cta: { primary: string; sticky: string; checkout: string; pending: string; soldOut: string };
   /** Customer-facing label for the 9-value variant option group. NOT `optionName`
    *  from Shopify (admin says "Emitting Color" — would confuse buyers). */

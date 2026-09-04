@@ -4,6 +4,7 @@
 // worst-case derivations, not guesses.
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { FIXED_TEMPLATE_NAME } from '../../../scripts/lib/fixed-template.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -17,7 +18,13 @@ export const SCRAPER_DIR = path.join(REPO_ROOT, 'scraper');
 export const SCRAPER_OUTPUT_DIR = path.join(SCRAPER_DIR, 'output');
 export const GENERATE_SCRIPT = path.join(REPO_ROOT, 'scripts', 'generate-landing.mjs');
 export const CONTENT_CONTRACT_MODULE = path.join(REPO_ROOT, 'scripts', 'lib', 'content-contract.mjs');
-export const TEMPLATE_DIR = path.join(REPO_ROOT, 'content', 'landing-base');
+/**
+ * The Fixed canonical template. The NAME comes from scripts/lib/fixed-template
+ * .mjs, which generate-landing.mjs reads too, so the preview server's symlink
+ * and the directory the generator actually copies can never name two different
+ * templates again. They did.
+ */
+export const TEMPLATE_DIR = path.join(REPO_ROOT, 'content', FIXED_TEMPLATE_NAME);
 export const OUTPUTS_DIR = path.join(REPO_ROOT, 'outputs');
 
 export const JOBS_DIR = path.join(ADMIN_ROOT, '.jobs');

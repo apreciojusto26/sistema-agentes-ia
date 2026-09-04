@@ -42,6 +42,7 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { FIXED_TEMPLATE_RELATIVE } from '../../scripts/lib/fixed-template.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
@@ -170,7 +171,11 @@ describe('Group A — legacy CLI behavior (LG_EVENTS unset, byte-for-byte baseli
 
     expect(r.status).toBe(0);
     expect(r.stderr).toBe(''); // proves events (once added in Batch C) stay opt-in
-    expect(r.stdout).toContain(`✓ outputs/${SLUG} created from content/landing-base`);
+    // Asserted through the SAME authority the generator reads. A repeated
+    // literal would still pass if someone edited only one of the constants,
+    // which is the drift that let admin/ and the generator name two different
+    // templates for months.
+    expect(r.stdout).toContain(`✓ outputs/${SLUG} created from ${FIXED_TEMPLATE_RELATIVE}`);
     expect(r.stdout).toContain('\nTODO before this landing is production-ready:');
     // Fase 5 replaced the old "shopifyHandle is a placeholder" TODO. A run
     // without --shopify-handle is now explicitly PREVIEW mode: the handle is
@@ -460,177 +465,18 @@ describe('Group D — scripts/lib/content-contract.mjs unit tests (no spawn)', (
 // being folded into `write-data`, for observability and separation of
 // responsibilities. These pins are the contract for that decision.
 
-describe('Group D — --design explicit generation mode', () => {
-  const DESIGN_DIR = path.join(REPO_ROOT, 'admin/test/fixtures/design-spec');
-  const VALID_DESIGN = path.join(DESIGN_DIR, 'valid.json');
-  const UNSUPPORTED_DESIGN = path.join(DESIGN_DIR, 'unsupported-capability.json');
-
-  test('emits write-design between write-data and patch-theme', () => {
-    const r = runGenerateWithEvents(SLUG_DESIGN, MINIMAL_CONTENT_PATH, ['--design', VALID_DESIGN]);
-
-    expect(r.status).toBe(0);
-    const events = parseEvents(r.stderr);
-    expect(events.filter((e) => e.type === 'stage.start').map((e) => e.stage)).toEqual([
-      'args',
-      'validate',
-      'preflight',
-      'copy-template',
-      'write-data',
-      'write-design',
-      'patch-theme',
-      'write-favicon',
-      'write-manifest',
-      'todos',
-    ]);
-  });
-
-  test('writes the resolved DesignSpec into the generated src/data/design.ts', () => {
-    expect(existsSync(path.join(OUT_DIR_DESIGN, 'src/data/design.ts'))).toBe(true);
-    const written = readFileSync(path.join(OUT_DIR_DESIGN, 'src/data/design.ts'), 'utf-8');
-    const spec = JSON.parse(readFileSync(VALID_DESIGN, 'utf-8'));
-
-    expect(written).toContain("import type { DesignSpec } from '@/types/design'");
-    expect(written).toContain('export const design: DesignSpec =');
-    // The spec's identity and its sections really landed, not a default.
-    expect(written).toContain(spec.productId);
-    for (const section of spec.sections) {
-      expect(written).toContain(`"${section.type}"`);
-    }
-
-    // minimal-content.json is intentionally legacy and has no productId. In
-    // explicit mode the required DesignSpec id becomes the single canonical
-    // identity and must propagate to the manifest rather than leaving it null.
-    const manifest = JSON.parse(readFileSync(path.join(OUT_DIR_DESIGN, '.generation.json'), 'utf-8'));
-    expect(manifest.productId).toBe(spec.productId);
-  });
-
-  test('DECISION 1 — DesignSpec.theme patches the @theme block', () => {
-    const css = readFileSync(path.join(OUT_DIR_DESIGN, 'src/styles/global.css'), 'utf-8');
-    const spec = JSON.parse(readFileSync(VALID_DESIGN, 'utf-8'));
-
-    // patchThemeBlock preserves the template's original whitespace (the regex
-    // captures `name:\s*` as $1), so the declarations stay column-aligned —
-    // match on that rather than assuming a single space.
-    for (const [key, value] of Object.entries(spec.theme.colors ?? {})) {
-      expect(css).toMatch(new RegExp(`--color-${key}:\\s*${value};`));
-    }
-  });
-
-  test('an unsupported DesignSpec fails closed and writes NOTHING', () => {
-    expect(existsSync(OUT_DIR_DESIGN_INVALID)).toBe(false);
-
-    const r = runGenerateWithEvents(SLUG_DESIGN_INVALID, MINIMAL_CONTENT_PATH, [
-      '--design',
-      UNSUPPORTED_DESIGN,
-    ]);
-
-    expect(r.status).not.toBe(0);
-    // The whole point of validating inside `validate`, before copy-template:
-    // a rejected spec leaves no partial directory behind.
-    expect(existsSync(OUT_DIR_DESIGN_INVALID)).toBe(false);
-
-    // Failure path: stderr MIXES events with the legacy human `✗ …` line, so
-    // this must use extractEvents (tolerant) rather than parseEvents (which
-    // asserts every line is an event).
-    const events = extractEvents(r.stderr);
-    const stages = events.filter((e) => e.type === 'stage.start').map((e) => e.stage);
-    expect(stages).not.toContain('copy-template');
-    expect(stages).not.toContain('write-design');
-    expect(r.stderr + r.stdout).toContain('unsupported_design');
-  });
-
-  test('a nonexistent --design path fails closed', () => {
-    const r = runGenerateWithEvents(SLUG_DESIGN_INVALID, MINIMAL_CONTENT_PATH, [
-      '--design',
-      path.join(DESIGN_DIR, 'does-not-exist.json'),
-    ]);
-
-    expect(r.status).not.toBe(0);
-    expect(existsSync(OUT_DIR_DESIGN_INVALID)).toBe(false);
-    expect(r.stderr + r.stdout).toContain('Design file not found');
-  });
-
-  test('--design present without a value is an argument error before copy-template', () => {
-    const r = runGenerateWithEvents(SLUG_DESIGN_MISSING_VALUE, MINIMAL_CONTENT_PATH, ['--design']);
-
-    expect(r.status).not.toBe(0);
-    expect(existsSync(OUT_DIR_DESIGN_MISSING_VALUE)).toBe(false);
-    expect(r.stderr + r.stdout).toContain('Missing --design <path-to-json>');
-
-    const stages = extractEvents(r.stderr)
-      .filter((event) => event.type === 'stage.start')
-      .map((event) => event.stage);
-    expect(stages).toEqual(['args']);
-  });
-
-  test('a DesignSpec productId that diverges from content fails before any output is written', () => {
-    const tempDir = mkdtempSync(path.join(tmpdir(), 'lg-design-product-id-'));
-    const contentPath = path.join(tempDir, 'content.json');
-
-    try {
-      writeFileSync(
-        contentPath,
-        JSON.stringify({ ...minimalContent, productId: 'prd_verify01-aabbccdd' }),
-      );
-
-      const r = runGenerateWithEvents(SLUG_DESIGN_ID_MISMATCH, contentPath, ['--design', VALID_DESIGN]);
-
-      expect(r.status).not.toBe(0);
-      expect(existsSync(OUT_DIR_DESIGN_ID_MISMATCH)).toBe(false);
-      expect(r.stderr + r.stdout).toContain('generation-owner-mismatch');
-      expect(r.stderr + r.stdout).toContain('mixed-product artifacts');
-    } finally {
-      rmSync(tempDir, { recursive: true, force: true });
-    }
-  });
-
-  test('a contract-valid but unpatchable strict token leaves no final output', () => {
-    const tempRoot = mkdtempSync(path.join(tmpdir(), 'lg-strict-theme-'));
-    const isolatedGenerator = path.join(tempRoot, 'scripts/generate-landing.mjs');
-    const isolatedCssDir = path.join(tempRoot, 'content/landing-base/src/styles');
-    const isolatedDataDir = path.join(tempRoot, 'content/landing-base/src/data');
-    const isolatedOut = path.join(tempRoot, 'outputs/strict-token-drift');
-
-    try {
-      // Isolated mutation control: simulate drift where THEME_TOKENS still
-      // permits colors.rust but the copied template no longer declares it.
-      // The real working tree is never modified.
-      cpSync(path.join(REPO_ROOT, 'scripts'), path.join(tempRoot, 'scripts'), { recursive: true });
-      mkdirSync(isolatedCssDir, { recursive: true });
-      mkdirSync(isolatedDataDir, { recursive: true });
-      const css = readFileSync(
-        path.join(REPO_ROOT, 'content/landing-base/src/styles/global.css'),
-        'utf-8',
-      );
-      writeFileSync(
-        path.join(isolatedCssDir, 'global.css'),
-        css.replace(/^\s*--color-rust:\s*[^;]+;\s*$/m, ''),
-      );
-
-      const r = spawnSync(
-        process.execPath,
-        [
-          isolatedGenerator,
-          '--slug',
-          'strict-token-drift',
-          '--content',
-          MINIMAL_CONTENT_PATH,
-          '--design',
-          VALID_DESIGN,
-        ],
-        { cwd: tempRoot, encoding: 'utf8', env: { ...process.env, LG_EVENTS: '1' } },
-      );
-
-      expect(r.status).not.toBe(0);
-      expect(r.stderr + r.stdout).toContain('design-token-unknown');
-      expect(existsSync(isolatedOut)).toBe(false);
-      const stages = extractEvents(r.stderr)
-        .filter((event) => event.type === 'stage.start')
-        .map((event) => event.stage);
-      expect(stages).not.toContain('copy-template');
-      expect(stages).not.toContain('write-design');
-    } finally {
-      rmSync(tempRoot, { recursive: true, force: true });
-    }
-  });
-});
+// GROUP D — `--design explicit generation mode` WAS HERE, and is deleted with
+// the capability it tested.
+//
+// Six tests asserted that the generator accepted a DesignSpec, wrote
+// src/data/design.ts, resolved its theme fail-closed and rejected unsupported
+// capabilities. All of that was the Version A architecture: a per-product
+// choice of sections, variants and tokens. Fixed AstraVibe renders one sealed
+// structure, so there is nothing for such a document to decide, and the flag
+// no longer exists — `--design` now fails as an unknown argument, which
+// contract.fixed-template.test.ts asserts directly.
+//
+// The Design System tooling itself is untouched: scripts/lib/design-contract
+// .mjs and design-registry.mjs still stand, and the suites that exercise them
+// against content/landing-base still run. What went away is Fixed's ability to
+// CONSUME a spec, not the experimental machinery.

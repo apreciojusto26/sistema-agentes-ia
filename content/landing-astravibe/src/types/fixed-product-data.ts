@@ -118,8 +118,12 @@ export interface FixedSocialProof {
 export interface FixedNarrative {
   steps: HowToStep[];
   comparison: ComparisonRow[];
-  /** Generic alternative the comparison is against. Never a named competitor. */
-  comparisonRival: string;
+  /**
+   * `comparisonRival` is NOT here. It named the generic alternative for the
+   * comparison heading in the other template; the Fixed page labels that
+   * column in its own markup, so the field has no consumer — the same audit
+   * rule that removed benefits, specs and the rest.
+   */
   faq: { question: string; answer: string }[];
 }
 

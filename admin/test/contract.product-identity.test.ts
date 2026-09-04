@@ -46,6 +46,7 @@ import {
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { FIXED_TEMPLATE_RELATIVE } from '../../scripts/lib/fixed-template.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
@@ -453,7 +454,7 @@ describe('Group 4 — copy-images ownership gate (images-owner-mismatch)', () =>
     // nothing from owner-a's images was copied in — the asset key still
     // holds the template's own stock photo, not the foreign fixture bytes.
     const destFile = path.join(REPO_ROOT, 'outputs', SLUG_IMAGES_MISMATCH, 'src/assets/product/gallery-01.jpg');
-    const templateFile = path.join(REPO_ROOT, 'content/landing-base/src/assets/product/gallery-01.jpg');
+    const templateFile = path.join(REPO_ROOT, FIXED_TEMPLATE_RELATIVE, 'src/assets/product/gallery-01.jpg');
     expect(readFileSync(destFile).equals(readFileSync(templateFile))).toBe(true);
     expect(readFileSync(destFile).equals(readFileSync(path.join(OWNER_A_IMAGES, 'gallery-01.jpg')))).toBe(false);
   });
@@ -548,7 +549,11 @@ describe('Group 6 — outputs/{slug}/.generation.json full schema (design #423 I
     expect(manifest.assetsSourceDir).toBe(path.resolve(OWNER_A_IMAGES));
     expect(manifest.assetsUnmatched).toEqual([]);
 
-    expect(manifest.template).toMatchObject({ dir: 'content/landing-base' });
+    // Read from the ONE authority rather than repeated as a literal. A
+    // hardcoded directory here would still pass if someone edited only the
+    // generator's constant — which is exactly the drift that let admin/ and
+    // the generator name two different templates.
+    expect(manifest.template).toMatchObject({ dir: FIXED_TEMPLATE_RELATIVE });
     expect(manifest.template.commit === null || typeof manifest.template.commit === 'string').toBe(true);
 
     expect(manifest.generator).toEqual({ script: 'scripts/generate-landing.mjs', schema: 1 });

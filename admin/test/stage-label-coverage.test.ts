@@ -43,10 +43,10 @@ const EXPECTED_GENERATE_STAGES: GenerateStage[] = [
   'preflight',
   'copy-template',
   'write-data',
-  // Design System Fase 2 (OQ-1/OQ-2, owner-authorized): emitted only when
-  // --design is passed, so it appears in Group D's pin but not Group B's.
-  // This array is the UNION of both, hence 10.
-  'write-design',
+  // `write-design` LEFT THIS LIST with the stage. It was emitted only under
+  // --design, a flag the Fixed generator no longer has: one sealed structure
+  // means there is no spec to write. The array is no longer a union of two
+  // groups, because there is only one mode now.
   'patch-theme',
   'write-favicon',
   'copy-images',
@@ -112,7 +112,7 @@ describe('stage-label-coverage (spec Real-Stage Label Mapping, corrected sources
     }
   });
 
-  it('contract.generate-landing.test.ts has exactly the 11 expected stage.start stages (union of both arrays)', () => {
+  it('contract.generate-landing.test.ts emits exactly the expected stage.start stages', () => {
     const real = extractGenerateStagesFromContractTest().sort();
     expect(real).toEqual([...EXPECTED_GENERATE_STAGES].sort());
   });

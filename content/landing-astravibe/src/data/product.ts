@@ -313,14 +313,6 @@ export const product = {
     freeOverCents: 0,
   },
 
-  ugc: [
-    { asset: 'ugc-01', alt: 'Efecto vía láctea de AstraVibe sobre una superficie en penumbra', ratio: '9/16' },
-    { asset: 'ugc-02', alt: 'AstraVibe como luz nocturna cálida junto a la cama', ratio: '9/16' },
-    { asset: 'video-03', kind: 'video', alt: 'Proyección de la vía láctea de AstraVibe en movimiento', ratio: '9/16' },
-    { asset: null, alt: '[PLACEHOLDER] AstraVibe colocado en un coche proyectando estrellas en el techo interior', ratio: '9/16' },
-    { asset: 'video-02', kind: 'video', alt: 'Proyección de estrellas de AstraVibe, escena estable en movimiento', ratio: '9/16' },
-    { asset: 'ugc-03', alt: 'Cielo de estrellas de AstraVibe en una habitación oscura', ratio: '9/16' },
-  ],
 
   cta: {
     primary: 'Comprar ahora',

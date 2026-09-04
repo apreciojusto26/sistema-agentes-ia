@@ -96,14 +96,6 @@ export const product = {
 
   shipping: { freeOverCents: 0 },
 
-  // FIVE ugc entries against A's three.
-  ugc: [
-    { asset: 'gallery-11', alt: 'Tabla en una cocina real', ratio: '9/16' },
-    { asset: 'gallery-12', alt: 'Detalle del canal', ratio: '9/16' },
-    { asset: 'ugc-03', alt: 'Base de la tabla', ratio: '9/16' },
-    { asset: 'video-02', kind: 'video', alt: 'Cortando verduras', ratio: '9/16' },
-    { asset: 'ugc-01', alt: 'Pan sobre la tabla', ratio: '9/16' },
-  ],
 
   cta: { primary: 'Llévate la tuya', sticky: 'Añadir al carrito', checkout: 'Ir a pagar', pending: 'Un momento…', soldOut: 'Sin stock' },
 } as const satisfies Product;
