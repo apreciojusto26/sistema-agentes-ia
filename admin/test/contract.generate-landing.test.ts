@@ -473,10 +473,44 @@ describe('Group D — scripts/lib/content-contract.mjs unit tests (no spawn)', (
 // capabilities. All of that was the Version A architecture: a per-product
 // choice of sections, variants and tokens. Fixed AstraVibe renders one sealed
 // structure, so there is nothing for such a document to decide, and the flag
-// no longer exists — `--design` now fails as an unknown argument, which
-// contract.fixed-template.test.ts asserts directly.
+// no longer exists — `--design` now fails as an unknown argument, which the
+// group below asserts by INVOKING it.
 //
 // The Design System tooling itself is untouched: scripts/lib/design-contract
 // .mjs and design-registry.mjs still stand, and the suites that exercise them
 // against content/landing-base still run. What went away is Fixed's ability to
 // CONSUME a spec, not the experimental machinery.
+
+// --- Group D' — `--design` is not part of the Fixed interface --------------
+//
+// SOURCE ASSERTIONS ARE NOT ENOUGH HERE. Other suites check that the strings
+// `--design`, `designSpec` and `buildDesignTs` are gone from the generator,
+// and that is worth checking — but a source scan cannot tell the difference
+// between a flag that was removed and a flag that is silently swallowed. The
+// second would be worse than keeping it: an operator passing a design spec
+// would watch a green generation ignore it.
+//
+// So this INVOKES the generator with the flag and requires it to refuse.
+describe("Group D' — the Fixed generator refuses --design", () => {
+  test('--design with a value fails as an unknown argument, writing nothing', () => {
+    const r = runGenerate(MINIMAL_CONTENT_PATH, ['--design', 'anything.json', '--force']);
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/Unknown argument: --design/);
+  });
+
+  test('--design with no value fails the same way', () => {
+    // The old CLI had a dedicated "missing value" error for this flag. It must
+    // not survive as a special case: there is no argument to be missing a
+    // value for.
+    const r = runGenerate(MINIMAL_CONTENT_PATH, ['--design', '--force']);
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/Unknown argument: --design/);
+  });
+
+  test('and the refusal happens before any output directory is touched', () => {
+    // Argument validation runs ahead of copy-template, so a rejected flag
+    // leaves no half-generated tree behind.
+    const r = runGenerate(MINIMAL_CONTENT_PATH, ['--design', 'anything.json', '--force']);
+    expect(r.stdout).not.toContain('created from');
+  });
+});
