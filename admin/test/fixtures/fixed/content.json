@@ -1,0 +1,315 @@
+{
+  "product": {
+    "brand": "NubeCalma",
+    "name": "NubeCalma — Almohada cervical con memory foam",
+    "tagline": "Dormí sin dolor de cuello, desde la primera noche.",
+    "subtagline": "Almohada ergonómica de memory foam con soporte cervical dual, transpirable y lavable.",
+    "variantGroupLabel": "Tamaño",
+    "ratingAverage": 4.8,
+    "ratingCount": 214,
+    "badges": [
+      "Funda lavable"
+    ],
+    "trustTicker": [
+      "Pago 100% seguro",
+      "+200 reseñas de 5 estrellas",
+      "Envío desde España"
+    ],
+    "offer": {
+      "durationMinutes": 15,
+      "label": "Oferta de lanzamiento termina en",
+      "expiredLabel": "La oferta ha finalizado"
+    },
+    "benefits": [
+      {
+        "id": "soporte-cervical",
+        "icon": "shield",
+        "title": "Soporte cervical dual",
+        "text": "Doble curva ergonómica que sostiene el cuello en cualquier posición para dormir, aliviando la tensión acumulada durante el día."
+      },
+      {
+        "id": "memory-foam",
+        "icon": "star",
+        "title": "Memory foam de alta densidad",
+        "text": "Se adapta a la forma de tu cabeza y cuello sin perder firmeza, para un descanso estable toda la noche."
+      },
+      {
+        "id": "transpirable",
+        "icon": "sparkle",
+        "title": "Funda transpirable y lavable",
+        "text": "Tela fresca que no acumula calor, con funda extraíble apta para lavadora."
+      },
+      {
+        "id": "cualquier-postura",
+        "icon": "check",
+        "title": "Sirve en cualquier postura",
+        "text": "Boca arriba, de costado o boca abajo: el diseño se adapta sin perder soporte."
+      }
+    ],
+    "heroPills": [
+      "Soporte cervical dual",
+      "Funda lavable",
+      "Memory foam premium"
+    ],
+    "specs": [
+      {
+        "label": "Material",
+        "value": "Memory foam de alta densidad"
+      },
+      {
+        "label": "Funda",
+        "value": "Poliéster transpirable, lavable"
+      },
+      {
+        "label": "Dimensiones",
+        "value": "60 x 40 x 12 cm"
+      },
+      {
+        "label": "Peso",
+        "value": "1.1 kg"
+      }
+    ],
+    "packs": [
+      {
+        "id": "x1",
+        "units": 1,
+        "freeUnits": 0,
+        "label": "1 unidad",
+        "sublabel": "Ideal para probar",
+        "default": true
+      },
+      {
+        "id": "x2",
+        "units": 2,
+        "freeUnits": 0,
+        "label": "Pack 2 unidades",
+        "sublabel": "El que más se lleva",
+        "discountPercent": 10,
+        "badge": "Más popular",
+        "popular": true
+      },
+      {
+        "id": "x3",
+        "units": 2,
+        "freeUnits": 1,
+        "label": "Pack 2 + 1 GRATIS",
+        "sublabel": "Máximo ahorro",
+        "discountPercent": 15,
+        "freeGift": true
+      }
+    ],
+    "gallery": [
+      {
+        "id": "g1",
+        "asset": "gallery-01",
+        "alt": "NubeCalma sobre una cama tendida, vista frontal",
+        "ratio": "4/5"
+      },
+      {
+        "id": "g2",
+        "asset": "gallery-02",
+        "alt": "Perfil de la doble curva cervical",
+        "ratio": "4/5"
+      },
+      {
+        "id": "g3",
+        "asset": "gallery-03",
+        "alt": "Detalle de la funda transpirable",
+        "ratio": "4/5"
+      },
+      {
+        "id": "g4",
+        "asset": "gallery-04",
+        "alt": "La almohada comprimida en su bolsa de viaje",
+        "ratio": "4/5"
+      },
+      {
+        "id": "g5",
+        "asset": "gallery-05",
+        "alt": "Comparativa de altura entre las dos caras",
+        "ratio": "4/5"
+      },
+      {
+        "id": "g6",
+        "asset": "gallery-06",
+        "alt": "NubeCalma en uso, dormida de lado",
+        "ratio": "4/5"
+      },
+      {
+        "id": "g7",
+        "asset": "gallery-07",
+        "alt": "Vista cenital de la almohada completa",
+        "ratio": "9/16",
+        "label": "Vista superior"
+      }
+    ],
+    "steps": [
+      {
+        "step": 1,
+        "title": "Apoyá la cabeza",
+        "text": "La doble curva se adapta al instante a la forma de tu cuello.",
+        "media": {
+          "asset": "step-01",
+          "alt": "Persona apoyando la cabeza en NubeCalma",
+          "ratio": "4/3"
+        }
+      },
+      {
+        "step": 2,
+        "title": "Dormí en cualquier postura",
+        "text": "Boca arriba o de costado, el soporte se mantiene estable toda la noche.",
+        "media": {
+          "asset": "gallery-03",
+          "alt": "Persona durmiendo de costado",
+          "ratio": "4/3"
+        }
+      },
+      {
+        "step": 3,
+        "title": "Lavá la funda cuando quieras",
+        "text": "Funda extraíble apta para lavadora, siempre fresca.",
+        "media": {
+          "asset": "gallery-04",
+          "alt": "Funda siendo lavada",
+          "ratio": "4/3"
+        }
+      }
+    ],
+    "comparison": [
+      {
+        "feature": "Soporte cervical dual",
+        "ours": true,
+        "rival": false
+      },
+      {
+        "feature": "Memory foam de alta densidad",
+        "ours": true,
+        "rival": "Espuma estándar"
+      },
+      {
+        "feature": "Funda lavable a máquina",
+        "ours": true,
+        "rival": true
+      },
+      {
+        "feature": "Bolsa de viaje incluida",
+        "ours": true,
+        "rival": false
+      },
+      {
+        "feature": "Altura",
+        "ours": "Dos caras, 10 y 12 cm",
+        "rival": "Altura única"
+      }
+    ],
+    "ugc": [
+      {
+        "asset": "ugc-01",
+        "alt": "NubeCalma sobre una cama de dormitorio",
+        "ratio": "9/16"
+      },
+      {
+        "asset": "ugc-02",
+        "alt": "Persona sosteniendo NubeCalma antes de dormir",
+        "ratio": "9/16"
+      },
+      {
+        "asset": "ugc-03",
+        "alt": "NubeCalma con funda retirada, lista para lavar",
+        "ratio": "9/16"
+      }
+    ],
+    "cta": {
+      "primary": "Comprar ahora",
+      "sticky": "Agregar al carrito",
+      "checkout": "Finalizar compra",
+      "pending": "Agregando...",
+      "soldOut": "Agotado"
+    },
+    "comparisonRival": "alternativas convencionales"
+  },
+  "faq": [
+    {
+      "id": "que-es",
+      "question": "¿Qué es NubeCalma y cómo funciona?",
+      "answer": "Es una almohada cervical de memory foam con doble curva ergonómica que sostiene el cuello y libera la presión de los hombros."
+    },
+    {
+      "id": "altura",
+      "question": "¿Qué cara debo usar?",
+      "answer": "La cara de 10 cm está pensada para dormir boca arriba y la de 12 cm para dormir de lado. Probá ambas durante unas noches."
+    },
+    {
+      "id": "lavado",
+      "question": "¿Se puede lavar?",
+      "answer": "La funda se retira con cremallera y se lava a máquina a 30°. El núcleo de espuma no se sumerge: se ventila."
+    },
+    {
+      "id": "adaptacion",
+      "question": "¿Cuánto tarda en adaptarse?",
+      "answer": "La espuma recupera su forma en pocos minutos tras sacarla de la bolsa, y la mayoría de las personas se acostumbra en dos o tres noches."
+    },
+    {
+      "id": "materiales",
+      "question": "¿De qué está hecha?",
+      "answer": "Núcleo de memory foam de alta densidad y funda de poliéster transpirable."
+    }
+  ],
+  "testimonials": [
+    {
+      "id": "t-featured",
+      "author": "Laura Gimenez",
+      "rating": 5,
+      "date": "2026-06-10",
+      "title": "Se me fue el dolor de cuello",
+      "body": "Dormía fatal por un dolor cervical constante. A la tercera noche con NubeCalma ya notaba la diferencia.",
+      "variant": "quote"
+    },
+    {
+      "id": "t2",
+      "author": "M***s R.",
+      "rating": 5,
+      "date": "2026-05-22",
+      "title": "Mejor de lo que esperaba",
+      "body": "Llevo tres semanas durmiendo con ella y me levanto sin la rigidez de siempre.",
+      "variant": "reel"
+    },
+    {
+      "id": "t3",
+      "author": "",
+      "rating": 4,
+      "date": "2026-05-04",
+      "body": "Buena almohada. Tardé unas noches en acostumbrarme a la altura.",
+      "variant": "reel"
+    },
+    {
+      "id": "t4",
+      "author": "Ana P.",
+      "rating": 5,
+      "date": "2026-04-18",
+      "title": "La funda se lava sin problema",
+      "body": "La he lavado dos veces y sigue como el primer día.",
+      "variant": "reel"
+    },
+    {
+      "id": "t5",
+      "author": "J***o",
+      "rating": 5,
+      "date": "2026-04-02",
+      "body": "Duermo de lado y la cara alta me va perfecta.",
+      "variant": "reel"
+    }
+  ],
+  "design": {
+    "colors": {
+      "bone": "#F5F3F0",
+      "graphite": "#22252A",
+      "grape": "#3D6B5C",
+      "gold": "#C9A227"
+    },
+    "fonts": {
+      "display": "\"Archivo Variable\", ui-sans-serif, system-ui, sans-serif",
+      "sans": "\"Inter Variable\", ui-sans-serif, system-ui, sans-serif"
+    }
+  }
+}

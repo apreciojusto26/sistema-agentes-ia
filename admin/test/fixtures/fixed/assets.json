@@ -1,0 +1,65 @@
+{
+  "gallery": [
+    {
+      "id": "g1",
+      "asset": "gallery-01",
+      "alt": "NubeCalma sobre una cama tendida, vista frontal",
+      "ratio": "4/5"
+    },
+    {
+      "id": "g2",
+      "asset": "gallery-02",
+      "alt": "Perfil de la doble curva cervical",
+      "ratio": "4/5"
+    },
+    {
+      "id": "g3",
+      "asset": "gallery-03",
+      "alt": "Detalle de la funda transpirable",
+      "ratio": "4/5"
+    },
+    {
+      "id": "g4",
+      "asset": "gallery-04",
+      "alt": "La almohada comprimida en su bolsa de viaje",
+      "ratio": "4/5"
+    },
+    {
+      "id": "g5",
+      "asset": "gallery-05",
+      "alt": "Comparativa de altura entre las dos caras",
+      "ratio": "4/5"
+    },
+    {
+      "id": "g6",
+      "asset": "gallery-06",
+      "alt": "NubeCalma en uso, dormida de lado",
+      "ratio": "4/5"
+    },
+    {
+      "id": "g7",
+      "asset": "gallery-07",
+      "alt": "Vista cenital de la almohada completa",
+      "ratio": "9/16",
+      "label": "Vista superior"
+    }
+  ],
+  "heroExtras": [],
+  "ugcStrip": [
+    {
+      "asset": "ugc-01",
+      "alt": "NubeCalma en un dormitorio con luz de mañana",
+      "ratio": "9/16"
+    },
+    {
+      "asset": "ugc-02",
+      "alt": "Almohada apoyada sobre un edredón claro",
+      "ratio": "9/16"
+    },
+    {
+      "asset": "ugc-03",
+      "alt": "Detalle de la costura lateral",
+      "ratio": "9/16"
+    }
+  ]
+}

@@ -111,6 +111,26 @@ function parseArgs(argv) {
       args.merchant = value;
       i++;
     }
+    // THE ASSET PIPELINE'S OWN ENTRY POINT.
+    //
+    // Without it the media authority has no way to speak: gallery could only
+    // arrive inside content.json and the two clip lists could not arrive at
+    // all. `--images` supplies BYTES and `--product` supplies the scrape's
+    // media list; neither states which of those the page shows where, and that
+    // assignment is a decision the asset pipeline makes.
+    //
+    // Optional, because the derived split still covers every existing caller.
+    // Present, it REPLACES the derived media wholesale — a half-overridden
+    // media set would leave nobody able to say where a given photograph came
+    // from, which is the property this argument exists to restore.
+    else if (a === '--assets') {
+      const value = argv[i + 1];
+      if (value === undefined || value.startsWith('--')) {
+        fail('Missing --assets <path-to-json>', 'assets-argument-missing');
+      }
+      args.assets = value;
+      i++;
+    }
     else if (a === '--force') args.force = true;
     else fail(`Unknown argument: ${a}`);
   }
@@ -813,7 +833,21 @@ function main() {
       }
     }
 
-    const { contentOutput, assetOutput } = splitContentSources(input.product, canonicalProduct);
+    const { contentOutput, assetOutput: derivedAssets } = splitContentSources(input.product, canonicalProduct);
+
+    // An explicit asset output replaces the derived one entirely. It is
+    // validated by its own module rather than here, and rejected loudly:
+    // an --assets file the operator believed was in use but that was quietly
+    // ignored is worse than one that fails.
+    let assetOutput = derivedAssets;
+    if (args.assets !== undefined) {
+      if (!existsSync(args.assets)) fail(`--assets file not found: ${args.assets}`, 'assets-file-missing');
+      try {
+        assetOutput = JSON.parse(readFileSync(args.assets, 'utf-8'));
+      } catch (err) {
+        fail(`--assets file is not valid JSON: ${err.message}`, 'assets-unparseable');
+      }
+    }
     let fixed;
     try {
       fixed = assembleFixedProductData({
