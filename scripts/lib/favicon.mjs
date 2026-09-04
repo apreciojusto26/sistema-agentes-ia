@@ -144,6 +144,50 @@ function escapeXml(s) {
  * 32, reproducible" — not vector fidelity — so the ICO paints the same colours
  * and the same letterforms from a 5x7 bitmap font.
  */
+/**
+ * Packs an already-validated PNG into an ICO container, verbatim.
+ *
+ * WHY THIS EXISTS. The mark resolves through operator -> previous -> generated
+ * -> monogram, but `favicon.ico` was always drawn from the monogram — so a
+ * landing whose operator supplied a mark shipped ONE identity in favicon.svg
+ * and a DIFFERENT one to any client that asks for /favicon.ico. Two answers to
+ * "who is this", and the second one silently wrong.
+ *
+ * NO RE-ENCODING AND NO RESAMPLING. The ICO format allows a directory entry
+ * whose payload is a whole PNG file, which is how modern icons carry their
+ * large sizes. The bytes are copied as they are; only the 22-byte container
+ * around them is written here. That keeps this dependency-free and keeps the
+ * .ico byte-identical in meaning to the .svg it sits beside.
+ *
+ * @param {Buffer} png a validated square PNG
+ * @returns {Buffer}
+ */
+export function buildIcoFromPng(png) {
+  // IHDR sits at a fixed offset in every PNG.
+  const width = png.readUInt32BE(16);
+  const height = png.readUInt32BE(20);
+
+  const header = Buffer.alloc(6);
+  header.writeUInt16LE(0, 0); // reserved
+  header.writeUInt16LE(1, 2); // type: icon
+  header.writeUInt16LE(1, 4); // one entry
+
+  const entry = Buffer.alloc(16);
+  // A dimension byte holds 1-255; 0 is the convention for "256 or larger",
+  // which is what a modern PNG entry usually is. Readers that care take the
+  // real size from the PNG header anyway.
+  entry.writeUInt8(width >= 256 ? 0 : width, 0);
+  entry.writeUInt8(height >= 256 ? 0 : height, 1);
+  entry.writeUInt8(0, 2); // palette
+  entry.writeUInt8(0, 3); // reserved
+  entry.writeUInt16LE(1, 4); // planes
+  entry.writeUInt16LE(32, 6); // bpp
+  entry.writeUInt32LE(png.length, 8);
+  entry.writeUInt32LE(header.length + entry.length, 12);
+
+  return Buffer.concat([header, entry, png]);
+}
+
 export function buildFaviconIco({ brand, background, foreground }) {
   const monogram = brandMonogram(brand);
   const images = [16, 32].map((size) => bmpForSize(size, monogram, background, foreground));

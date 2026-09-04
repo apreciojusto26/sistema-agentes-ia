@@ -12,6 +12,11 @@
 // keeps being written. There is no manifest, no apple-touch-icon and no icon
 // set — inventing ten sizes would be inventing consumers.
 //
+// BOTH FILES ALWAYS CARRY THE SAME IDENTITY. That is an invariant, not a
+// nicety: a client that ignores SVG and falls back to /favicon.ico must not be
+// shown a different brand. When a raster wins, the ICO is packed from that same
+// raster; when the monogram wins, both are drawn from it.
+//
 // `og-cover.png` is referenced through `og:image`, and it is NOT a favicon. It
 // is out of scope here and still ships the template's own artwork.
 //
@@ -38,7 +43,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { buildFaviconSvg, buildFaviconIco, pickForeground } from './favicon.mjs';
+import { buildFaviconSvg, buildFaviconIco, buildIcoFromPng, pickForeground } from './favicon.mjs';
 
 /** Where a mark can come from, strongest first. */
 export const FAVICON_SOURCES = ['operator', 'generated', 'canonical'];
@@ -267,15 +272,14 @@ export async function resolveFixedFavicon({
   if (operatorPath) {
     const check = validateOperatorFavicon(operatorPath, { baseDir: operatorBaseDir });
     if (!check.ok) throw new FixedFaviconError(check.message, check.code);
-    const { ico } = monogram();
     return base('operator', [
       { name: 'favicon.png', contents: check.buffer },
       { name: 'favicon.svg', contents: wrapRasterAsSvg(check.buffer) },
-      // THE .ico STAYS THE MONOGRAM. Nothing in this repo encodes an arbitrary
-      // raster into ICO, and the head references the SVG — the .ico is only the
-      // convention browsers fall back to. Recorded in the manifest rather than
-      // left as a surprise.
-      { name: 'favicon.ico', contents: ico },
+      // THE SAME MARK, IN BOTH FILES. It used to stay the monogram here, so a
+      // landing shipped one identity in favicon.svg and a different one to any
+      // client that asks for /favicon.ico. buildIcoFromPng packs the validated
+      // raster into an ICO container verbatim — no re-encoding, no dependency.
+      { name: 'favicon.ico', contents: buildIcoFromPng(check.buffer) },
     ]);
   }
 
@@ -294,13 +298,13 @@ export async function resolveFixedFavicon({
       // returned a favicon.
       const check = validatePngBuffer(produced, 'the favicon provider output');
       if (!check.ok) throw new FixedFaviconError(check.message, check.code);
-      const { ico } = monogram();
       const result = base(
         'generated',
         [
           { name: 'favicon.png', contents: produced },
           { name: 'favicon.svg', contents: wrapRasterAsSvg(produced) },
-          { name: 'favicon.ico', contents: ico },
+          // Same rule as the operator branch: one identity, both files.
+          { name: 'favicon.ico', contents: buildIcoFromPng(produced) },
         ],
         { generatedAt: now ?? new Date().toISOString(), provider: 'injected' },
       );

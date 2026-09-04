@@ -309,3 +309,75 @@ describe('the SVG wrapper is markup we author, byte for byte', () => {
     expect(payload).toMatch(/^[A-Za-z0-9+/=]+$/);
   });
 });
+
+// ───────────────────────────────────────────────────────────────────────────
+// ONE IDENTITY, BOTH FILES
+// ───────────────────────────────────────────────────────────────────────────
+
+describe('favicon.svg and favicon.ico never disagree about who this is', () => {
+  /** Reads the payload of an ICO's single directory entry. */
+  const icoPayload = (ico: Buffer) => {
+    expect(ico.readUInt16LE(0), 'ICO reserved field').toBe(0);
+    expect(ico.readUInt16LE(2), 'ICO type must be 1 (icon)').toBe(1);
+    const count = ico.readUInt16LE(4);
+    expect(count).toBeGreaterThan(0);
+    const length = ico.readUInt32LE(14);
+    const offset = ico.readUInt32LE(18);
+    return ico.subarray(offset, offset + length);
+  };
+
+  test('an operator mark reaches the ICO, not just the SVG', async () => {
+    // The F6 gap: the ICO stayed the canonical monogram even when an operator
+    // supplied a mark, so a client that ignores SVG and asks for /favicon.ico
+    // was shown a different brand. Silently.
+    const dir = tmp();
+    const file = path.join(dir, 'mark.png');
+    writeFileSync(file, PNG);
+    try {
+      const r = await resolveFixedFavicon({ ...base, operatorPath: file });
+      const ico = r.files.find((f) => f.name === 'favicon.ico')!.contents as Buffer;
+      expect(icoPayload(ico).equals(PNG), 'the ICO carries a different image').toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('a generated mark does too', async () => {
+    const r = await resolveFixedFavicon({ ...base, generate: () => PNG });
+    const ico = r.files.find((f) => f.name === 'favicon.ico')!.contents as Buffer;
+    expect(icoPayload(ico).equals(PNG)).toBe(true);
+  });
+
+  test('the SVG and the ICO carry the SAME bytes', async () => {
+    // Stated as one assertion rather than two, because the invariant is the
+    // agreement between them, not the contents of either.
+    const r = await resolveFixedFavicon({ ...base, generate: () => PNG });
+    const svg = r.files.find((f) => f.name === 'favicon.svg')!.contents as string;
+    const ico = r.files.find((f) => f.name === 'favicon.ico')!.contents as Buffer;
+    const embedded = Buffer.from(/base64,([^"]+)"/.exec(svg)![1], 'base64');
+    expect(icoPayload(ico).equals(embedded)).toBe(true);
+  });
+
+  test('and the canonical monogram still writes a real multi-size ICO', async () => {
+    // The fallback keeps its own encoder: two BMP entries at 16 and 32, which
+    // is the right shape for a glyph mark and does not need a PNG container.
+    const r = await resolveFixedFavicon({ ...base });
+    const ico = r.files.find((f) => f.name === 'favicon.ico')!.contents as Buffer;
+    expect(ico.readUInt16LE(4), 'the monogram ICO should carry 16 and 32').toBe(2);
+  });
+
+  test('no resolution ever leaves a stale monogram beside a raster mark', async () => {
+    for (const opts of [{ generate: () => PNG }, {}]) {
+      const r = await resolveFixedFavicon({ ...base, ...opts });
+      const names = r.files.map((f) => f.name);
+      const ico = r.files.find((f) => f.name === 'favicon.ico')!.contents as Buffer;
+      // If a PNG is shipped, the ICO must be that PNG. If not, it must be the
+      // monogram's two-entry container. There is no third state.
+      if (names.includes('favicon.png')) {
+        expect(ico.readUInt16LE(4)).toBe(1);
+      } else {
+        expect(ico.readUInt16LE(4)).toBe(2);
+      }
+    }
+  });
+});
