@@ -154,11 +154,20 @@ describe('merchant facts are configured, never invented', () => {
     // model asked for one supplies a confident 4900 for a store that offers no
     // free shipping at all. It is OPTIONAL because absence is a real answer:
     // no threshold, no progress bar, no claim.
+    //
+    // `packs` JOINED IN F3 TOO, and for the same reason as the threshold:
+    // bundle definitions carry prices, discount percentages and a "popular"
+    // flag. Those are merchandising decisions an operator makes once, and a
+    // model asked for them invents all three. OPTIONAL here because a merchant
+    // may not have configured any — but the Fixed structural grammar seals
+    // buy/packs at min 1, so a landing without them fails validation and the
+    // generator says so in its TODO block instead of inventing a bundle.
     expect(merchantLib.MERCHANT_OPTIONAL_FIELDS).toEqual([
-      'dataControllerEmail', 'commercialGuaranteeDays', 'freeShippingOverCents',
+      'dataControllerEmail', 'commercialGuaranteeDays', 'freeShippingOverCents', 'packs',
     ]);
     expect(merchantLib.MERCHANT_REQUIRED_FIELDS).not.toContain('commercialGuaranteeDays');
     expect(merchantLib.MERCHANT_REQUIRED_FIELDS).not.toContain('freeShippingOverCents');
+    expect(merchantLib.MERCHANT_REQUIRED_FIELDS).not.toContain('packs');
   });
 
   test('an absent config is reported, not defaulted', () => {
@@ -225,10 +234,30 @@ describe('merchant facts are configured, never invented', () => {
 
 describe('merchant identity, policy facts and product content do not mix', () => {
   test('no merchant field can enter content.json', () => {
+    // `packs` IS THE ONE OVERLAP, and it is deliberate rather than a leak.
+    //
+    // Version A's content.json has always carried packs and its contract
+    // REQUIRES them; content-contract.mjs is pinned line-for-line by
+    // scope-boundaries, and removing the field to satisfy this rule would break
+    // a live flow to tidy a list. So Version A keeps the field.
+    //
+    // Fixed does not take that authority. scripts/lib/fixed-content-output.mjs
+    // drops packs from the projection and the assembler reads them only from
+    // merchant config — asserted by contract.fixed-source-authority.test.ts,
+    // which proves that changing the packs inside a content document cannot
+    // change the packs on the generated page.
+    const SHARED_WITH_VERSION_A = ['packs'];
     const contract = read('scripts/lib/content-contract.mjs');
     for (const field of merchantLib.MERCHANT_ALL_FIELDS) {
+      if (SHARED_WITH_VERSION_A.includes(field)) continue;
       expect(contract, `${field} leaked into the content contract`).not.toContain(`'${field}'`);
     }
+  });
+
+  test('and the one overlap is inert for Fixed', () => {
+    // The exception above is only acceptable while this holds.
+    const fixed = read('scripts/lib/fixed-content-output.mjs');
+    expect(fixed).toMatch(/FIXED_CONTENT_FOREIGN_FIELDS = \[\s*\n\s*'packs',/);
   });
 
   test('no agent writes merchant config', () => {

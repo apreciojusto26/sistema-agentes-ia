@@ -1,0 +1,186 @@
+// THE FIXED CONTENT PROJECTION — what the Content Agent may decide for a Fixed
+// landing, and nothing more.
+//
+// WHY A SECOND CONTRACT RATHER THAN AN EDIT TO THE FIRST. content-contract.mjs
+// describes the Version A document, and Version A is still a real flow with
+// real tests. It is also pinned line-for-line by scope-boundaries.test.ts,
+// which is not an obstacle to work around — it is the tripwire that stopped
+// F3B from quietly widening the Content Agent's authority in the first place.
+//
+// So Version A keeps its document, and Fixed gets a PROJECTION of it: the same
+// input, narrowed to the slots a Fixed page actually fills. Narrowing is not a
+// preference here. Every field this module drops is one an authority other
+// than the Content Agent owns, or one the Fixed page does not render at all.
+//
+// ─── WHAT LEAVES, AND WHO TAKES IT ─────────────────────────────────────────
+//
+//   packs        -> merchant config. Bundle definitions are MERCHANDISING: how
+//                   this store packages what Shopify sells. They carry prices,
+//                   discounts and a "popular" flag, which are commercial
+//                   decisions an operator makes once — not sentences about the
+//                   product, and not something to spend model tokens inventing.
+//   gallery      -> asset pipeline
+//   heroExtras   -> asset pipeline
+//   ugcStrip     -> asset pipeline
+//   shipping     -> merchant config
+//
+// ─── WHAT LEAVES BECAUSE NOTHING RENDERS IT ────────────────────────────────
+//
+//   benefits, heroPills, specs, badges, offer, ugc, comparisonRival
+//
+// Removed from the Fixed contract in F3A after a field-level sweep of the
+// mounted page found no consumer. They remain valid Version A fields; they are
+// simply not projected.
+//
+// A DROPPED FIELD IS NOT AN IGNORED FIELD. `projectFixedContent` drops the
+// Version A extras because the Version A document legitimately carries them —
+// that is a translation between two contracts. But anything handed DIRECTLY to
+// the assembler as a Fixed content output is REJECTED if it carries a slot
+// this module does not own, because there the extra field means a caller
+// believes the Content Agent decides it.
+
+/** Slots a Fixed page fills from the Content Agent, and only from it. */
+export const FIXED_CONTENT_FIELDS = [
+  'brand',
+  'name',
+  'tagline',
+  'subtagline',
+  'cta',
+  'variantGroupLabel',
+  'errors',
+  'commerceMessages',
+  'trustTicker',
+  'ratingAverage',
+  'ratingCount',
+  'steps',
+  'comparison',
+  // Top-level in content.json, not inside `product` — but they are the same
+  // author's work and FixedProductData reads them, so the projection carries
+  // them. `reviews` is the testimonials list narrowed to FixedReview: `id` and
+  // `variant` are dropped because the Fixed page picks its own layout, and a
+  // content field that chooses a layout is the drift F3A removed.
+  'faq',
+  'reviews',
+  'featuredTestimonial',
+];
+
+/** Slots owned by another authority. Named so the guard can reject them. */
+export const FIXED_CONTENT_FOREIGN_FIELDS = [
+  'packs',
+  'gallery',
+  'heroExtras',
+  'ugcStrip',
+  'shipping',
+  'freeShippingOverCents',
+  'freeOverCents',
+  'guarantee',
+  'commercialGuarantee',
+  'commercialGuaranteeDays',
+  'returns',
+  'returnsWindowDays',
+];
+
+/** Version A fields the Fixed page renders nowhere. Dropped, never rejected. */
+export const VERSION_A_ONLY_FIELDS = [
+  'benefits',
+  'heroPills',
+  'specs',
+  'badges',
+  'offer',
+  'ugc',
+  'comparisonRival',
+];
+
+/** Copy slots with no honest default — absence makes the page incomplete. */
+const REQUIRED = ['name', 'tagline', 'subtagline', 'cta', 'variantGroupLabel', 'trustTicker'];
+
+/**
+ * Narrows a Version A content document to the Fixed projection.
+ *
+ * TRANSLATION, NOT VALIDATION. It is the one place allowed to see both shapes,
+ * and it exists so the generator can keep accepting the documents every
+ * historical fixture and the live Content Agent produce, without any of the
+ * foreign slots inside them reaching FixedProductData.
+ *
+ * `packs` IS DROPPED HERE RATHER THAN REJECTED, and the distinction matters.
+ * A Version A content.json is REQUIRED to carry packs — content-contract.mjs
+ * lists it and scope-boundaries pins that file line for line — so a document
+ * arriving with packs is not a caller overstepping, it is the historical format
+ * doing what it has always done. What must not happen is that value reaching
+ * the page, and it does not: merchant config supplies the packs Fixed renders,
+ * and a caller who hands the ASSEMBLER a content output with packs in it still
+ * gets an error, because there the field means something different.
+ *
+ * @param {object} content a content.json (`{product, faq, testimonials}`)
+ * @returns {object} the Fixed content output
+ */
+export function projectFixedContent(content) {
+  const product = content?.product ?? content ?? {};
+  const out = {};
+  for (const field of FIXED_CONTENT_FIELDS) {
+    if (field in product) out[field] = product[field];
+  }
+  if (Array.isArray(content?.faq)) out.faq = content.faq;
+  if (Array.isArray(content?.testimonials)) {
+    out.reviews = content.testimonials.map(({ author, rating, date, title, body }) => ({
+      author,
+      rating,
+      date,
+      ...(title === undefined ? {} : { title }),
+      body,
+    }));
+  }
+  return out;
+}
+
+/**
+ * Validates a Fixed content output. Returns `issues` — never throws.
+ *
+ * @param {unknown} input
+ * @returns {{code: string, fields?: string[], message: string}[]}
+ */
+export function collectFixedContentIssues(input) {
+  const issues = [];
+  if (input === null || typeof input !== 'object' || Array.isArray(input)) {
+    issues.push({
+      code: 'fixed-content-not-an-object',
+      message: 'the Fixed content output must be an object of copy and narrative slots',
+    });
+    return issues;
+  }
+
+  const foreign = FIXED_CONTENT_FOREIGN_FIELDS.filter((f) => f in input);
+  if (foreign.length) {
+    issues.push({
+      code: 'fixed-content-foreign-authority',
+      fields: foreign,
+      message:
+        `the Fixed content output carries slots the Content Agent does not own: ${foreign.join(', ')}. ` +
+        'Media comes from the asset pipeline; packs, thresholds and policy terms come from merchant config.',
+    });
+  }
+
+  const missing = REQUIRED.filter((f) => !(f in input));
+  if (missing.length) {
+    issues.push({
+      code: 'fixed-content-missing-fields',
+      fields: missing,
+      message: `the Fixed content output is missing required copy: ${missing.join(', ')}`,
+    });
+  }
+
+  const unknown = Object.keys(input).filter(
+    (k) => !FIXED_CONTENT_FIELDS.includes(k) && !FIXED_CONTENT_FOREIGN_FIELDS.includes(k),
+  );
+  if (unknown.length) {
+    issues.push({
+      code: 'fixed-content-unknown-fields',
+      fields: unknown,
+      message:
+        `the Fixed content output carries fields no Fixed section renders: ${unknown.join(', ')}. ` +
+        'A slot nobody reads is text a model was asked to write for no one.',
+    });
+  }
+
+  return issues;
+}

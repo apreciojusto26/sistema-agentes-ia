@@ -62,6 +62,9 @@ export function parseArgs(argv) {
     else if (a === '--staged') args.stagedPath = argv[++i];
     else if (a === '--model') args.model = argv[++i];
     else if (a === '--instructions') args.instructionsPath = argv[++i];
+    // FIXED MODE. The Fixed template's bundles are store configuration, not
+    // copy, so the agent is not asked to author them — see buildSystemInstruction.
+    else if (a === '--fixed') args.fixed = true;
     else fail(`Unknown argument: ${a}`);
   }
   if (!args.productPath) fail('Missing --product <path-to-product.json>');
@@ -91,13 +94,27 @@ export function geminiKey() {
 
 // --- prompt construction (Q3 prompt-injection layering) --------------------
 
-export function buildSystemInstruction() {
+export function buildSystemInstruction({ fixed = false } = {}) {
   return [
     'Sos un redactor de marketing para landing pages de e-commerce en español rioplatense (voseo).',
     'Tu única tarea es producir un documento JSON que sea un content.json válido para este sistema:',
     'un objeto con "product", "faq", "testimonials" y, opcionalmente, "design".',
     '',
     `"product" debe incluir exactamente estos campos: ${REQUIRED_PRODUCT_FIELDS.join(', ')}.`,
+    // PACKS ARE NOT COPY. They carry prices, discount percentages and a
+    // "popular" flag — decisions the operator configures once, and exactly the
+    // kind of number a model invents with total confidence. In Fixed mode the
+    // key is still required by the document schema, so it is asked for EMPTY:
+    // the agent spends no tokens on it and the configured bundles are attached
+    // downstream. The value is overwritten after the loop regardless, the same
+    // way the rating facts are.
+    ...(fixed
+      ? [
+          'IMPORTANTE: "packs" debe ser SIEMPRE un array vacío: "packs": []. Los packs son',
+          'configuración comercial de la tienda, no texto tuyo. No inventes precios, descuentos',
+          'ni etiquetas de pack: se adjuntan más adelante desde la configuración.',
+        ]
+      : []),
     'NO generes "ratingAverage", "ratingCount" ni "ratingBreakdown". La valoración y el número de',
     'reseñas salen de los datos scrapeados, no de vos, y una distribución de estrellas no existe',
     'como dato: no la inventes ni la deduzcas del promedio.',
@@ -477,7 +494,7 @@ async function main() {
     process.on(sig, () => ac.abort(new Error(`aborted by ${sig}`)));
   }
 
-  const systemInstruction = buildSystemInstruction();
+  const systemInstruction = buildSystemInstruction({ fixed: args.fixed === true });
   // Prompt sees a provenance-stripped copy only — identity.productId/
   // identity.sourceUrl/identity.sourceItemId and the entire top-level
   // `provenance` object never reach Gemini (design D2). `product` itself
@@ -526,6 +543,13 @@ async function main() {
   // defect this projection exists to remove. `ratingBreakdown` is not projected
   // at all — no canonical source exists for a distribution, and an average does
   // not determine one.
+  // PACKS ARE PROJECTED TOO, and to empty. Same rule as the rating facts: not
+  // asked for in Fixed mode, and not trusted if the model wrote them anyway.
+  // The document schema still requires the key, so it is emptied rather than
+  // deleted — the configured bundles are attached at assembly time, and an
+  // invented "Pack 3 + 1 GRATIS -30%" never reaches a buyer.
+  if (args.fixed === true) parsed.product.packs = [];
+
   const socialProof = product.socialProof ?? {};
   parsed.product.ratingAverage =
     typeof socialProof.rating === 'number' ? socialProof.rating : null;

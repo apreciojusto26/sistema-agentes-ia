@@ -8,5 +8,34 @@
   "carrierName": "Transportista Ficticio",
   "shippingEtaLabel": "Entrega estimada en 3-5 días laborables",
   "returnShippingPaidBy": "customer",
-  "freeShippingOverCents": 4900
+  "freeShippingOverCents": 4900,
+  "packs": [
+    {
+      "id": "x1",
+      "units": 1,
+      "freeUnits": 0,
+      "label": "1 unidad",
+      "sublabel": "Ideal para probar",
+      "default": true
+    },
+    {
+      "id": "x2",
+      "units": 2,
+      "freeUnits": 0,
+      "label": "Pack 2 unidades",
+      "sublabel": "El que más se lleva",
+      "discountPercent": 10,
+      "badge": "Más popular",
+      "popular": true
+    },
+    {
+      "id": "x3",
+      "units": 2,
+      "freeUnits": 1,
+      "label": "Pack 2 + 1 GRATIS",
+      "sublabel": "Máximo ahorro",
+      "discountPercent": 15,
+      "freeGift": true
+    }
+  ]
 }

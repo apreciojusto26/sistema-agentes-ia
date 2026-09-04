@@ -79,6 +79,26 @@
 //                        Fixed assembler fills FROM HERE. One render copy, one
 //                        author — see normalizeMerchant below.
 //
+//   packs                OPTIONAL. The bundle definitions this store sells:
+//                        how it PACKAGES what Shopify lists. They reached the
+//                        landing through content.json until F3, which made a
+//                        language model the author of prices, discount
+//                        percentages and which bundle is flagged "popular" —
+//                        commercial decisions an operator makes once, and the
+//                        kind of number a model will happily invent.
+//
+//                        Shopify remains the pricing AUTHORITY: every figure a
+//                        pack displays is projected from the Shopify unit
+//                        price. What lives here is the packaging, not the
+//                        price of a unit.
+//
+//                        OPTIONAL at this layer, load-bearing at the next one:
+//                        FIXED_GRAMMAR seals buy/packs with min 1 and
+//                        zero: 'invalid-input', so a Fixed landing with no
+//                        packs does not pass structural validation. The
+//                        generator says so in its TODO block rather than
+//                        inventing one.
+//
 //   commercialGuaranteeDays  OPTIONAL. A satisfaction/money-back guarantee is
 //                        NOT the returns window and is not implied by it.
 //                        ABSENT MEANS ABSENT — the merchant has not configured
@@ -87,7 +107,7 @@
 //                        the landing used to assert a 30-day "garantía" that no
 //                        one had configured, while the returns page said 14.
 //
-// So: 9 required, 3 optional.
+// So: 9 required, 4 optional.
 
 export const MERCHANT_REQUIRED_FIELDS = [
   'legalName',
@@ -105,6 +125,7 @@ export const MERCHANT_OPTIONAL_FIELDS = [
   'dataControllerEmail',
   'commercialGuaranteeDays',
   'freeShippingOverCents',
+  'packs',
 ];
 
 export const MERCHANT_ALL_FIELDS = [...MERCHANT_REQUIRED_FIELDS, ...MERCHANT_OPTIONAL_FIELDS];
@@ -123,6 +144,7 @@ export const MERCHANT_FIELD_PAGES = {
   dataControllerEmail: 'privacidad',
   commercialGuaranteeDays: 'la sección Guarantee, cuando el merchant la configura',
   freeShippingOverCents: 'la barra de envío gratis del carrito y del checkout',
+  packs: 'el BuyBox, el BundleSelector y la sticky bar',
 };
 
 /** Who bears the cost of the return leg. Closed domain — see the field audit. */
@@ -223,6 +245,82 @@ export function collectMerchantIssues(input) {
     }
   }
 
+  // Packs are structure, not prose. Validated against the real PricePack: an
+  // id the selector keys on, a label a buyer reads, `units` (paid) and
+  // `freeUnits` (the "2+1 GRATIS" half). A pack with no `units` renders a
+  // bundle whose price cannot be computed, and the BuyBox would print whatever
+  // `undefined * unitPrice` formats to.
+  if (input.packs !== undefined && input.packs !== null) {
+    if (!Array.isArray(input.packs)) {
+      issues.push({
+        code: 'merchant-field-invalid',
+        field: 'packs',
+        message: `merchant.packs must be an array when present, got ${JSON.stringify(input.packs)}`,
+      });
+    } else if (input.packs.length === 0) {
+      // Not "no packs offered". FIXED_GRAMMAR seals buy/packs at min 1, so an
+      // empty array is a landing that fails structural validation — say it
+      // here, where it is still cheap to fix.
+      issues.push({
+        code: 'merchant-field-invalid',
+        field: 'packs',
+        message:
+          'merchant.packs is an empty array. Omit the field entirely if this store has no bundles; ' +
+          'an empty list is not a configuration, and a Fixed landing needs at least one pack.',
+      });
+    } else {
+      input.packs.forEach((pack, i) => {
+        if (pack === null || typeof pack !== 'object' || Array.isArray(pack)) {
+          issues.push({
+            code: 'merchant-field-invalid',
+            field: `packs[${i}]`,
+            message: `merchant.packs[${i}] must be an object`,
+          });
+          return;
+        }
+        for (const key of ['id', 'label']) {
+          if (typeof pack[key] !== 'string' || pack[key].trim() === '') {
+            issues.push({
+              code: 'merchant-field-invalid',
+              field: `packs[${i}].${key}`,
+              message: `merchant.packs[${i}].${key} must be a non-empty string`,
+            });
+          }
+        }
+        if (!Number.isInteger(pack.units) || pack.units <= 0) {
+          issues.push({
+            code: 'merchant-field-invalid',
+            field: `packs[${i}].units`,
+            message:
+              `merchant.packs[${i}].units must be a positive integer — it is the multiplier the Shopify ` +
+              `unit price is projected through, got ${JSON.stringify(pack.units)}`,
+          });
+        }
+        if (!Number.isInteger(pack.freeUnits) || pack.freeUnits < 0) {
+          issues.push({
+            code: 'merchant-field-invalid',
+            field: `packs[${i}].freeUnits`,
+            message:
+              `merchant.packs[${i}].freeUnits must be a non-negative integer (0 when the pack gives ` +
+              `nothing away), got ${JSON.stringify(pack.freeUnits)}`,
+          });
+        }
+      });
+
+      // "Exactly one pack MUST have default: true" is stated in the PricePack
+      // type and enforced nowhere. Two defaults makes the selected pack depend
+      // on iteration order; none makes the BuyBox open with nothing chosen.
+      const defaults = input.packs.filter((p) => p && p.default === true).length;
+      if (defaults !== 1) {
+        issues.push({
+          code: 'merchant-field-invalid',
+          field: 'packs',
+          message: `exactly one merchant pack must have default: true, found ${defaults}`,
+        });
+      }
+    }
+  }
+
   // Closed domain. A free string here would put whatever someone typed onto the
   // returns page as a statement of who pays.
   if (input.returnShippingPaidBy !== undefined) {
@@ -296,15 +394,33 @@ export function merchantFreeShippingOverCents(input) {
 }
 
 /**
+ * The store's bundle definitions, or `[]` when it has configured none.
+ *
+ * `[]` IS NOT A WORKING LANDING and this function does not pretend otherwise —
+ * FIXED_GRAMMAR seals buy/packs at min 1. It is the honest report of an
+ * unconfigured merchant, and the generator surfaces it as a TODO rather than
+ * inventing a bundle to fill the region.
+ *
+ * @param {unknown} input a merchant config, or null
+ * @returns {object[]}
+ */
+export function merchantPacks(input) {
+  if (!input || typeof input !== 'object' || !Array.isArray(input.packs)) return [];
+  return input.packs;
+}
+
+/**
  * Normalises for the renderer. `dataControllerEmail` falls back to
  * `contactEmail` — the only derivation in this module, and it is stated on the
  * privacy page rather than silently substituted.
  *
- * `freeShippingOverCents` IS DELIBERATELY ABSENT from the result. It is a valid
- * merchant config field, but the legal pages never state it — the cart does,
- * through product.ts's `shipping.freeOverCents`, which the Fixed assembler
- * fills from this same config. Emitting it here too would put one number in two
- * generated modules, and two copies of a price is how they drift.
+ * `freeShippingOverCents` AND `packs` ARE DELIBERATELY ABSENT from the result.
+ * Both are valid merchant config fields, but neither is a legal-page fact: the
+ * cart states the threshold through product.ts's `shipping.freeOverCents` and
+ * the BuyBox states the bundles through `product.packs`, and the Fixed
+ * assembler fills both from this same config. Emitting them here too would put
+ * one number in two generated modules, and two copies of a price is how they
+ * drift.
  */
 export function normalizeMerchant(input) {
   if (!input) return null;

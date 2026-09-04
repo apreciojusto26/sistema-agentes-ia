@@ -69,35 +69,6 @@
         "value": "1.1 kg"
       }
     ],
-    "packs": [
-      {
-        "id": "x1",
-        "units": 1,
-        "freeUnits": 0,
-        "label": "1 unidad",
-        "sublabel": "Ideal para probar",
-        "default": true
-      },
-      {
-        "id": "x2",
-        "units": 2,
-        "freeUnits": 0,
-        "label": "Pack 2 unidades",
-        "sublabel": "El que más se lleva",
-        "discountPercent": 10,
-        "badge": "Más popular",
-        "popular": true
-      },
-      {
-        "id": "x3",
-        "units": 2,
-        "freeUnits": 1,
-        "label": "Pack 2 + 1 GRATIS",
-        "sublabel": "Máximo ahorro",
-        "discountPercent": 15,
-        "freeGift": true
-      }
-    ],
     "gallery": [
       {
         "id": "g1",
@@ -226,7 +197,16 @@
       "pending": "Agregando...",
       "soldOut": "Agotado"
     },
-    "comparisonRival": "alternativas convencionales"
+    "comparisonRival": "alternativas convencionales",
+    "packs": [
+      {
+        "id": "IGNORED-BY-FIXED",
+        "units": 99,
+        "freeUnits": 99,
+        "label": "Version A compat slot — the Fixed projection drops this; merchant.json is the authority",
+        "default": true
+      }
+    ]
   },
   "faq": [
     {

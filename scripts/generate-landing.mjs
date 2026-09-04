@@ -18,6 +18,7 @@ import { isProductId } from './lib/product-id.cjs';
 import { buildFaviconSvg, buildFaviconIco, pickForeground } from './lib/favicon.mjs';
 import { collectMerchantIssues, normalizeMerchant, MERCHANT_REQUIRED_FIELDS } from './lib/merchant.mjs';
 import { assembleFixedProductData, FixedAssemblyError } from './lib/fixed-product-data.mjs';
+import { projectFixedContent } from './lib/fixed-content-output.mjs';
 import { isShopifyHandle } from './lib/shopify-handle.mjs';
 import { FIXED_TEMPLATE_RELATIVE } from './lib/fixed-template.mjs';
 import { writeLandingGitignore, initLandingRepo } from './lib/landing-scaffold.mjs';
@@ -281,8 +282,17 @@ function normalizePacks(packs) {
  * mixed document and it does the separating, which is exactly the job a
  * boundary exists to do.
  */
-function splitContentSources(product, canonicalProduct) {
-  const { gallery, ...contentOutput } = product;
+function splitContentSources(content, canonicalProduct) {
+  const product = content.product;
+  // The projection is what makes the split honest. Destructuring `gallery` out
+  // would leave every Version A extra — benefits, heroPills, specs, badges,
+  // offer, ugc, comparisonRival — inside the object handed to the assembler,
+  // where they are neither rendered nor owned. projectFixedContent KEEPS only
+  // the Fixed slots, so `packs` is dropped here rather than rejected: the
+  // Version A document legitimately carries it, and the merchant supplies the
+  // one that reaches the page.
+  const contentOutput = projectFixedContent(content);
+  const gallery = product.gallery;
 
   // heroExtras are the product's OWN clips, and they come from the scrape's
   // video media — which TODAY IS ALWAYS EMPTY: CanonicalProduct.media.videos is
@@ -814,6 +824,11 @@ function main() {
     console.log('✓ landing already has its own .git — existing history left untouched');
   }
 
+  // Read back after the stage so the TODO can be reported alongside the others
+  // — `todos` is not declared until later, and a second list would be a second
+  // place to forget.
+  let packsConfigured = false;
+
   withStage('write-data', () => {
     // THE ASSEMBLY BOUNDARY. Every field written below arrives having been
     // attributed to the authority allowed to state it.
@@ -833,7 +848,7 @@ function main() {
       }
     }
 
-    const { contentOutput, assetOutput: derivedAssets } = splitContentSources(input.product, canonicalProduct);
+    const { contentOutput, assetOutput: derivedAssets } = splitContentSources(input, canonicalProduct);
 
     // An explicit asset output replaces the derived one entirely. It is
     // validated by its own module rather than here, and rejected loudly:
@@ -870,6 +885,8 @@ function main() {
       }
       throw err;
     }
+
+    packsConfigured = fixed.commercial.packs.length > 0;
 
     writeFileSync(path.join(outDir, 'src/data/product.ts'), buildProductTs(input.product, args.shopifyHandle, fixed));
     writeFileSync(path.join(outDir, 'src/data/faq.ts'), buildFaqTs(input.faq));
@@ -934,6 +951,21 @@ function main() {
   console.log(`✓ outputs/${args.slug} created from ${FIXED_TEMPLATE_RELATIVE}`);
 
   const todos = [];
+
+  // SAID OUT LOUD, never papered over. FIXED_GRAMMAR seals buy/packs at min 1
+  // with zero: 'invalid-input', so a landing with no bundles does not pass
+  // structural validation. Packs are merchant configuration now, and the only
+  // honest thing the generator can do about an unconfigured store is report
+  // it — inventing a "Pack x1" would be exactly the fabrication this whole
+  // authority split exists to prevent.
+  if (!packsConfigured) {
+    todos.push(
+      'NO PACKS CONFIGURED — merchant.packs is absent, so this landing has no bundles. Packs moved ' +
+        'to merchant config in F3 (they are merchandising, not copy) and the Fixed structural grammar ' +
+        'requires at least one, so this landing will FAIL structural validation until the operator ' +
+        'configures them.',
+    );
+  }
 
   // Reported, never swallowed: the landing still builds without its own repo,
   // but it is NOT isolated — it resolves the parent's git root — and the

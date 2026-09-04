@@ -28,7 +28,8 @@
 // purpose, because collapsing them is how a capability flag turns into a
 // content field.
 import { collectAssetOutputIssues } from './fixed-asset-output.mjs';
-import { collectMerchantIssues, merchantFreeShippingOverCents } from './merchant.mjs';
+import { collectFixedContentIssues, FIXED_CONTENT_FOREIGN_FIELDS } from './fixed-content-output.mjs';
+import { collectMerchantIssues, merchantFreeShippingOverCents, merchantPacks } from './merchant.mjs';
 import { DEFAULT_ERRORS } from './content-contract.mjs';
 
 /**
@@ -48,16 +49,13 @@ export const CONTENT_FORBIDDEN_MEDIA_FIELDS = ['gallery', 'heroExtras', 'ugcStri
  * keeps out of content-contract.mjs, restated at the assembly boundary so the
  * rule holds for a caller that builds a content output by hand.
  */
-export const CONTENT_FORBIDDEN_COMMERCIAL_FIELDS = [
-  'shipping',
-  'freeShippingOverCents',
-  'freeOverCents',
-  'guarantee',
-  'commercialGuarantee',
-  'commercialGuaranteeDays',
-  'returns',
-  'returnsWindowDays',
-];
+// DERIVED, never restated. These two lists were written out by hand and had
+// already drifted by one entry — `freeOverCents` was forbidden here and absent
+// from the projection, so the assembler delegated a check it then failed to
+// make. Whatever the projection calls foreign and is not media is commercial.
+export const CONTENT_FORBIDDEN_COMMERCIAL_FIELDS = FIXED_CONTENT_FOREIGN_FIELDS.filter(
+  (f) => !CONTENT_FORBIDDEN_MEDIA_FIELDS.includes(f),
+);
 
 export class FixedAssemblyError extends Error {
   constructor(message, issues) {
@@ -84,6 +82,10 @@ export function collectAssemblyIssues({
   const issues = [];
 
   // ─── content: copy and narrative, nothing else ──────────────────────────
+  //
+  // Delegated to fixed-content-output.mjs, which owns the Fixed projection.
+  // Restating the field lists here would give the boundary two definitions,
+  // and the one that drifts is always the copy nobody remembers exists.
   if (!isObject(contentOutput)) {
     issues.push({
       code: 'content-output-missing',
@@ -91,36 +93,35 @@ export function collectAssemblyIssues({
       message: 'contentOutput must be an object carrying the Content Agent copy and narrative',
     });
   } else {
-    const media = CONTENT_FORBIDDEN_MEDIA_FIELDS.filter((f) => f in contentOutput);
-    if (media.length) {
-      issues.push({
-        code: 'content-writes-media',
-        source: 'contentOutput',
-        fields: media,
-        message:
-          `contentOutput carries media it has no authority over: ${media.join(', ')}. ` +
-          'Media comes from the asset pipeline — a model does not decide which photographs exist.',
-      });
-    }
-    const commercial = CONTENT_FORBIDDEN_COMMERCIAL_FIELDS.filter((f) => f in contentOutput);
-    if (commercial.length) {
-      issues.push({
-        code: 'content-writes-commercial',
-        source: 'contentOutput',
-        fields: commercial,
-        message:
-          `contentOutput carries commercial policy it has no authority over: ${commercial.join(', ')}. ` +
-          'Thresholds, guarantees and returns terms are merchant configuration, not copy.',
-      });
-    }
-    for (const field of ['tagline', 'subtagline', 'cta', 'variantGroupLabel', 'trustTicker']) {
-      if (!(field in contentOutput)) {
+    for (const issue of collectFixedContentIssues(contentOutput)) {
+      const media = (issue.fields ?? []).filter((f) => CONTENT_FORBIDDEN_MEDIA_FIELDS.includes(f));
+      const commercial = (issue.fields ?? []).filter((f) =>
+        CONTENT_FORBIDDEN_COMMERCIAL_FIELDS.includes(f),
+      );
+      // Kept as distinct codes because they are distinct mistakes, and the
+      // guards that assert them read differently.
+      if (issue.code === 'fixed-content-foreign-authority' && media.length) {
         issues.push({
-          code: 'content-field-missing',
+          code: 'content-writes-media',
           source: 'contentOutput',
-          fields: [field],
-          message: `contentOutput.${field} is required — it is the Content Agent's own surface`,
+          fields: media,
+          message:
+            `contentOutput carries media it has no authority over: ${media.join(', ')}. ` +
+            'Media comes from the asset pipeline — a model does not decide which photographs exist.',
         });
+      }
+      if (issue.code === 'fixed-content-foreign-authority' && commercial.length) {
+        issues.push({
+          code: 'content-writes-commercial',
+          source: 'contentOutput',
+          fields: commercial,
+          message:
+            `contentOutput carries commercial configuration it has no authority over: ${commercial.join(', ')}. ` +
+            'Packs, thresholds, guarantees and returns terms are merchant configuration, not copy.',
+        });
+      }
+      if (issue.code !== 'fixed-content-foreign-authority') {
+        issues.push({ ...issue, source: 'contentOutput' });
       }
     }
   }
@@ -252,12 +253,11 @@ export function assembleFixedProductData(sources = {}) {
       ugcStrip: assetOutput.ugcStrip,
     },
     commercial: {
-      // PACKS ARE STILL CONTENT-AUTHORED, and that is declared debt rather than
-      // a decision. Bundle definitions are merchandising and belong with the
-      // merchant, but moving them is a change to the Content Agent's own
-      // surface — the few-shot, every historical fixture and the prompt — which
-      // is a wider cut than the media/policy boundary this commit draws.
-      packs: contentOutput.packs ?? [],
+      // FROM THE MERCHANT, NEVER FROM CONTENT. `contentOutput.packs` is not
+      // read here and cannot be: the Fixed projection rejects the key outright,
+      // so a caller that supplies it gets an error rather than a landing whose
+      // prices a model chose.
+      packs: merchantPacks(merchantConfig),
       freeShippingOverCents: merchantFreeShippingOverCents(merchantConfig),
     },
     shopifyProductLink: shopifyProductLink ?? null,

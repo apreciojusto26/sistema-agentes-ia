@@ -26,6 +26,7 @@ import { collectContentErrors } from '../../scripts/lib/content-contract.mjs';
 import { collectAssetOutputIssues } from '../../scripts/lib/fixed-asset-output.mjs';
 import { collectMerchantIssues } from '../../scripts/lib/merchant.mjs';
 import { assembleFixedProductData } from '../../scripts/lib/fixed-product-data.mjs';
+import { projectFixedContent } from '../../scripts/lib/fixed-content-output.mjs';
 import { structuralFingerprint } from '../../scripts/lib/fingerprint.mjs';
 import { FIXED_GRAMMAR, FIXED_OPTIONAL_SLOTS } from '../../scripts/lib/fixed-grammar.mjs';
 
@@ -84,18 +85,32 @@ describe('the Fixed E2E fixtures are separated by authority', () => {
 
   test('the three compose into a FixedProductData', () => {
     const content = read(F('content.json'));
-    const { gallery, ...contentOutput } = content.product;
+    // THROUGH THE PROJECTION, exactly as the generator does. Hand-destructuring
+    // the Version A document here would test a composition no caller performs
+    // and would quietly carry the packs decoy into the assembler.
     const fixed = assembleFixedProductData({
       canonicalProduct: { identity: { brand: content.product.brand, name: content.product.name } },
-      contentOutput,
+      contentOutput: projectFixedContent(content),
       assetOutput: read(F('assets.json')),
       merchantConfig: read(F('merchant.json')),
       shopifyProductLink: null,
     });
     expect(fixed.media.ugcStrip).toHaveLength(3);
     expect(fixed.commercial.freeShippingOverCents).toBe(4900);
+    expect(fixed.narrative.faq.length).toBeGreaterThan(0);
+    expect(fixed.socialProof.reviews.length).toBeGreaterThan(0);
     // Preview is the absence of a link, stated rather than reached.
     expect(fixed.shopifyProductLink).toBeNull();
+  });
+
+  test('the content fixture keeps a packs slot, and it is inert', () => {
+    // Version A's contract REQUIRES packs, so the Fixed content fixture must
+    // still carry one to be a valid content.json at all. It is filled with a
+    // decoy that could never render, and merchant.json holds the real bundles.
+    const content = read(F('content.json'));
+    expect(content.product.packs, 'the Version A compat slot vanished').toBeDefined();
+    expect(projectFixedContent(content)).not.toHaveProperty('packs');
+    expect(read(F('merchant.json')).packs.length).toBeGreaterThan(0);
   });
 });
 
