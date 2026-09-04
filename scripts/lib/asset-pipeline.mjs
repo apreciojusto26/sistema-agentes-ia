@@ -172,9 +172,13 @@ export function materializeAssets(plan, destDir) {
  *   3. the template's own slot keys (`gallery-01`, `ugc-01`, `step-01`) —
  *      cycled over the real images so no template stock survives anywhere.
  *
- * Cycling (`i % assets.length`) is deliberate: with fewer real images than
- * slots, repeating a real product photo is honest, whereas leaving a stock
- * photo of a different product on the page is contamination.
+ * SLOT ALIASES ARE ONE-TO-ONE. They used to CYCLE over the real images so that
+ * every template slot resolved to something; the reasoning was that repeating a
+ * real photo beats leaving another product's stock photo on the page. The first
+ * half was right and the second half no longer applies: the stock files are
+ * deleted outright by the generator, so an unaliased slot renders a placeholder
+ * rather than contamination — and a placeholder is the honest answer to "no
+ * media was assigned here".
  */
 export function buildImagesModule(plan) {
   const { assets } = plan;
@@ -200,7 +204,21 @@ export function buildImagesModule(plan) {
   // to an empty placeholder.
   assets.forEach((a, i) => put(a.src, i));
   assets.forEach((a, i) => put(a.ref, i));
-  TEMPLATE_SLOT_KEYS.forEach((key, i) => put(key, i % assets.length));
+  // ONE-TO-ONE, NEVER CYCLED. This line used to read `put(key, i % assets.length)`,
+  // which aliased EVERY template slot onto a real image whether or not any media
+  // had been assigned to it — so `ugc-01`, `ugc-02` and `ugc-03` always resolved
+  // to product photographs, and a landing with one photo showed it in nine
+  // places. That is fabricated cardinality, and in the strip's case it also put
+  // catalogue shots into a region a reader could mistake for something else.
+  //
+  // A slot beyond the real media count now resolves to NOTHING, which surfaces
+  // as a placeholder rather than as a repeat: honest about having no media for
+  // that position. The Fixed path does not rely on these aliases at all — the
+  // asset producer emits `product-NN` keys — so they exist only for legacy
+  // content documents that still name template slots.
+  TEMPLATE_SLOT_KEYS.forEach((key, i) => {
+    if (i < assets.length) put(key, i);
+  });
 
   return [
     "import type { ImageMetadata } from 'astro';",

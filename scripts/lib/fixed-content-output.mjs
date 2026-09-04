@@ -21,7 +21,10 @@
 //                   product, and not something to spend model tokens inventing.
 //   gallery      -> asset pipeline
 //   heroExtras   -> asset pipeline
-//   ugcStrip     -> asset pipeline
+//   ugcStrip     -> asset pipeline (as `productMediaStrip`; see that contract)
+//   step media   -> asset pipeline. The Content Agent writes a step's TITLE
+//                   and TEXT; which photograph illustrates it is a media
+//                   decision, and filenames are not copy.
 //   shipping     -> merchant config
 //
 // ─── WHAT LEAVES BECAUSE NOTHING RENDERS IT ────────────────────────────────
@@ -119,6 +122,16 @@ export function projectFixedContent(content) {
   const out = {};
   for (const field of FIXED_CONTENT_FIELDS) {
     if (field in product) out[field] = product[field];
+  }
+
+  // STEPS LOSE THEIR MEDIA HERE, the same way packs are dropped: a Version A
+  // content.json legitimately carries `step.media`, so its presence is the
+  // historical format behaving correctly rather than a caller overstepping.
+  // What must not happen is a model choosing the photograph, and it does not —
+  // the assembler takes step media from the asset output and refuses to build
+  // a step that has none.
+  if (Array.isArray(out.steps)) {
+    out.steps = out.steps.map(({ media, ...copy }) => copy);
   }
   if (Array.isArray(content?.faq)) out.faq = content.faq;
   if (Array.isArray(content?.testimonials)) {

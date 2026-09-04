@@ -20,7 +20,9 @@
 // `failed`, because they never ran — reporting them as failures would invent a
 // verdict about work that was never attempted.
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { produceFixedAssets } from '../../../scripts/lib/fixed-asset-producer.mjs';
+import { collectAssetOutputIssues } from '../../../scripts/lib/fixed-asset-output.mjs';
 import path from 'node:path';
 import type { JobRecord, JobStatus } from '../shared/jobs';
 import type { JobRegistry } from './jobs/registry';
@@ -303,12 +305,49 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
   // pipeline lives inside generate-landing.mjs and is activated by --product.
   // What is checked here is that the inputs it needs genuinely exist, so a
   // missing image directory fails BEFORE the landing is written.
-  begin('assets');
+  const assetStage = begin('assets');
   const imagesDir = scrapeJob.archivePath ? path.join(scrapeJob.archivePath, 'images') : null;
   if (!imagesDir || !existsSync(imagesDir)) {
     return fail('assets', 'the scrape archived no images/ directory — there is no real media to materialise');
   }
-  pass('assets', 'scraped media ready');
+
+  // THE STAGE PRODUCES, it no longer merely checks. Until F4 this only asserted
+  // that an images/ directory existed and let the generator work out the rest,
+  // which meant the media authority had no runtime presence in the Admin at
+  // all: the only way to fill the Fixed slots was to hand a fixture in.
+  //
+  // It runs the SAME producer the generator would, writes the result beside the
+  // archive, and passes the path down. Persisting it is the point — the asset
+  // decisions become an inspectable artefact rather than something recomputed
+  // and forgotten inside a child process.
+  let assetsPath: string | null = null;
+  try {
+    const canonicalProduct = JSON.parse(readFileSync(canonicalPath, 'utf-8'));
+    const stagedContent = JSON.parse(readFileSync(contentPath, 'utf-8'));
+    const stepCount = Array.isArray(stagedContent?.product?.steps) ? stagedContent.product.steps.length : 0;
+
+    const produced = produceFixedAssets({ canonicalProduct, imagesDir, destDir: null, stepCount });
+
+    // FAIL HERE, NOT IN ASTRO. A malformed media ref reaches the renderer as an
+    // empty placeholder and a blank frame, with a green build and no error
+    // anywhere — so the shape is checked while there is still a stage to blame.
+    const issues = collectAssetOutputIssues(produced.assetOutput);
+    if (issues.length) {
+      return fail('assets', `the produced media is not renderable: ${issues.map((i) => i.message).join(' | ')}`);
+    }
+
+    assetsPath = path.join(scrapeJob.archivePath!, 'fixed-assets.json');
+    writeFileSync(assetsPath, `${JSON.stringify(produced.assetOutput, null, 2)}\n`);
+    writeFileSync(
+      path.join(scrapeJob.archivePath!, 'fixed-assets.manifest.json'),
+      `${JSON.stringify(produced.manifest, null, 2)}\n`,
+    );
+    assetStage.detail = `${produced.manifest.assets.length} asset(s), ${produced.rejected.length} rejected`;
+  } catch (err) {
+    return fail('assets', err instanceof Error ? err.message : 'asset production failed');
+  }
+
+  pass('assets', assetStage.detail ?? 'scraped media ready');
 
   // ---- 5. generate -------------------------------------------------------
   const generateStage = begin('generate');
@@ -322,7 +361,8 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
     // flag, so there is nothing here to omit.
     productJsonPath: canonicalPath,
     merchantPath: input.merchantPath ?? null,
-    assetsPath: input.assetsPath ?? null,
+    // The stage's own output takes precedence; an explicit input is the escape hatch.
+    assetsPath: assetsPath ?? input.assetsPath ?? null,
     shopifyHandle: input.shopifyHandle ?? null,
   });
   generateStage.jobId = generateJob.jobId;

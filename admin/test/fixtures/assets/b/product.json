@@ -1,0 +1,45 @@
+{
+  "identity": {
+    "productId": "prd_fixtureb-00000000",
+    "sourceUrl": "https://fixture.invalid/p",
+    "sourceItemId": null,
+    "name": "Lámpara de mesa de latón",
+    "brand": "Latonia"
+  },
+  "commerceFacts": {
+    "variantOptions": []
+  },
+  "socialProof": {
+    "rating": 4.4,
+    "reviewCount": 210,
+    "reviews": []
+  },
+  "media": {
+    "images": [
+      {
+        "url": "https://fixture.invalid/img_0.png",
+        "localPath": "images/img_0.png",
+        "order": 0
+      },
+      {
+        "url": "https://fixture.invalid/img_1.png",
+        "localPath": "images/img_1.png",
+        "order": 1
+      },
+      {
+        "url": "https://fixture.invalid/img_2.png",
+        "localPath": "images/img_2.png",
+        "order": 2
+      }
+    ],
+    "videos": []
+  },
+  "specifications": [],
+  "description": {
+    "raw": null
+  },
+  "provenance": {
+    "scrapedAt": "2026-09-04T00:00:00.000Z",
+    "scrapeJobId": null
+  }
+}

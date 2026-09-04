@@ -145,10 +145,21 @@ describe('generated images.ts — no template stock may survive', () => {
   const dir = () => fixtureDir({ 'img_0.webp': 'a', 'img_1.webp': 'b', 'img_2.webp': 'c' });
   const build = () => buildImagesModule(planAssets(media(['img_0.webp', 'img_1.webp', 'img_2.webp']), dir()));
 
-  it('EVERY template slot key is re-pointed at a real product file', () => {
+  it('template slot keys are aliased ONE-TO-ONE, never cycled', () => {
+    // THIS TEST USED TO ASSERT THE OPPOSITE, and the assertion was the bug.
+    // buildImagesModule aliased EVERY slot with `i % assets.length`, so three
+    // real photos filled nine slots and `ugc-01..03` always resolved to
+    // catalogue shots whether or not any media had been assigned to them. That
+    // is fabricated cardinality — one photo shown in nine places because a
+    // fixture once had nine.
+    //
+    // With three assets, the first three slots alias and the rest do not.
     const src = build();
-    for (const key of TEMPLATE_SLOT_KEYS) {
+    for (const key of TEMPLATE_SLOT_KEYS.slice(0, 3)) {
       expect(src, `slot ${key} is not remapped`).toContain(`'${key}': product`);
+    }
+    for (const key of TEMPLATE_SLOT_KEYS.slice(3)) {
+      expect(src, `slot ${key} was invented from media that does not exist`).not.toContain(`'${key}':`);
     }
   });
 
@@ -180,11 +191,17 @@ describe('generated images.ts — no template stock may survive', () => {
     expect(src).toContain("'img_1.webp': product02");
   });
 
-  it('cycles real images when there are fewer of them than slots', () => {
+  it('one real image aliases ONE slot — the other eight resolve to nothing', () => {
     const d = fixtureDir({ 'only.webp': 'a' });
     const src = buildImagesModule(planAssets(media(['only.webp']), d));
-    // 1 asset, 9 slots: all must still resolve, all to the same real file.
-    for (const key of TEMPLATE_SLOT_KEYS) expect(src).toContain(`'${key}': product01`);
+    // A slot with no media behind it now resolves to nothing, which surfaces as
+    // a placeholder: the honest answer to "no media was assigned here". The old
+    // behaviour answered it by repeating the one photo everywhere, which is a
+    // claim about how much media this product has.
+    expect(src).toContain("'gallery-01': product01");
+    for (const key of TEMPLATE_SLOT_KEYS.slice(1)) {
+      expect(src, `slot ${key} was filled by cycling`).not.toContain(`'${key}':`);
+    }
   });
 
   it('refuses to build a module with zero assets instead of emitting an empty map', () => {

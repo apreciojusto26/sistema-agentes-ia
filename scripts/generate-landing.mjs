@@ -19,6 +19,7 @@ import { buildFaviconSvg, buildFaviconIco, pickForeground } from './lib/favicon.
 import { collectMerchantIssues, normalizeMerchant, MERCHANT_REQUIRED_FIELDS } from './lib/merchant.mjs';
 import { assembleFixedProductData, FixedAssemblyError } from './lib/fixed-product-data.mjs';
 import { projectFixedContent } from './lib/fixed-content-output.mjs';
+import { produceFixedAssets, collectUnresolvedRefs, FixedAssetError } from './lib/fixed-asset-producer.mjs';
 import { isShopifyHandle } from './lib/shopify-handle.mjs';
 import { FIXED_TEMPLATE_RELATIVE } from './lib/fixed-template.mjs';
 import { writeLandingGitignore, initLandingRepo } from './lib/landing-scaffold.mjs';
@@ -282,44 +283,48 @@ function normalizePacks(packs) {
  * mixed document and it does the separating, which is exactly the job a
  * boundary exists to do.
  */
-function splitContentSources(content, canonicalProduct) {
+/**
+ * LEGACY DERIVATION — the media a content.json can still describe on its own.
+ *
+ * Used only when no scrape is part of the generation (`--product`/`--images`
+ * absent) and no explicit `--assets` was supplied. Every Fixed run goes through
+ * the real producer instead; this exists so the historical fixtures and the
+ * Version A callers that predate the asset authority keep working unchanged.
+ *
+ * THE SPLIT IS STILL THE POINT. content.json has always carried `gallery` and
+ * `step.media` — asset decisions wearing content fields' clothes — and while
+ * they travelled in one object nothing could tell them apart. The provenance is
+ * made explicit here, at the one place that has both, and the assembler refuses
+ * a content output that still carries media.
+ */
+function deriveLegacyAssets(content) {
   const product = content.product;
-  // The projection is what makes the split honest. Destructuring `gallery` out
-  // would leave every Version A extra — benefits, heroPills, specs, badges,
-  // offer, ugc, comparisonRival — inside the object handed to the assembler,
-  // where they are neither rendered nor owned. projectFixedContent KEEPS only
-  // the Fixed slots, so `packs` is dropped here rather than rejected: the
-  // Version A document legitimately carries it, and the merchant supplies the
-  // one that reaches the page.
-  const contentOutput = projectFixedContent(content);
-  const gallery = product.gallery;
+  const gallery = Array.isArray(product.gallery) ? product.gallery : [];
 
-  // heroExtras are the product's OWN clips, and they come from the scrape's
-  // video media — which TODAY IS ALWAYS EMPTY: CanonicalProduct.media.videos is
-  // typed `[]` and product-normalizer.mjs never populates it.
-  //
-  // That empty list is not the silent default it replaces. Before this split
-  // the field was UNREACHABLE — the generator read `product.heroExtras ?? []`
-  // while the content contract rejected any content.json that carried it, so
-  // the fallback was the only branch there was. Now it is the asset pipeline
-  // stating, on the record, that this product has no clips; the moment the
-  // scraper supplies video it fills with no further change.
-  const videos = Array.isArray(canonicalProduct?.media?.videos) ? canonicalProduct.media.videos : [];
-  const toRef = (v) => ({ asset: typeof v === 'string' ? v : (v?.localPath ?? v?.src ?? ''), kind: 'video' });
+  // `productMediaStrip` FEEDS THE TEMPLATE'S `ugcStrip`, which is a legacy
+  // field name and not a claim: 09-ugc-strip.astro renders no heading, no
+  // author and no attribution. It is a product media marquee, so the product's
+  // own photographs belong in it. Each asset appears ONCE — the region is never
+  // padded to reach a count.
+  const seen = new Set();
+  const productMediaStrip = [];
+  for (const media of gallery) {
+    if (!media || typeof media.asset !== 'string' || seen.has(media.asset)) continue;
+    seen.add(media.asset);
+    productMediaStrip.push({ asset: media.asset, alt: media.alt, ratio: '9/16' });
+  }
+
+  // Step media comes off the legacy step items, which is exactly the coupling
+  // F4 removes for real generations — kept here because a Version A document
+  // has nowhere else to put it.
+  const stepMedia = {};
+  (Array.isArray(product.steps) ? product.steps : []).forEach((step, i) => {
+    if (step && step.media) stepMedia[`step-${i}`] = step.media;
+  });
 
   return {
-    contentOutput,
-    assetOutput: {
-      gallery: gallery ?? [],
-      heroExtras: videos.map(toRef),
-      // ALWAYS EMPTY, and not for want of a source. `ugcStrip` is customer
-      // media — someone else's photograph of the thing they bought — and this
-      // pipeline has no channel that collects it. Filling it from the
-      // catalogue shots would present the seller's own product photography as
-      // customer content, which is the review-fabrication defect F2 removed,
-      // wearing different clothes.
-      ugcStrip: [],
-    },
+    contentOutput: projectFixedContent(content),
+    assetOutput: { gallery, heroExtras: [], productMediaStrip, stepMedia },
   };
 }
 
@@ -376,7 +381,11 @@ function buildProductTs(product, shopifyHandle, fixed) {
     // directly would have been rejected before reaching here.
     `  gallery: ${serialize(fixed.media.gallery, 2, 1)},`,
     ``,
-    `  steps: ${serialize(product.steps, 2, 1)},`,
+    // FROM THE ASSEMBLER. The copy is the Content Agent's and the photograph is
+    // the asset layer's, joined by position — emitting `product.steps` here
+    // would have shipped the media the content document happened to name and
+    // quietly undone the merge one line before it reached disk.
+    `  steps: ${serialize(fixed.narrative.steps, 2, 1)},`,
     ``,
     `  comparison: ${serialize(product.comparison, 2, 1)},`,
     ``,
@@ -828,6 +837,8 @@ function main() {
   // — `todos` is not declared until later, and a second list would be a second
   // place to forget.
   let packsConfigured = false;
+  /** The real asset production, when a scrape drove it. Reused by copy-images. */
+  let producedAssets = null;
 
   withStage('write-data', () => {
     // THE ASSEMBLY BOUNDARY. Every field written below arrives having been
@@ -848,12 +859,19 @@ function main() {
       }
     }
 
-    const { contentOutput, assetOutput: derivedAssets } = splitContentSources(input, canonicalProduct);
+    const { contentOutput, assetOutput: derivedAssets } = deriveLegacyAssets(input);
 
-    // An explicit asset output replaces the derived one entirely. It is
-    // validated by its own module rather than here, and rejected loudly:
-    // an --assets file the operator believed was in use but that was quietly
-    // ignored is worse than one that fails.
+    // THREE SOURCES OF MEDIA, IN DESCENDING ORDER OF AUTHORITY.
+    //
+    //   --assets      an asset output stated outright by the caller
+    //   the PRODUCER  real media, selected from the scrape by scripts/lib/
+    //                 fixed-asset-producer.mjs — the F4 path
+    //   the legacy    what a content.json can describe on its own
+    //                 derivation
+    //
+    // The producer runs whenever a scrape is part of the generation, because
+    // then there IS a media authority and letting the content document speak
+    // for it is the coupling F4 removed.
     let assetOutput = derivedAssets;
     if (args.assets !== undefined) {
       if (!existsSync(args.assets)) fail(`--assets file not found: ${args.assets}`, 'assets-file-missing');
@@ -861,6 +879,24 @@ function main() {
         assetOutput = JSON.parse(readFileSync(args.assets, 'utf-8'));
       } catch (err) {
         fail(`--assets file is not valid JSON: ${err.message}`, 'assets-unparseable');
+      }
+    } else if (canonicalProduct && args.images) {
+      try {
+        const produced = produceFixedAssets({
+          canonicalProduct,
+          imagesDir: args.images,
+          // Planned here, COPIED in the copy-images stage. The plan is pure and
+          // deterministic, so computing it early to assemble the data layer
+          // does not move where the bytes are written or when a bad --images
+          // directory is reported.
+          destDir: null,
+          stepCount: Array.isArray(contentOutput.steps) ? contentOutput.steps.length : 0,
+        });
+        assetOutput = produced.assetOutput;
+        producedAssets = produced;
+      } catch (err) {
+        if (err instanceof FixedAssetError) fail(`asset production failed: ${err.message}`, 'assets-none-usable');
+        throw err;
       }
     }
     let fixed;
@@ -1033,7 +1069,11 @@ function main() {
       // observable behaviour of filename matching, and this must not change
       // it for any existing caller.
       if (args.productJson) {
-        const plan = planAssets(canonicalMedia, args.images);
+        // REUSED, not recomputed. The write-data stage already produced this
+        // plan to build the asset output; planning twice would hash every file
+        // twice and, worse, open the door to the two halves disagreeing about
+        // which files exist.
+        const plan = producedAssets?.plan ?? planAssets(canonicalMedia, args.images);
 
         // Fail-closed: --product is an explicit claim that this product HAS
         // real media. Zero usable images means the claim is false, and
@@ -1055,6 +1095,32 @@ function main() {
         // stock: resolveMedia() looks every `asset` ref up here, and returns
         // an EMPTY placeholder for a key it cannot find.
         writeFileSync(path.join(outDir, 'src/data/images.ts'), buildImagesModule(plan));
+
+        // PROVENANCE, WRITTEN DOWN. Enough to prove no file was invented: each
+        // copied asset tied back to the source reference the scrape recorded,
+        // its sha256, its real dimensions when the header could be read, and
+        // the classification — product/promotional listing media, never `ugc`.
+        if (producedAssets) {
+          writeFileSync(
+            path.join(outDir, '.assets.json'),
+            `${JSON.stringify(producedAssets.manifest, null, 2)}\n`,
+          );
+
+          // EVERY REF MUST RESOLVE. The deleted fixed-content.json referenced
+          // `video-02` and `video-03`, keys present in no images module —
+          // resolveMedia() answers an unknown key with an empty placeholder, so
+          // they rendered blank frames behind a green build. A ref nothing can
+          // resolve is an error, and it is one HERE rather than a blank box in
+          // production.
+          const resolvable = new Set(producedAssets.manifest.assets.map((a) => a.key));
+          const unresolved = collectUnresolvedRefs(producedAssets.assetOutput, resolvable);
+          if (unresolved.length) {
+            fail(
+              `asset references resolve to nothing: ${unresolved.map((u) => u.message).join(' | ')}`,
+              'asset-ref-unresolved',
+            );
+          }
+        }
 
         // Delete the stock files the regenerated module no longer references.
         // Astro would not bundle an unreferenced asset anyway, so this is not

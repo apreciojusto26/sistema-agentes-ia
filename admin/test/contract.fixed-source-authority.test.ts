@@ -50,7 +50,11 @@ const contentOutput = () => ({
 const assetOutput = () => ({
   gallery: [{ id: 'g1', asset: 'gallery-01', alt: 'Foto', ratio: '4/5' }],
   heroExtras: [],
-  ugcStrip: [],
+  // `productMediaStrip` is the Fixed name for what the frozen template still
+  // calls `ugcStrip`. The region renders no heading, author or attribution, so
+  // it is a product media marquee — see fixed-asset-output.mjs.
+  productMediaStrip: [{ asset: 'gallery-01', alt: 'Foto', ratio: '9/16' }],
+  stepMedia: {},
 });
 
 const PACKS = [
@@ -92,6 +96,9 @@ describe('the Content Agent has no authority over media', () => {
   test('media in the assembled document comes from the asset output', () => {
     const fixed = assembleFixedProductData(sources());
     expect(fixed.media.gallery).toEqual(assetOutput().gallery);
+    // The legacy template field is fed from the Fixed one, and the mapping is
+    // the only place the old name appears.
+    expect(fixed.media.ugcStrip).toEqual(assetOutput().productMediaStrip);
   });
 });
 
@@ -142,7 +149,7 @@ describe('the asset pipeline has no authority over copy', () => {
   test('an omitted slot is an error, not an empty list', () => {
     // The defect this contract ends: `?? []` made "nobody supplied it" and
     // "the pipeline says none" indistinguishable in the output.
-    const { heroExtras, ...withoutHeroExtras } = assetOutput();
+    const { heroExtras: _dropped, ...withoutHeroExtras } = assetOutput();
     const issues = collectAssetOutputIssues(withoutHeroExtras);
     expect(issues.some((i) => i.code === 'asset-field-missing')).toBe(true);
   });

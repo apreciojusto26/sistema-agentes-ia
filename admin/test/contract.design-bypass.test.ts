@@ -18,7 +18,7 @@
 // remains here). That is why the last test below pins the boundary explicitly:
 // the tooling may exist, the Fixed pipeline may not reach it.
 import { describe, it, expect, afterAll } from 'vitest';
-import { mkdirSync, mkdtempSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -61,8 +61,30 @@ function strictRegistry() {
   const contentPath = path.join(archive, 'content.json');
   const designCalls: unknown[] = [];
 
+  // REAL MEDIA, because the assets stage now PRODUCES rather than checks. An
+  // empty images/ and a `{}` canonical were enough while the stage only
+  // asserted the directory existed; a producer has nothing to select from.
+  // This suite is about the Design Agent, so the media is the smallest real
+  // thing that lets the pipeline reach the stages it does care about.
   mkdirSync(path.join(archive, 'images'), { recursive: true });
-  writeFileSync(path.join(archive, 'canonical-product.json'), '{}');
+  const FIXTURE_IMAGES = path.join(__dirname, 'fixtures/assets/a/images');
+  for (const file of ['img_0.png', 'img_1.png']) {
+    cpSync(path.join(FIXTURE_IMAGES, file), path.join(archive, 'images', file));
+  }
+  writeFileSync(
+    path.join(archive, 'canonical-product.json'),
+    JSON.stringify({
+      identity: { productId: null, name: 'Producto de prueba', brand: null },
+      media: {
+        images: [
+          { url: null, localPath: 'images/img_0.png', order: 0 },
+          { url: null, localPath: 'images/img_1.png', order: 1 },
+        ],
+        videos: [],
+      },
+    }),
+  );
+  writeFileSync(contentPath, JSON.stringify({ product: { steps: [] }, faq: [], testimonials: [] }));
 
   // A COMPLETE Fixed artefact. Note what is NOT here: src/data/design.ts.
   // The landing below is valid without one, which is the validate-side half

@@ -131,6 +131,46 @@ export function collectAssemblyIssues({
     issues.push({ ...issue, source: 'assetOutput' });
   }
 
+  // ─── the step merge, checked BEFORE anything is written ─────────────────
+  //
+  // 06-how-it-works.astro renders <Media media={step.media} /> with no guard,
+  // and the content contract validates key presence rather than item shape —
+  // so a step without media used to reach Astro and abort the build with
+  // "Cannot read properties of undefined". The error belongs here, where it can
+  // say which step and why.
+  const steps = Array.isArray(contentOutput?.steps) ? contentOutput.steps : [];
+  const stepMedia = isObject(assetOutput?.stepMedia) ? assetOutput.stepMedia : {};
+  steps.forEach((step, i) => {
+    if (!isObject(step) || typeof step.title !== 'string' || typeof step.text !== 'string') {
+      issues.push({
+        code: 'step-copy-invalid',
+        source: 'contentOutput',
+        message: `contentOutput.steps[${i}] must carry a string title and text — it is the step's copy`,
+      });
+    }
+    if (!stepMedia[`step-${i}`]) {
+      issues.push({
+        code: 'step-media-missing',
+        source: 'assetOutput',
+        message:
+          `no media is assigned to step-${i}. The how-it-works section renders a photograph per step ` +
+          'and cannot draw one that was never assigned.',
+      });
+    }
+  });
+  for (const slot of Object.keys(stepMedia)) {
+    const index = Number(slot.slice('step-'.length));
+    if (Number.isInteger(index) && index >= steps.length) {
+      issues.push({
+        code: 'step-media-orphaned',
+        source: 'assetOutput',
+        message:
+          `stepMedia.${slot} is assigned to a step that does not exist — the copy has ${steps.length}. ` +
+          'An assignment nothing renders is media the operator believes is on the page.',
+      });
+    }
+  }
+
   // ─── merchant: optional overall, but never half-configured ──────────────
   //
   // A landing with no merchant config is a legitimate state — it is a preview
@@ -243,14 +283,27 @@ export function assembleFixedProductData(sources = {}) {
       featuredTestimonial: contentOutput.featuredTestimonial ?? null,
     },
     narrative: {
-      steps: contentOutput.steps ?? [],
+      // THE MERGE. Copy from the Content Agent, photograph from the asset
+      // pipeline, joined by POSITION — never by a copy-derived key, which
+      // would detach the moment a heading is rewritten. Done here rather than
+      // inside the Astro component so a missing assignment is a contract error
+      // with a step number on it, not a stack trace from a prerender.
+      steps: (contentOutput.steps ?? []).map((step, i) => ({
+        ...step,
+        media: assetOutput.stepMedia[`step-${i}`],
+      })),
       comparison: contentOutput.comparison ?? [],
       faq: contentOutput.faq ?? [],
     },
     media: {
       gallery: assetOutput.gallery,
       heroExtras: assetOutput.heroExtras,
-      ugcStrip: assetOutput.ugcStrip,
+      // `ugcStrip` IS THE LEGACY TEMPLATE FIELD NAME, kept because AstraVibe is
+      // frozen. The region it feeds has no heading, no author, no rating and no
+      // attribution — it is a product media marquee that was misnamed, and the
+      // Fixed contract calls it `productMediaStrip`. Nothing here claims a
+      // customer supplied anything.
+      ugcStrip: assetOutput.productMediaStrip,
     },
     commercial: {
       // FROM THE MERCHANT, NEVER FROM CONTENT. `contentOutput.packs` is not

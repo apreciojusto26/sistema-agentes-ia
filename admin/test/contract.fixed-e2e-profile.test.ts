@@ -70,9 +70,12 @@ describe('the Fixed E2E fixtures are separated by authority', () => {
     );
     const keys = new Set([...images.matchAll(/^\s*'([^']+)':/gm)].map((m) => m[1]!));
     const assets = read(F('assets.json'));
-    const refs = [...assets.gallery, ...assets.heroExtras, ...assets.ugcStrip].map(
-      (m: { asset: string }) => m.asset,
-    );
+    const refs = [
+      ...assets.gallery,
+      ...assets.heroExtras,
+      ...assets.productMediaStrip,
+      ...Object.values(assets.stepMedia ?? {}),
+    ].map((m) => (m as { asset: string }).asset);
     expect(refs.length).toBeGreaterThan(0);
     expect(refs.filter((r) => !keys.has(r)), 'media refs that resolve to an empty placeholder').toEqual([]);
   });
@@ -95,7 +98,7 @@ describe('the Fixed E2E fixtures are separated by authority', () => {
       merchantConfig: read(F('merchant.json')),
       shopifyProductLink: null,
     });
-    expect(fixed.media.ugcStrip).toHaveLength(3);
+    expect(fixed.media.ugcStrip, 'the legacy template slot is fed from productMediaStrip').toHaveLength(3);
     expect(fixed.commercial.freeShippingOverCents).toBe(4900);
     expect(fixed.narrative.faq.length).toBeGreaterThan(0);
     expect(fixed.socialProof.reviews.length).toBeGreaterThan(0);

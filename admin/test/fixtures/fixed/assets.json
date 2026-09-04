@@ -45,7 +45,7 @@
     }
   ],
   "heroExtras": [],
-  "ugcStrip": [
+  "productMediaStrip": [
     {
       "asset": "ugc-01",
       "alt": "NubeCalma en un dormitorio con luz de mañana",
@@ -61,5 +61,22 @@
       "alt": "Detalle de la costura lateral",
       "ratio": "9/16"
     }
-  ]
+  ],
+  "stepMedia": {
+    "step-0": {
+      "asset": "step-01",
+      "alt": "Persona apoyando la cabeza en NubeCalma",
+      "ratio": "4/3"
+    },
+    "step-1": {
+      "asset": "gallery-03",
+      "alt": "Persona durmiendo de costado",
+      "ratio": "4/3"
+    },
+    "step-2": {
+      "asset": "gallery-04",
+      "alt": "Funda siendo lavada",
+      "ratio": "4/3"
+    }
+  }
 }

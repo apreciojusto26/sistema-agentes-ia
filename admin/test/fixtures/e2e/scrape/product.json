@@ -27,14 +27,14 @@
     }
   ],
   "images": [
-    "https://ae-pic-a1.aliexpress-media.com/kf/S0001.jpg",
-    "https://ae-pic-a1.aliexpress-media.com/kf/S0002.jpg",
-    "https://ae-pic-a1.aliexpress-media.com/kf/S0003.jpg"
+    "https://fixture.invalid/0.png",
+    "https://fixture.invalid/1.png",
+    "https://fixture.invalid/2.png"
   ],
   "localImages": [
-    "images/img_0.jpg",
-    "images/img_1.jpg",
-    "images/img_2.jpg"
+    "images/img_0.png",
+    "images/img_1.png",
+    "images/img_2.png"
   ],
   "reviews": [
     {
