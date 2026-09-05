@@ -361,11 +361,35 @@ function deriveLegacyAssets(content) {
  * the first real landing, where a model's invented "LumiFlex" shipped over a
  * canonical `null`.
  *
- * `product` is still read for the Version A-only fields the template's type
- * requires and no Fixed section renders — badges, offer, benefits, heroPills,
- * specs. Those have no assembler counterpart to come from.
+ * THE VERSION A-ONLY SLOTS ARE EMITTED EMPTY, and they used to be the model's
+ * own words passed straight through. `badges`, `offer`, `benefits`, `heroPills`
+ * and `specs` were removed from the Fixed contract in F3A after a field-level
+ * sweep found NO CONSUMER — re-verified here: not one component, layout or page
+ * in the template reads any of them. They survive only because the template's
+ * `Product` type still requires the keys.
+ *
+ * Laundering unvalidated model output into a typed module that nothing renders
+ * is a build failure waiting for a bad day, and the bad day arrived three times
+ * before this line was written: an `id` on every SpecItem, a `body` instead of
+ * a `text` on every BenefitItem, and — on a real product, live — `icon:
+ * "brightness"`, which is not in the design system's registered icon set. None
+ * of the three could ever have reached a pixel. All three abort a build.
+ *
+ * This is the rule generate-content.mjs already applies to `packs` and
+ * `testimonials`: the schema requires the key, so it is EMPTIED rather than
+ * deleted, and the model has no authority it can exercise through it. An empty
+ * slot renders exactly what a slot nobody reads rendered before: nothing.
  */
-function buildProductTs(product, shopifyHandle, fixed) {
+const VERSION_A_COMPAT = {
+  badges: [],
+  heroPills: [],
+  benefits: [],
+  specs: [],
+  // Not an array, so "empty" is its inert form: no countdown, no labels.
+  offer: { durationMinutes: 0, label: '', expiredLabel: '' },
+};
+
+function buildProductTs(shopifyHandle, fixed) {
   const lines = [
     `import type { Product } from '@/types/content';`,
     ``,
@@ -397,17 +421,17 @@ function buildProductTs(product, shopifyHandle, fixed) {
     `  ratingAverage: ${serialize(fixed.socialProof.ratingAverage, 2, 1)},`,
     `  ratingCount: ${serialize(fixed.socialProof.ratingCount, 2, 1)},`,
     ``,
-    `  badges: ${serialize(product.badges, 2, 1)},`,
+    `  badges: ${serialize(VERSION_A_COMPAT.badges, 2, 1)},`,
     ``,
     `  trustTicker: ${serialize(fixed.copy.trustTicker, 2, 1)},`,
     ``,
-    `  offer: ${serialize(product.offer, 2, 1)},`,
+    `  offer: ${serialize(VERSION_A_COMPAT.offer, 2, 1)},`,
     ``,
-    `  benefits: ${serialize(product.benefits, 2, 1)},`,
+    `  benefits: ${serialize(VERSION_A_COMPAT.benefits, 2, 1)},`,
     ``,
-    `  heroPills: ${serialize(product.heroPills, 2, 1)},`,
+    `  heroPills: ${serialize(VERSION_A_COMPAT.heroPills, 2, 1)},`,
     ``,
-    `  specs: ${serialize(product.specs, 2, 1)},`,
+    `  specs: ${serialize(VERSION_A_COMPAT.specs, 2, 1)},`,
     ``,
     `  packs: ${serialize(normalizePacks(fixed.commercial.packs), 2, 1)},`,
     ``,
@@ -956,7 +980,7 @@ async function main() {
     packsConfigured = fixed.commercial.packs.length > 0;
     assembledBrand = fixed.identity.brand;
 
-    writeFileSync(path.join(outDir, 'src/data/product.ts'), buildProductTs(input.product, args.shopifyHandle, fixed));
+    writeFileSync(path.join(outDir, 'src/data/product.ts'), buildProductTs(args.shopifyHandle, fixed));
     writeFileSync(path.join(outDir, 'src/data/faq.ts'), buildFaqTs(input.faq));
     // FROM THE ASSEMBLER, which took them from the scrape. `input.testimonials`
     // is the Content Agent's document and is NOT written here: emitting it

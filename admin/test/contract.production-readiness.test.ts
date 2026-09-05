@@ -407,3 +407,99 @@ describe.runIf(existsSync(path.join(REPO_ROOT, 'outputs/zz-cmp/dist/client/index
     });
   },
 );
+
+// ───────────────────────────────────────────────────────────────────────────
+// THE EMITTER WRITES NOTHING THE CONTENT AGENT SAID IT COULD NOT VALIDATE
+// ───────────────────────────────────────────────────────────────────────────
+//
+// `badges`, `offer`, `benefits`, `heroPills` and `specs` left the Fixed content
+// contract in F3A after a sweep found no consumer, and the sweep still holds:
+// not one component, layout or page in the template reads any of them. They
+// survive only because the template's `Product` type requires the keys.
+//
+// The emitter used to pass the model's own words straight into them, and that
+// cost three build failures before it was closed — an `id` on every SpecItem,
+// a `body` instead of a `text` on every BenefitItem, and, on a real product
+// live, `icon: "brightness"`, which is not in the design system's registered
+// icon set. None of the three could ever have reached a pixel. All three abort
+// a build, and the third did so on the rerun of the very landing this fix pack
+// exists for.
+
+describe('Version A compat slots carry no model output', () => {
+  const generateWith = (slug: string, mutate: (doc: Record<string, unknown>) => void) => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'compat-'));
+    const doc = JSON.parse(readFileSync(path.join(FIX, 'fixed/content.json'), 'utf-8'));
+    mutate(doc);
+    const contentPath = path.join(dir, 'content.json');
+    writeFileSync(contentPath, JSON.stringify(doc, null, 2));
+    const out = path.join(REPO_ROOT, 'outputs', slug);
+    rmSync(out, { recursive: true, force: true });
+    const r = spawnSync(
+      process.execPath,
+      [
+        path.join(REPO_ROOT, 'scripts/generate-landing.mjs'),
+        '--slug', slug,
+        '--content', contentPath,
+        '--merchant', path.join(FIX, 'fixed/merchant.json'),
+        '--force',
+      ],
+      { cwd: REPO_ROOT, encoding: 'utf-8' },
+    );
+    return { dir, out, status: r.status, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
+  };
+
+  test('an icon the design system never registered cannot reach the module', () => {
+    // THE LIVE FAILURE, REPRODUCED. Gemini chose "brightness" for a light tube
+    // — a reasonable-sounding name that is not in the IconName union, which IS
+    // the registry. A model may select from the registered vocabulary; it may
+    // not extend it.
+    const { dir, out, status } = generateWith('zz-compat-icon', (doc) => {
+      const product = doc.product as Record<string, unknown>;
+      product.benefits = [{ id: 'b1', icon: 'brightness', title: 'Luz', text: 'Brilla.' }];
+    });
+    try {
+      expect(status, 'generation failed outright').toBe(0);
+      const emitted = readFileSync(path.join(out, 'src/data/product.ts'), 'utf-8');
+      expect(emitted, 'an unregistered icon reached the typed module').not.toContain('brightness');
+      expect(emitted).toMatch(/^ {2}benefits: \[\],$/m);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+      rmSync(out, { recursive: true, force: true });
+    }
+  });
+
+  test('and neither can an item shape no type declares', () => {
+    const { dir, out, status } = generateWith('zz-compat-shape', (doc) => {
+      const product = doc.product as Record<string, unknown>;
+      product.specs = [{ id: 's1', label: 'Material', value: 'ABS' }];
+      product.badges = ['Envío 24h'];
+      product.heroPills = ['Inventado'];
+    });
+    try {
+      expect(status).toBe(0);
+      const emitted = readFileSync(path.join(out, 'src/data/product.ts'), 'utf-8');
+      for (const field of ['badges', 'heroPills', 'benefits', 'specs']) {
+        expect(emitted, `${field} still carries the model's words`).toMatch(
+          new RegExp(`^  ${field}: \\[\\],$`, 'm'),
+        );
+      }
+      // `offer` is an object, so its empty form is inert rather than absent.
+      expect(emitted).toMatch(/durationMinutes: 0/);
+      expect(emitted).not.toContain('Inventado');
+      expect(emitted).not.toContain('Envío 24h');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+      rmSync(out, { recursive: true, force: true });
+    }
+  });
+
+  test('the emitter is not even HANDED the content document any more', () => {
+    // The structural form of the same claim: `buildProductTs` takes the
+    // assembled FixedProductData and the Shopify handle, and nothing else. A
+    // field cannot bypass an authority it has no reference to.
+    const src = readFileSync(path.join(REPO_ROOT, 'scripts/generate-landing.mjs'), 'utf-8');
+    expect(src).toMatch(/function buildProductTs\(shopifyHandle, fixed\)/);
+    const body = /function buildProductTs\([\s\S]*?\n\}/.exec(src)![0];
+    expect(body, 'the emitter reads the raw content document again').not.toMatch(/serialize\(product\./);
+  });
+});
