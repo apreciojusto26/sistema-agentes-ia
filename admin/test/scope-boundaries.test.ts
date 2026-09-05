@@ -522,7 +522,7 @@ describe('scope-boundaries (Batch G — machine-checkable, spec R14)', () => {
         { file: 'components/islands/CheckoutForm.tsx', reads: [/\{product\.name\}/, /merchantName: legal\.identity\.tradeName/] },
         { file: 'components/islands/OrderConfirmation.tsx', reads: [/Empaquetamos tu \$\{product\.name\}/] },
         // The social card, and the title that interpolated a nullable brand.
-        { file: 'layouts/Base.astro', reads: [/ogImageFile \? new URL\(`\/\$\{ogImageFile\}`/] },
+        { file: 'layouts/Base.astro', reads: [/ogImageFile && Astro\.site \? new URL\(`\/\$\{ogImageFile\}`, Astro\.site\)/] },
         { file: 'pages/index.astro', reads: [/product\.brand \? `\$\{product\.brand\} — \$\{product\.tagline\}` : product\.tagline/] },
       ];
 

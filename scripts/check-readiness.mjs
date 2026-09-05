@@ -221,6 +221,146 @@ check('Artefact complete', () => {
   return 'own repo, own data, no test scaffolding';
 });
 
+// ─── ownership ─────────────────────────────────────────────────────────────
+//
+// THE CHECK THAT WOULD HAVE STOPPED THE FIRST REAL LANDING.
+//
+// Every check above passed on a landing whose H1 described a different product
+// — "24 ambientes. Un solo proyector." over a photograph of an RGB light tube
+// — because none of them ever compared what the page SAYS with what this run
+// DECIDED. They verified provenance, assets, contrast, seals: everything
+// except whether the rendered words belong to this product.
+//
+// DETERMINISTIC, NOT HEURISTIC. There is no list of suspicious words here and
+// there must never be one: a real customer review saying "todo llegó perfecto"
+// is not contamination, and a landing that genuinely sells a projector is
+// entitled to say so. What is checkable without guessing is EQUALITY — the
+// rendered slot against the value this run emitted for it.
+
+/** The slots the emitter wrote, read back from the module it wrote them to. */
+function emittedSlots() {
+  const src = read('src/data/product.ts');
+  const slot = (name) => {
+    const m = new RegExp(`^  ${name}: (null|"((?:[^"\\\\]|\\\\.)*)"),$`, 'm').exec(src);
+    must(m !== null, `src/data/product.ts declares no ${name}`);
+    return m[1] === 'null' ? null : JSON.parse(m[1]);
+  };
+  return { brand: slot('brand'), name: slot('name'), tagline: slot('tagline'), subtagline: slot('subtagline') };
+}
+
+/** An element's text, as a reader sees it: tags gone, entities decoded, spaces collapsed. */
+const textOf = (fragment) =>
+  fragment
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(Number(d)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCharCode(parseInt(h, 16)))
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+
+check('Copy ownership', () => {
+  if (!has('dist/client/index.html')) return 'NOT BUILT — ownership is measured on the rendered page';
+  const html = read('dist/client/index.html');
+  const emitted = emittedSlots();
+
+  // ── the H1 ───────────────────────────────────────────────────────────────
+  // It rendered the star projector's headline. It is `tagline` now, which the
+  // assembler owns, and the two must be the same string.
+  const h1 = /<h1[^>]*>([\s\S]*?)<\/h1>/.exec(html);
+  must(h1 !== null, 'the built page has no H1');
+  must(
+    textOf(h1[1]) === emitted.tagline,
+    `the H1 renders ${JSON.stringify(textOf(h1[1]))} but this run emitted ${JSON.stringify(emitted.tagline)}`,
+  );
+
+  // ── the how-it-works heading ─────────────────────────────────────────────
+  // NOT a data slot, deliberately: a heading true of every product is generic
+  // UI copy, and asking the Content Agent for it would be asking a model to
+  // write a sentence the layout already knows. So the ownership rule is that
+  // it is still the TEMPLATE'S — compared against the literal the template
+  // declares, which also fails loudly the day someone makes it dynamic without
+  // giving it an authority.
+  const section = /<section id="como-funciona"[\s\S]*?<\/section>/.exec(html);
+  must(section !== null, 'the built page has no "cómo funciona" section');
+  const renderedHeading = textOf(/<h2[^>]*>([\s\S]*?)<\/h2>/.exec(section[0])?.[1] ?? '');
+  const templateSource = readFileSync(
+    path.join(ROOT, FIXED_TEMPLATE_RELATIVE, 'src/components/sections/06-how-it-works.astro'),
+    'utf-8',
+  ).replace(/\{\/\*[\s\S]*?\*\/\}/g, '');
+  const declaredHeading = textOf(/<h2[^>]*>([\s\S]*?)<\/h2>/.exec(templateSource)?.[1] ?? '');
+  must(declaredHeading !== '', 'the template declares no how-it-works heading to compare against');
+  must(
+    renderedHeading === declaredHeading,
+    `the how-it-works heading renders ${JSON.stringify(renderedHeading)}, not the template's ` +
+      `${JSON.stringify(declaredHeading)} — if it is meant to vary per product it needs a data authority`,
+  );
+
+  // ── the brand ────────────────────────────────────────────────────────────
+  // CanonicalProduct.identity.brand is the only authority, and `null` is a real
+  // answer. This landing does not carry the scrape, so what is checkable here
+  // is that the emitted value is not one of the two wrong answers that actually
+  // happened: the template's own brand, and the seller's legal name.
+  const templateBrand = /^  brand: '(.*)',$/m.exec(
+    readFileSync(path.join(ROOT, FIXED_TEMPLATE_RELATIVE, 'src/data/product.ts'), 'utf-8'),
+  )?.[1];
+  must(
+    emitted.brand === null || emitted.brand !== templateBrand,
+    `this landing ships the template's own brand, ${JSON.stringify(templateBrand)}`,
+  );
+  if (has('src/data/merchant.ts')) {
+    // The generator serializes with double quotes; the template's own module is
+    // `null`. Both spellings are read so the rule cannot be dodged by either.
+    const m = /legalName:\s*(?:"((?:[^"\\\\]|\\\\.)*)"|'((?:[^'\\\\]|\\\\.)*)')/.exec(read('src/data/merchant.ts'));
+    const legalName = m ? JSON.parse(`"${(m[1] ?? m[2]).replace(/"/g, '\\\\"')}"`) : null;
+    must(
+      !legalName || emitted.brand !== legalName,
+      `the product's brand is the SELLER's legal name, ${JSON.stringify(legalName)} — a legal identity is not a brand`,
+    );
+  }
+  // A null brand must render as absence, never as the word.
+  must(
+    !/>\s*null\s*</.test(html) && !/content="null"/.test(html),
+    'the page renders the literal "null" — a nullable slot reached a template that assumed a string',
+  );
+
+  return emitted.brand === null
+    ? `H1 and heading own their slots; no brand (the source published none)`
+    : `H1 and heading own their slots; brand ${JSON.stringify(emitted.brand)}`;
+});
+
+check('Social preview origin', () => {
+  if (!has('dist/client/index.html')) return 'NOT BUILT — the rendered head is where the origin appears';
+  const html = read('dist/client/index.html');
+  const og = /<meta property="og:image" content="([^"]*)"/.exec(html);
+
+  // ABSENCE IS THE CORRECT PREVIEW STATE. `og:image` must be absolute, so it
+  // needs an origin, and a landing without SITE_URL has none. Emitting one
+  // anyway is what produced `https://astravibe.bamzuk.com/og-cover.png` on a
+  // light tube — and resolving against the build's request URL only replaces it
+  // with `http://localhost:4321/…`, which is dead for every reader.
+  const site = /^\s*(?:\.\.\.\(site \? \{ site \} : \{\}\)|site:)/m.test(read('astro.config.mjs'))
+    ? (process.env.SITE_URL ?? '').trim()
+    : '';
+  if (!og) {
+    must(site === '', `SITE_URL is set to ${JSON.stringify(site)} but the page advertises no social image`);
+    return 'omitted — this landing has no domain yet';
+  }
+
+  must(site !== '', `the page advertises ${og[1]} without a configured SITE_URL`);
+  const declared = new URL(site);
+  const shipped = new URL(og[1]);
+  must(
+    shipped.origin === declared.origin,
+    `the social image is served from ${shipped.origin}, not this landing's ${declared.origin}`,
+  );
+  return `${shipped.origin} — this landing's own`;
+});
+
 check('Build present', () => {
   const dist = path.join(out, 'dist/client/index.html');
   if (!existsSync(dist)) return 'NOT BUILT — run astro build to complete the check';

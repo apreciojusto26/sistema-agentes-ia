@@ -428,10 +428,15 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
   pass('generate', `outputs/${input.slug}`);
 
   // ---- 6. build ----------------------------------------------------------
+  //
+  // TYPE CHECK, THEN BUILD — one stage, two commands, in that order. `astro
+  // check` is not a new top-level stage: it answers the same question the
+  // build does ("does this landing actually compile?"), and a separate stage
+  // would change the observable event sequence every existing generation emits.
   begin('build');
   const build = await runBuild(outDir);
   if (!build.ok) return fail('build', build.message ?? 'astro build failed');
-  pass('build', 'prerendered');
+  pass('build', build.message ?? 'prerendered');
 
   // ---- 7. final validation ----------------------------------------------
   // Structural checks on the artefact itself: the guarantees earlier phases
@@ -466,12 +471,26 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
 }
 
 /**
- * Real `astro build` inside the generated landing. Uses the landing's OWN
- * node_modules when present; otherwise falls back to the template's binary,
- * which is a dev convenience for building in place and never something the
- * shipped artefact depends on.
+ * Real `astro check` then `astro build` inside the generated landing.
+ *
+ * ─── WHY CHECK RUNS AT ALL, AND WHY IT RUNS FIRST ─────────────────────────
+ *
+ * `astro build` does not typecheck. It transpiles, so a landing whose data
+ * modules contradict their own types builds perfectly and fails later, in a
+ * browser, at a customer. The first real landing made that concrete: the
+ * emitter began writing `brand: null` while `ProductContent.brand` was still
+ * `string`, and nothing in the pipeline could have noticed.
+ *
+ * ORDER IS THE POINT. A fatal check means the sources are wrong, and building
+ * wrong sources produces an artefact that looks finished — so the build is not
+ * attempted and the stage fails with the type error rather than with a
+ * confusing success. It also means `dist/` is absent afterwards, which is what
+ * makes "the check gate is real" measurable rather than claimed.
+ *
+ * Uses the landing's OWN node_modules when present; otherwise installs them,
+ * because a generated landing ships none on purpose.
  */
-async function defaultRunBuild(outDir: string): Promise<{ ok: boolean; message: string | null }> {
+export async function defaultRunBuild(outDir: string): Promise<{ ok: boolean; message: string | null }> {
   const local = path.join(outDir, 'node_modules/.bin/astro');
 
   // A generated landing ships no node_modules on purpose (portability), so
@@ -481,7 +500,11 @@ async function defaultRunBuild(outDir: string): Promise<{ ok: boolean; message: 
   // the pipeline for real. Installing here is what makes the landing's build
   // genuinely self-contained rather than parasitic on the template.
   if (!existsSync(local)) {
-    const install = await runOnce('pnpm', ['install', '--prefer-offline'], outDir);
+    // `--prod=false` IS LOAD-BEARING, not decoration. The child runs with
+    // NODE_ENV=production (see productionEnv), and `astro check` lives in
+    // devDependencies alongside typescript — a package manager that honours
+    // NODE_ENV for install would leave the type check with nothing to run.
+    const install = await runOnce('pnpm', ['install', '--prefer-offline', '--prod=false'], outDir);
     if (!install.ok) {
       return { ok: false, message: `dependency install failed — ${install.message ?? 'unknown error'}` };
     }
@@ -491,7 +514,24 @@ async function defaultRunBuild(outDir: string): Promise<{ ok: boolean; message: 
     return { ok: false, message: 'astro is still missing after install — check the landing\'s package.json' };
   }
 
-  return runOnce(local, ['build'], outDir);
+  // ASKED FOR EXPLICITLY, so the failure is a sentence rather than a hang.
+  // `astro check` with no @astrojs/check OFFERS TO INSTALL IT, interactively,
+  // on a stdin this spawn never writes to.
+  if (!existsSync(path.join(outDir, 'node_modules/@astrojs/check'))) {
+    return {
+      ok: false,
+      message: '@astrojs/check is not installed in the landing — the type check cannot run',
+    };
+  }
+
+  const checked = await runOnce(local, ['check'], outDir);
+  if (!checked.ok) {
+    return { ok: false, message: `astro check failed — ${checked.message ?? 'unknown error'}` };
+  }
+
+  const built = await runOnce(local, ['build'], outDir);
+  if (!built.ok) return built;
+  return { ok: true, message: 'type-checked and prerendered' };
 }
 
 /**
@@ -526,7 +566,9 @@ function productionEnv(): NodeJS.ProcessEnv {
 
 function runOnce(bin: string, args: string[], cwd: string): Promise<{ ok: boolean; message: string | null }> {
   return new Promise((resolve) => {
-    const child = spawn(bin, args, { cwd, env: productionEnv() });
+    // stdin IGNORED. Nothing here is interactive, and a child that decides to
+    // ask a question on a pipe nobody writes to does not fail — it waits.
+    const child = spawn(bin, args, { cwd, env: productionEnv(), stdio: ['ignore', 'pipe', 'pipe'] });
     let stderr = '';
     child.stderr.on('data', (c) => {
       stderr += String(c);

@@ -231,3 +231,179 @@ describe('the live smoke is opt-in, twice', () => {
     expect(src).not.toMatch(/writeFileSync\([^)]*GRAMMAR/);
   });
 });
+
+// ───────────────────────────────────────────────────────────────────────────
+// COPY OWNERSHIP — the check that would have stopped the first real landing
+// ───────────────────────────────────────────────────────────────────────────
+//
+// Every readiness check that existed passed on a landing whose H1 read
+// "24 ambientes. Un solo proyector." over a photograph of an RGB light tube,
+// and whose social card pointed at https://astravibe.bamzuk.com/og-cover.png.
+// It reported READY. The checks verified provenance, assets, contrast and
+// seals — everything except whether the rendered words belong to this product.
+//
+// MEASURED ON A BUILT LANDING, because that is the only place the question
+// exists: the rendered page against the values this run emitted. The fixture is
+// outputs/zz-cmp, produced by scripts/e2e/comparison-states.mjs, copied without
+// its node_modules so a mutation cannot disturb the original.
+
+describe.runIf(existsSync(path.join(REPO_ROOT, 'outputs/zz-cmp/dist/client/index.html')))(
+  'a READY landing renders its own copy, or it is not READY',
+  () => {
+    const SOURCE = path.join(REPO_ROOT, 'outputs/zz-cmp');
+    const check = (dir: string) =>
+      spawnSync(process.execPath, [path.join(REPO_ROOT, 'scripts/check-readiness.mjs'), dir], {
+        cwd: REPO_ROOT,
+        encoding: 'utf-8',
+      });
+
+    /** A disposable copy of a real, built landing. */
+    const clone = () => {
+      const dir = mkdtempSync(path.join(tmpdir(), 'own-'));
+      const out = path.join(dir, 'landing');
+      cpSync(SOURCE, out, {
+        recursive: true,
+        filter: (src) => !src.includes('node_modules') && !src.includes('/.astro') && !src.includes('/.vercel'),
+      });
+      return { dir, out };
+    };
+
+    /** Rewrites one file inside the clone. */
+    const patch = (out: string, rel: string, fn: (text: string) => string) => {
+      const file = path.join(out, rel);
+      const before = readFileSync(file, 'utf-8');
+      const after = fn(before);
+      expect(after, `the ${rel} mutation is a no-op — the probe is wrong`).not.toBe(before);
+      writeFileSync(file, after);
+    };
+
+    const PAGE = 'dist/client/index.html';
+
+    test('the untouched landing is READY, and says why it owns its copy', () => {
+      const { dir, out } = clone();
+      try {
+        const r = check(out);
+        expect(r.stdout, r.stdout).toMatch(/READY —/);
+        expect(r.stdout).toContain('Copy ownership');
+        expect(r.stdout).toContain('Social preview origin');
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    test('THE ORIGINAL BLOCKER: an H1 describing another product fails', () => {
+      // The literal headline that shipped on a light tube.
+      const { dir, out } = clone();
+      try {
+        patch(out, PAGE, (h) =>
+          h.replace(/(<h1[^>]*>)[\s\S]*?(<\/h1>)/, '$1<span>24 ambientes.<br>Un solo proyector.</span>$2'),
+        );
+        const r = check(out);
+        expect(r.status).toBe(1);
+        expect(r.stdout).toMatch(/NOT READY/);
+        expect(r.stdout).toMatch(/the H1 renders/);
+        expect(r.stdout).toContain('24 ambientes');
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    test('and so does an H1 that quietly drifts from the emitted tagline', () => {
+      // Not a foreign product — just a word changed. Ownership is EQUALITY, so
+      // there is no threshold below which drift is tolerated.
+      const { dir, out } = clone();
+      try {
+        patch(out, PAGE, (h) => h.replace(/(<h1[^>]*>[\s\S]*?)(<\/h1>)/, '$1 y algo más$2'));
+        const r = check(out);
+        expect(r.status).toBe(1);
+        expect(r.stdout).toMatch(/the H1 renders/);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    test('a how-it-works heading that is not the template\'s fails', () => {
+      // "Cómo usar mi Astra Vibe" — the other sentence that shipped.
+      const { dir, out } = clone();
+      try {
+        patch(out, PAGE, (h) => {
+          const section = /<section id="como-funciona"[\s\S]*?<\/section>/.exec(h)![0];
+          return h.replace(
+            section,
+            section.replace(/(<h2[^>]*>)[\s\S]*?(<\/h2>)/, '$1Cómo usar mi<br>Astra Vibe$2'),
+          );
+        });
+        const r = check(out);
+        expect(r.status).toBe(1);
+        expect(r.stdout).toMatch(/the how-it-works heading renders/);
+        expect(r.stdout).toMatch(/needs a data authority/);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    test('a landing shipping the TEMPLATE\'s brand fails', () => {
+      const { dir, out } = clone();
+      try {
+        patch(out, 'src/data/product.ts', (t) => t.replace(/^ {2}brand: .*,$/m, '  brand: "AstraVibe",'));
+        const r = check(out);
+        expect(r.status).toBe(1);
+        expect(r.stdout).toMatch(/ships the template's own brand/);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    test('a landing whose brand is the SELLER\'s legal name fails', () => {
+      // The fallback F3A had and this fix pack removed: canonical brand null →
+      // merchantConfig.legalName. A legal identity is not a product's brand.
+      const { dir, out } = clone();
+      try {
+        const legalName = /legalName:\s*"((?:[^"\\]|\\.)*)"/.exec(
+          readFileSync(path.join(out, 'src/data/merchant.ts'), 'utf-8'),
+        )?.[1];
+        expect(legalName, 'the fixture landing has no merchant to borrow a name from').toBeTruthy();
+        patch(out, 'src/data/product.ts', (t) =>
+          t.replace(/^ {2}brand: .*,$/m, `  brand: ${JSON.stringify(legalName)},`),
+        );
+        const r = check(out);
+        expect(r.status).toBe(1);
+        expect(r.stdout).toMatch(/the SELLER's legal name/);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    test('a null brand that reached the page as the WORD "null" fails', () => {
+      const { dir, out } = clone();
+      try {
+        // Injected AWAY from the H1, so this probe tests the null rule rather
+        // than tripping the heading check first.
+        patch(out, PAGE, (h) => h.replace('</body>', '<span>null</span></body>'));
+        const r = check(out);
+        expect(r.status).toBe(1);
+        expect(r.stdout).toMatch(/renders the literal "null"/);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    test('THE OTHER ORIGINAL BLOCKER: a social card on a foreign domain fails', () => {
+      // Verbatim from the first real landing's <head>.
+      const { dir, out } = clone();
+      try {
+        patch(out, PAGE, (h) =>
+          h.replace(
+            '<meta property="og:type"',
+            '<meta property="og:image" content="https://astravibe.bamzuk.com/og-cover.png"><meta property="og:type"',
+          ),
+        );
+        const r = check(out);
+        expect(r.status).toBe(1);
+        expect(r.stdout).toMatch(/without a configured SITE_URL/);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+  },
+);

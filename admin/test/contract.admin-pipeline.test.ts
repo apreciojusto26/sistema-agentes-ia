@@ -376,7 +376,11 @@ describe('the admin does NOT reimplement any agent', () => {
     // is the rule; which jobs exist is the Fixed architecture, and the Design
     // Agent is not one of them.
     expect(src).not.toContain('registry.createDesignJob');
-    // Exactly one spawn: `astro build`. Any other would be a second runner.
+    // ONE SPAWN CALL SITE. The build stage now issues three commands — the
+    // dependency install, `astro check` and `astro build` — but all three go
+    // through the single `runOnce` helper, so there is still exactly one place
+    // in this file that starts a process. A second `spawn(` would be a second
+    // runner, which is what this actually guards.
     expect([...src.matchAll(/\bspawn\(/g)]).toHaveLength(1);
   });
 

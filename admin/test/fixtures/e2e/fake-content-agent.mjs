@@ -63,16 +63,24 @@ const content = {
     badges: ['Espuma viscoelástica', 'Funda lavable'],
     trustTicker: ['Envío peninsular', 'Devoluciones en 14 días', 'Atención en español'],
     offer: { durationMinutes: 30, label: 'Oferta activa', expiredLabel: 'Oferta finalizada' },
+    // `BenefitItem` IS `{ id, icon, title, text }`. These had no `icon` at all
+    // and called the copy `body` — a shape no type declares and the live
+    // Content Agent does not produce. Same story as `specs` below: invisible
+    // until the build stage started type-checking what it builds.
     benefits: [
-      { id: 'b1', title: 'Soporte cervical', body: 'La doble curva sostiene el cuello en cualquier postura.' },
-      { id: 'b2', title: 'No se aplasta', body: 'La espuma recupera su forma cada mañana.' },
-      { id: 'b3', title: 'Funda lavable', body: 'Se quita y va a la lavadora.' },
-      { id: 'b4', title: 'Transpirable', body: 'Perforaciones que dejan pasar el aire.' },
+      { id: 'b1', icon: 'shield', title: 'Soporte cervical', text: 'La doble curva sostiene el cuello en cualquier postura.' },
+      { id: 'b2', icon: 'star', title: 'No se aplasta', text: 'La espuma recupera su forma cada mañana.' },
+      { id: 'b3', icon: 'truck', title: 'Funda lavable', text: 'Se quita y va a la lavadora.' },
+      { id: 'b4', icon: 'shield', title: 'Transpirable', text: 'Perforaciones que dejan pasar el aire.' },
     ],
     heroPills: ['Viscoelástica', 'Funda lavable', 'Doble altura'],
+    // `SpecItem` IS `{ label, value }` AND NOTHING ELSE. These carried an `id`
+    // each, which no type declares and nothing renders — and `astro build`
+    // transpiled it happily, so the invalid fixture survived until the build
+    // stage started running `astro check` and named it in one line.
     specs: [
-      { id: 's1', label: 'Material', value: 'Espuma viscoelástica' },
-      { id: 's2', label: 'Funda', value: 'Poliéster lavable' },
+      { label: 'Material', value: 'Espuma viscoelástica' },
+      { label: 'Funda', value: 'Poliéster lavable' },
     ],
     // VERSION A COMPAT SLOT. The schema requires the key; the Fixed projection
     // drops it and merchant config supplies the bundles that render.

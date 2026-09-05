@@ -29,19 +29,20 @@
 // the stages instead would have skipped the state machine, and the state machine
 // is most of what this test exists to check.
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';
-import { existsSync, readFileSync, rmSync, mkdirSync, mkdtempSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, rmSync, mkdirSync, mkdtempSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { JobRegistry } from '../src/server/jobs/registry';
 import { archiveScrape } from '../src/server/jobs/archive';
-import { runPipeline, PIPELINE_STAGES, type PipelineRecord } from '../src/server/pipeline';
+import { runPipeline, defaultRunBuild, PIPELINE_STAGES, type PipelineRecord } from '../src/server/pipeline';
 import { FIXED_TEMPLATE_NAME, FIXED_TEMPLATE_RELATIVE } from '../../scripts/lib/fixed-template.mjs';
 import { structuralFingerprint } from '../../scripts/lib/fingerprint.mjs';
-// V2 IS THE CURRENT PROFILE for generated output: it models a product with
-// no factual reviews as OPTIONAL<ReviewsSection> rather than as an empty
-// carousel. V1 remains the sealed historical record and keeps its own tests.
-import { FIXED_GRAMMAR_V2 as FIXED_GRAMMAR, FIXED_OPTIONAL_SLOTS_V2 as FIXED_OPTIONAL_SLOTS } from '../../scripts/lib/fixed-grammar-v2.mjs';
+// V3 IS THE CURRENT PROFILE for generated output. It keeps V2's optional
+// reviews section and adds the comparison row states V2 declared by accident
+// of its fixtures rather than by what the template can render. V1 and V2 remain
+// the sealed historical record and keep their own tests.
+import { FIXED_GRAMMAR_V3 as FIXED_GRAMMAR, FIXED_OPTIONAL_SLOTS_V3 as FIXED_OPTIONAL_SLOTS } from '../../scripts/lib/fixed-grammar-v3.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ADMIN_ROOT = path.resolve(__dirname, '..');
@@ -332,6 +333,55 @@ describe('the built preview sells nothing', () => {
   test('astro build produced a page', () => {
     expect(existsSync(path.join(OUT_DIR, 'dist/client/index.html'))).toBe(true);
   });
+
+  test('and the stage TYPE-CHECKED it first — both commands, neither mocked', () => {
+    // THIS RUN USED THE REAL defaultRunBuild. No `runBuild` override is passed
+    // for `record` (only the second, artefact-free run overrides it), so the
+    // stage really spawned `astro check` and then `astro build` inside the
+    // generated landing, against the landing's own node_modules.
+    //
+    // `astro build` DOES NOT TYPECHECK — it transpiles. A landing whose data
+    // modules contradict their own types builds perfectly and fails at a
+    // customer, which is exactly what nearly shipped when the emitter began
+    // writing `brand: null` against a `brand: string` type.
+    const build = record.stages.find((s) => s.name === 'build')!;
+    expect(build.status).toBe('pass');
+    expect(build.detail, 'the build stage did not report a type check').toBe(
+      'type-checked and prerendered',
+    );
+    // The landing carries the checker it was checked with. Without it `astro
+    // check` offers to install it, interactively, and the stage guards on this
+    // rather than waiting on a prompt.
+    expect(existsSync(path.join(OUT_DIR, 'node_modules/@astrojs/check'))).toBe(true);
+    expect(existsSync(path.join(OUT_DIR, 'node_modules/typescript'))).toBe(true);
+  });
+
+  test('a landing that does not typecheck FAILS the stage, and is never built', async () => {
+    // The gate, exercised for real: break a type in the generated landing and
+    // run the SAME defaultRunBuild the pipeline uses — not a stub, not a
+    // reimplementation. It must fail as a CHECK failure, and the build output
+    // must be untouched, because building sources that are known to be wrong
+    // produces an artefact that looks finished.
+    const productTs = path.join(OUT_DIR, 'src/data/product.ts');
+    const original = readFileSync(productTs, 'utf-8');
+    const page = path.join(OUT_DIR, 'dist/client/index.html');
+    // Untouched is measured, not assumed — and non-destructively, because the
+    // rest of this suite reads the page this run produced.
+    const before = statSync(page).mtimeMs;
+
+    // `name` is typed `string`. A number is a contradiction `astro build`
+    // transpiles without complaint, which is the whole reason check runs.
+    writeFileSync(productTs, original.replace(/^ {2}name: ".*",$/m, '  name: 42,'));
+    expect(readFileSync(productTs, 'utf-8'), 'the type-error probe is a no-op').not.toBe(original);
+    try {
+      const result = await defaultRunBuild(OUT_DIR);
+      expect(result.ok, 'a landing with a type error was reported as built').toBe(false);
+      expect(result.message).toMatch(/astro check failed/);
+      expect(statSync(page).mtimeMs, 'it built anyway, after a fatal check').toBe(before);
+    } finally {
+      writeFileSync(productTs, original);
+    }
+  }, 300_000);
 
   test('no fabricated price, no Shopify identity, no real cart', () => {
     expect(html()).not.toMatch(/0,00\s*€/);

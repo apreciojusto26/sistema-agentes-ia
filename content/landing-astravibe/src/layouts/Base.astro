@@ -17,10 +17,18 @@ const { title, description } = Astro.props;
 // alongside it — the extension follows the real file, because renaming a JPEG
 // to .png is a lie about a file other systems read.
 //
-// `Astro.site` is undefined until a landing is given a domain, and the
-// fallback is the REQUEST url rather than any hardcoded host. A preview
-// therefore advertises itself, never someone else.
-const ogImage = ogImageFile ? new URL(`/${ogImageFile}`, Astro.site ?? Astro.url).toString() : null;
+// IT NEEDS AN ORIGIN, AND ABSENCE OF ONE IS ABSENCE OF THE TAG. `og:image`
+// must be an absolute URL: whoever unfurls the link fetches it from somewhere
+// else entirely. This line used to resolve against a hardcoded
+// astravibe.bamzuk.com, so a light tube advertised the star projector's
+// artwork on the star projector's domain; resolving against `Astro.url`
+// instead only replaced one wrong answer with another, because a build with no
+// domain produces `http://localhost:4321/…`, which is dead for every reader.
+//
+// So the tag is emitted only when this landing HAS an origin — SITE_URL, the
+// same one the payment callbacks trust. A preview says nothing about its
+// social card, which is exactly what it knows.
+const ogImage = ogImageFile && Astro.site ? new URL(`/${ogImageFile}`, Astro.site).toString() : null;
 
 // Gated to prod so local/preview traffic doesn't pollute GA4/Clarity data.
 const gaId = import.meta.env.PROD ? getSecret('PUBLIC_GA_MEASUREMENT_ID') : undefined;

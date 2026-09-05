@@ -39,6 +39,29 @@ echo "==> preview"
 node scripts/generate-landing.mjs --slug zz-fixed-preview "${COMMON[@]}"
 (cd outputs/zz-fixed-preview && pnpm install --silent && pnpm exec astro check && pnpm exec astro build)
 
+# A PREVIEW WITH NO FACTUAL REVIEWS — the artifact V2 exists for.
+#
+# contract.fixed-grammar-v2.test.ts pins OPTIONAL<ReviewsSection> against this
+# landing and its reviewed twin, and until now nothing could rebuild it: it was
+# produced by hand once, so any change to the template left the V2 suite
+# comparing a fresh page against a stale one. That is the failure mode a sealed
+# grammar is supposed to catch, arriving as a mystery instead.
+#
+# The canonical product is the SAME one, with its reviews removed — the state a
+# real provider that published none produces.
+echo "==> preview (no reviews)"
+NOREVIEWS="$ROOT/$SCRAPE/canonical-product.noreviews.json"
+node --input-type=module -e "
+import {readFileSync, writeFileSync} from 'node:fs';
+const p = JSON.parse(readFileSync('$SCRAPE/canonical-product.json', 'utf-8'));
+p.socialProof = { ...p.socialProof, reviews: [] };
+writeFileSync('$NOREVIEWS', JSON.stringify(p, null, 2));
+"
+node scripts/generate-landing.mjs --slug zz-noreviews \
+  --content "$FIX/content.json" --product "$NOREVIEWS" \
+  --images "$ROOT/$SCRAPE/images" --merchant "$FIX/merchant.json" --force
+(cd outputs/zz-noreviews && pnpm install --silent && pnpm exec astro build)
+
 # A RECOLOURED PREVIEW. Same product, same media, a different palette — the
 # proof that colour is the one thing a Fixed product may change and that
 # changing it does not move the structural fingerprint.
