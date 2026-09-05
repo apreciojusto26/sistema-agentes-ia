@@ -80,14 +80,45 @@ export default function ActiveStagePanel({ block, index, total, idleHint }: Acti
               <span className={`min-w-0 flex-1 text-[13px] ${s.status === 'skipped' ? 'text-ink-faint' : 'text-ink'}`}>
                 {STAGE_LABEL[s.name] ?? s.name}
                 {s.detail && <span className="block font-mono text-[11px] text-ink-soft">{s.detail}</span>}
-                {s.error && <span className="block text-[11px] text-state-failed">{s.error}</span>}
+                {/* The per-stage line stays terse: when the failure has a
+                    human form, the headline is the sentence and the identifiers
+                    live in the disclosure below. */}
+                {s.error && (
+                  <span className="block text-[11px] text-state-failed">
+                    {s.errorDetail?.headline ?? s.error}
+                  </span>
+                )}
               </span>
             </li>
           ))}
         </ul>
 
-        {failed?.error && (
-          <p className="rounded-lg bg-state-failed-tint px-3 py-2 text-[12px] text-state-failed">{failed.error}</p>
+        {/* ── THE FAILURE, IN THE OPERATOR'S LANGUAGE ────────────────────
+            A product-lineage conflict used to arrive here as a paragraph of
+            prd_ identifiers — technically complete and unreadable, and the
+            first thing an operator saw was a pair of ids that mean nothing to
+            anyone. The headline says what happened; the identifiers are still
+            there, one click away, because a support conversation needs them. */}
+        {failed?.errorDetail ? (
+          <div className="rounded-lg bg-state-failed-tint px-3 py-2 text-[12px] text-state-failed">
+            <p className="font-semibold">Conflicto de producto</p>
+            <p className="mt-0.5">{failed.errorDetail.headline}</p>
+            <details className="mt-1.5">
+              <summary className="cursor-pointer text-[11px] opacity-80">Detalles técnicos</summary>
+              <dl className="mt-1 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5 font-mono text-[10px]">
+                {failed.errorDetail.facts.map((f) => (
+                  <div key={f.label} className="contents">
+                    <dt className="opacity-70">{f.label}</dt>
+                    <dd className="break-all">{f.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </details>
+          </div>
+        ) : (
+          failed?.error && (
+            <p className="rounded-lg bg-state-failed-tint px-3 py-2 text-[12px] text-state-failed">{failed.error}</p>
+          )
         )}
       </div>
     </section>

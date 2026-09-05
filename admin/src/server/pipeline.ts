@@ -57,10 +57,20 @@ import { JOBS_DIR, OUTPUTS_DIR, REPO_ROOT, GEMINI_MODEL } from './config';
  * them, and admin/test/contract.design-bypass.test.ts proves it.
  */
 export { PIPELINE_STAGES, type PipelineStageName } from '../shared/pipeline-stages';
+import { readGenerationManifest } from './generation-manifest';
+import { resolveSourceIdentity, formatSourceIdentity } from '../../../scripts/lib/source-identity.mjs';
+import type { SourceProductIdentity } from '../../../scripts/lib/source-identity.mjs';
 import { PIPELINE_STAGES } from '../shared/pipeline-stages';
 import type { PipelineStageName } from '../shared/pipeline-stages';
 
 export type PipelineStageStatus = 'pending' | 'running' | 'pass' | 'failed' | 'skipped';
+
+export type PipelineStageErrorDetail = {
+  /** One sentence, in the operator's language. */
+  headline: string;
+  /** The identifiers, for the collapsible section. */
+  facts: { label: string; value: string }[];
+};
 
 export type PipelineStage = {
   name: PipelineStageName;
@@ -71,6 +81,19 @@ export type PipelineStage = {
   endedAt: string | null;
   /** Sanitised — never a raw stack, never a secret. */
   error: string | null;
+  /**
+   * A failure an operator can act on, when the cause is one we understand.
+   *
+   * The lineage conflict used to surface as a paragraph of identifiers inside
+   * the Build Agent's panel — technically complete and unreadable. `headline`
+   * is what went wrong in a sentence; `facts` are the identifiers, which belong
+   * behind a disclosure rather than in front of one.
+   *
+   * `null` for every failure we have no better sentence for than the message
+   * itself. Inventing a friendly headline for an unknown error would hide the
+   * only useful thing about it.
+   */
+  errorDetail: PipelineStageErrorDetail | null;
   /** Short human-readable outcome, e.g. "family=tech · 9 sections". */
   detail: string | null;
 };
@@ -129,6 +152,7 @@ function freshStages(): PipelineStage[] {
     startedAt: null,
     endedAt: null,
     error: null,
+    errorDetail: null,
     detail: null,
   }));
 }
@@ -224,11 +248,16 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
   };
 
   /** Marks the failure AND everything downstream as skipped, then stops. */
-  const fail = (name: PipelineStageName, message: string): PipelineRecord => {
+  const fail = (
+    name: PipelineStageName,
+    message: string,
+    detail: PipelineStageErrorDetail | null = null,
+  ): PipelineRecord => {
     const s = stage(name);
     s.status = 'failed';
     s.endedAt = nowIso();
     s.error = sanitiseError(message, [process.env.GEMINI_API_KEY, process.env.PUBLIC_SHOPIFY_STOREFRONT_TOKEN]);
+    s.errorDetail = detail;
 
     const from = PIPELINE_STAGES.indexOf(name);
     for (const later of PIPELINE_STAGES.slice(from + 1)) {
@@ -250,6 +279,8 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
     job.error?.message ?? `${job.kind} job ended as ${job.status} (exit ${job.exitCode ?? 'n/a'})`;
 
   // ---- 1. scrape ---------------------------------------------------------
+  /** WHICH PRODUCT this run is about. Null when no provider can identify the URL. */
+  let sourceIdentity: SourceProductIdentity | null = null;
   let scrapeJobId: string;
   if (input.scrapeJobId) {
     const existing = registry.get(input.scrapeJobId);
@@ -267,7 +298,30 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
       return fail('scrape', 'no product input: pass either a url or an existing scrapeJobId');
     }
     const s = begin('scrape');
-    const job = registry.createScrapeJob({ url: input.url, itemId: '', normalizedUrl: input.url });
+
+    // THE IDENTITY IS RESOLVED BEFORE THE SCRAPE, NOT READ OUT OF IT.
+    //
+    // This passed `itemId: ''` and `normalizedUrl: input.url` — the raw link,
+    // recommendation parameters and all — so the product identity the system
+    // could already compute was thrown away at the one moment it mattered.
+    // Nothing downstream could then tell a re-run of one product from an
+    // attempt on a different one, and the lineage guard fell back to comparing
+    // productIds, which are minted once per scrape job.
+    //
+    // GENERIC, AND IT DOES NOT VALIDATE. Which links are acceptable is the HTTP
+    // boundary's decision (routes/pipeline.ts), where an operator can be given
+    // an actionable message. Here the question is only "can this URL be
+    // identified", and `null` is a legitimate answer that propagates: the
+    // lineage guard treats an unprovable identity as an unknown and falls back
+    // to failing closed. A pipeline that rejected every non-AliExpress URL
+    // would be the AliExpress hardcoding this whole model exists to avoid.
+    sourceIdentity = resolveSourceIdentity(input.url);
+    const identity = sourceIdentity;
+    const job = registry.createScrapeJob({
+      url: input.url,
+      itemId: identity?.externalProductId ?? '',
+      normalizedUrl: identity?.canonicalUrl ?? input.url,
+    });
     s.jobId = job.jobId;
     scrapeJobId = job.jobId;
     emit();
@@ -422,7 +476,39 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
   generateStage.jobId = generateJob.jobId;
   emit();
   const generateDone = await awaitJob(registry, generateJob.jobId);
-  if (generateDone.status !== 'succeeded') return fail('generate', jobFailure(generateDone));
+  if (generateDone.status !== 'succeeded') {
+    // A CONFLICT AN OPERATOR CAN ACT ON.
+    //
+    // This surfaced as a paragraph of prd_ identifiers inside the Build Agent's
+    // panel — complete, and unreadable. The facts are read FIRST-HAND here
+    // (the existing manifest on disk, the identity this run resolved) rather
+    // than parsed back out of the child's message, because a message is prose
+    // and prose changes.
+    if (generateDone.error?.code === 'generation-owner-mismatch') {
+      const existing = readGenerationManifest(path.join(OUTPUTS_DIR, input.slug));
+      return fail(
+        'generate',
+        generateDone.error.message,
+        {
+          headline:
+            'Esta carpeta pertenece a otro producto y no se sobrescribirá para proteger sus datos.',
+          facts: [
+            { label: 'Carpeta', value: `outputs/${input.slug}` },
+            {
+              label: 'Producto existente',
+              value: existing?.source
+                ? formatSourceIdentity(existing.source)
+                : formatSourceIdentity(resolveSourceIdentity(existing?.sourceUrl ?? null)),
+            },
+            { label: 'Producto de esta ejecución', value: formatSourceIdentity(sourceIdentity) },
+            { label: 'Ejecución existente', value: existing?.productId ?? '—' },
+            { label: 'Ejecución actual', value: record.productId ?? '—' },
+          ],
+        },
+      );
+    }
+    return fail('generate', jobFailure(generateDone));
+  }
   const outDir = (generateDone.result as { outDir?: string } | null)?.outDir ?? path.join(OUTPUTS_DIR, input.slug);
   record.outputPath = outDir;
   pass('generate', `outputs/${input.slug}`);

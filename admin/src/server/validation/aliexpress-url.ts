@@ -9,6 +9,9 @@
 // those are CDN hosts for IMAGES, not page hosts, and must never leak into
 // HOST_RE below.
 
+import { PROVIDERS, resolveSourceIdentity } from '../../../../scripts/lib/source-identity.mjs';
+import type { SourceProductIdentity } from '../../../../scripts/lib/source-identity.mjs';
+
 export type UrlCheckCode =
   | 'empty'
   | 'not-a-url'
@@ -18,12 +21,34 @@ export type UrlCheckCode =
   | 'not-an-item-url';
 
 export type UrlCheck =
-  | { ok: true; url: string; itemId: string; host: string; normalized: string }
+  | {
+      ok: true;
+      url: string;
+      itemId: string;
+      host: string;
+      normalized: string;
+      /**
+       * WHICH PRODUCT THIS IS, resolved before a scrape is ever spawned.
+       *
+       * The pipeline used to call `createScrapeJob({ itemId: '', normalizedUrl:
+       * input.url })` — throwing away the identity this function had already
+       * computed — so nothing downstream could tell a re-run of one product
+       * from an attempt on a different one.
+       */
+      identity: SourceProductIdentity;
+    }
   | { ok: false; code: UrlCheckCode; message: string };
 
-const SHORT_HOST_RE = /^a\.aliexpress\.com$/i;
-const HOST_RE = /(^|\.)aliexpress\.(com|us|ru)$/i;
-const ITEM_PATH_RE = /^\/(?:item|i)\/(\d{6,})\.html$/;
+// THE SHAPES COME FROM THE PROVIDER, NOT FROM A SECOND COPY OF THEM.
+//
+// These three patterns used to be declared here AND, in effect, again wherever
+// else the system needed to know what an AliExpress product link is. One
+// definition that drifts is how "the same product" and "a valid URL" end up
+// disagreeing — so scripts/lib/source-identity.mjs owns them and this boundary
+// borrows them. What stays here is the HTTP-facing part: the ordered,
+// actionable error messages an operator reads.
+const { hostPattern: HOST_RE, shortHostPattern: SHORT_HOST_RE, itemPathPattern: ITEM_PATH_RE } =
+  PROVIDERS.find((p) => p.id === 'aliexpress')!;
 
 /**
  * Order (load-bearing, see design §7): trim -> empty -> `new URL()` try ->
@@ -71,15 +96,27 @@ export function validateAliExpressUrl(input: string): UrlCheck {
   }
 
   const itemId = match[1];
+  const identity = resolveSourceIdentity(trimmed);
+  if (!identity) {
+    // Unreachable given the tests above, and asserted rather than assumed: the
+    // two must agree about what a product link is, because one of them decides
+    // whether a scrape runs and the other decides whose output directory it is.
+    return {
+      ok: false,
+      code: 'not-an-item-url',
+      message: `"${trimmed}" passed the URL checks but no provider could identify a product in it.`,
+    };
+  }
 
   // Spawn with the trimmed ORIGINAL url, query string intact (design §7) —
   // never second-guess what the site needs from `?spm=...`. `normalized` is
-  // for display/history/dedupe only.
+  // for display/history/dedupe only; `identity` is what decides lineage.
   return {
     ok: true,
     url: trimmed,
     itemId,
     host: url.hostname,
-    normalized: `https://${url.hostname}/item/${itemId}.html`,
+    normalized: identity.canonicalUrl,
+    identity,
   };
 }

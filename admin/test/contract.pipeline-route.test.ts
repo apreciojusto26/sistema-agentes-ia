@@ -88,14 +88,20 @@ async function buildApp(registry: any) {
   return app;
 }
 
+// A LINK THAT NAMES A PRODUCT. These read `https://x/y`, which is a URL and
+// not a product — and the route now says so, because a link whose identity
+// cannot be resolved produces a landing whose lineage the NEXT run cannot
+// compare against anything.
+const PRODUCT_URL = 'https://es.aliexpress.com/item/1005007345199501.html';
+
 describe('input validation', () => {
   it.each([
     [{ slug: '' }, 'slug'],
-    [{ slug: 'Not Kebab', url: 'https://x/y' }, 'slug'],
+    [{ slug: 'Not Kebab', url: PRODUCT_URL }, 'slug'],
     [{ slug: 'ok' }, 'url'],
-    [{ slug: 'ok', url: 'https://x/y', scrapeJobId: 'a' }, 'not both'],
+    [{ slug: 'ok', url: PRODUCT_URL, scrapeJobId: 'a' }, 'not both'],
     [{ slug: 'ok', url: 'ftp://x' }, 'http'],
-    [{ slug: 'ok', url: 'https://x/y', shopifyHandle: 'Bad Handle' }, 'shopifyHandle'],
+    [{ slug: 'ok', url: PRODUCT_URL, shopifyHandle: 'Bad Handle' }, 'shopifyHandle'],
   ])('rejects %j', (body, needle) => {
     const r = validateStart(body as any);
     expect(r.ok).toBe(false);
@@ -103,14 +109,14 @@ describe('input validation', () => {
   });
 
   it('accepts a url form and a scrapeJobId form', () => {
-    expect(validateStart({ slug: 'ok', url: 'https://x/y' }).ok).toBe(true);
+    expect(validateStart({ slug: 'ok', url: PRODUCT_URL }).ok).toBe(true);
     expect(validateStart({ slug: 'ok', scrapeJobId: 'abc' }).ok).toBe(true);
   });
 
   it('treats an EMPTY shopifyHandle as preview mode, not as invalid', () => {
     // '' means "no handle". Rejecting it would make the optional field
     // impossible to leave blank from a form.
-    expect(validateStart({ slug: 'ok', url: 'https://x/y', shopifyHandle: '' }).ok).toBe(true);
+    expect(validateStart({ slug: 'ok', url: PRODUCT_URL, shopifyHandle: '' }).ok).toBe(true);
   });
 
   it('a bad request never starts anything', async () => {
@@ -127,7 +133,7 @@ describe('POST /api/pipeline', () => {
   it('starts a run and returns the initial record', async () => {
     const fake = fakeRegistry();
     const app = await buildApp(fake.registry);
-    const res = await app.inject({ method: 'POST', url: '/api/pipeline', payload: { slug: 'zz-route', url: 'https://x/y' } });
+    const res = await app.inject({ method: 'POST', url: '/api/pipeline', payload: { slug: 'zz-route', url: PRODUCT_URL } });
 
     expect(res.statusCode).toBe(201);
     const { pipeline } = res.json();
@@ -148,12 +154,12 @@ describe('POST /api/pipeline', () => {
     const fake = fakeRegistry();
     const app = await buildApp(fake.registry);
 
-    const first = await app.inject({ method: 'POST', url: '/api/pipeline', payload: { slug: 'zz-a', url: 'https://x/y' } });
+    const first = await app.inject({ method: 'POST', url: '/api/pipeline', payload: { slug: 'zz-a', url: PRODUCT_URL } });
     expect(first.statusCode).toBe(201);
 
     // While the first is still running, a second must be rejected outright:
     // two runs against the same outputs directory would race each other.
-    const second = await app.inject({ method: 'POST', url: '/api/pipeline', payload: { slug: 'zz-b', url: 'https://x/y' } });
+    const second = await app.inject({ method: 'POST', url: '/api/pipeline', payload: { slug: 'zz-b', url: PRODUCT_URL } });
     expect([409, 201]).toContain(second.statusCode);
     if (second.statusCode === 409) expect(second.json().error).toContain('already running');
     await app.close();
@@ -162,7 +168,7 @@ describe('POST /api/pipeline', () => {
   it('no handle -> preview-only; a handle -> commerce-configured', async () => {
     const a = fakeRegistry();
     const appA = await buildApp(a.registry);
-    const previewRes = await appA.inject({ method: 'POST', url: '/api/pipeline', payload: { slug: 'zz-p', url: 'https://x/y' } });
+    const previewRes = await appA.inject({ method: 'POST', url: '/api/pipeline', payload: { slug: 'zz-p', url: PRODUCT_URL } });
     expect(previewRes.json().pipeline.commerceMode).toBe('preview-only');
     await appA.close();
     store.__reset();
@@ -171,7 +177,7 @@ describe('POST /api/pipeline', () => {
     const appB = await buildApp(b.registry);
     const commerceRes = await appB.inject({
       method: 'POST', url: '/api/pipeline',
-      payload: { slug: 'zz-c', url: 'https://x/y', shopifyHandle: 'real-handle' },
+      payload: { slug: 'zz-c', url: PRODUCT_URL, shopifyHandle: 'real-handle' },
     });
     expect(commerceRes.json().pipeline.commerceMode).toBe('commerce-configured');
     await appB.close();
@@ -180,7 +186,7 @@ describe('POST /api/pipeline', () => {
   it('NEVER reports shopify-live-verified', async () => {
     const fake = fakeRegistry();
     const app = await buildApp(fake.registry);
-    const res = await app.inject({ method: 'POST', url: '/api/pipeline', payload: { slug: 'zz-s', url: 'https://x/y', shopifyHandle: 'h' } });
+    const res = await app.inject({ method: 'POST', url: '/api/pipeline', payload: { slug: 'zz-s', url: PRODUCT_URL, shopifyHandle: 'h' } });
     expect(res.json().pipeline.commerceMode).not.toBe('shopify-live-verified');
     await app.close();
   });
@@ -197,7 +203,7 @@ describe('GET /api/pipeline/:id', () => {
   it('returns the stored record', async () => {
     const fake = fakeRegistry();
     const app = await buildApp(fake.registry);
-    const started = (await app.inject({ method: 'POST', url: '/api/pipeline', payload: { slug: 'zz-g', url: 'https://x/y' } })).json();
+    const started = (await app.inject({ method: 'POST', url: '/api/pipeline', payload: { slug: 'zz-g', url: PRODUCT_URL } })).json();
     const got = await app.inject({ method: 'GET', url: `/api/pipeline/${started.pipeline.pipelineId}` });
     expect(got.statusCode).toBe(200);
     expect(got.json().pipeline.pipelineId).toBe(started.pipeline.pipelineId);

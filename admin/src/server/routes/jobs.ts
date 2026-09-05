@@ -13,6 +13,7 @@ import type { FastifyInstance } from 'fastify';
 import type { JobRegistry } from '../jobs/registry';
 import { validateAliExpressUrl } from '../validation/aliexpress-url';
 import { collectContentErrors } from '../validation/content';
+import { readGenerationManifest } from '../generation-manifest';
 import { OUTPUTS_DIR, STAGED_CONTENT_PATH, STAGED_DIR, GEMINI_MODEL } from '../config';
 import type {
   CreateJobRequest,
@@ -92,24 +93,8 @@ function overwriteWarnings(slug: string, productId?: string | null): string[] {
   return warnings;
 }
 
-type GenerationManifest = { productId?: string | null };
-
-/**
- * Reads outputs/{slug}/.generation.json when present (design D5's second
- * barrier; the file is written by generate-landing.mjs's write-manifest
- * stage, which is out of scope for this batch — it may simply not exist yet
- * for any given slug, and that MUST be tolerated silently, never thrown).
- */
-function readGenerationManifest(outDir: string): GenerationManifest | null {
-  const manifestPath = path.join(outDir, '.generation.json');
-  if (!existsSync(manifestPath)) return null;
-  try {
-    const parsed = JSON.parse(readFileSync(manifestPath, 'utf8')) as GenerationManifest;
-    return typeof parsed === 'object' && parsed !== null ? parsed : null;
-  } catch {
-    return null;
-  }
-}
+// The reader moved to ../generation-manifest.ts (design D5's second barrier)
+// when the pipeline started needing it too, to explain a product conflict.
 
 /** Extracts the optional top-level `productId` from a parsed content.json (design D2 — field is optional, absence is never an error). */
 function extractContentProductId(parsedContent: unknown): string | undefined {

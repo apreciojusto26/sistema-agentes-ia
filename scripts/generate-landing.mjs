@@ -15,6 +15,11 @@ import { createHash } from 'node:crypto';
 import { execSync } from 'node:child_process';
 import { DEFAULT_ERRORS, ContentContractError, validateContent } from './lib/content-contract.mjs';
 import { isProductId } from './lib/product-id.cjs';
+import {
+  resolveSourceIdentity,
+  sameSourceProduct,
+  formatSourceIdentity,
+} from './lib/source-identity.mjs';
 import { resolveFixedFavicon, writeFaviconFiles, paletteFromCss, FixedFaviconError } from './lib/fixed-favicon.mjs';
 import { collectMerchantIssues, normalizeMerchant, MERCHANT_REQUIRED_FIELDS } from './lib/merchant.mjs';
 import { assembleFixedProductData, FixedAssemblyError } from './lib/fixed-product-data.mjs';
@@ -747,6 +752,15 @@ async function main() {
   // write-manifest (task 5.4) and the terminal result event.
   let resolvedProductId = null;
   let resolvedLineage = 'legacy';
+  /**
+   * WHICH PRODUCT this landing is, as opposed to which run produced it.
+   *
+   * Written to .generation.json so the NEXT run can compare against something
+   * that does not change every execution. `productId` stays exactly what it
+   * has always been — this run's lineage id — and the two now say different
+   * things on purpose.
+   */
+  let resolvedSource = null;
 
   await withStage('preflight', () => {
     const dirExists = existsSync(outDir);
@@ -784,15 +798,55 @@ async function main() {
       );
     }
 
-    if (dirExists && contentProductId && existingManifestId && contentProductId !== existingManifestId) {
-      // D5 row: present | exists | different id — FAIL-CLOSED, no bypass.
-      // --force does not reach this branch and there is no --reset.
-      fail(
-        `outputs/${args.slug} belongs to a different product lineage ` +
-          `(existing productId ${existingManifestId}, content.json has ${contentProductId}). ` +
-          `This cannot be bypassed with --force.`,
-        'generation-owner-mismatch',
-      );
+    // ─── LINEAGE: PRODUCT IDENTITY, NOT RUN IDENTITY ─────────────────────
+    //
+    // This compared `productId`, which is minted once per SCRAPE JOB. So a
+    // second run of the SAME product carried a new productId and was refused
+    // as if it were a takeover attempt:
+    //
+    //   outputs/1005007345199501 belongs to a different product lineage
+    //   (existing prd_mto7a4ia-…, content.json has prd_mtoiv4y5-…)
+    //
+    // The guard was right to fire and its rule was wrong. Running a product
+    // again does not make it another product.
+    //
+    // THE PROTECTION IS NOT WEAKENED, THE COMPARISON IS CORRECTED. The slug is
+    // still never consulted — "the folder name matches" is not evidence — and
+    // `--force` still does not reach any branch below.
+    const existingSource = existingManifest ? resolveSourceIdentity(existingManifest.sourceUrl) : null;
+    const currentSource = resolveSourceIdentity(
+      input.provenance && typeof input.provenance === 'object' ? input.provenance.sourceUrl : null,
+    );
+
+    if (dirExists && existingManifest) {
+      if (existingSource && currentSource) {
+        // BOTH PROVABLE — the only case where identity gets to decide.
+        if (!sameSourceProduct(existingSource, currentSource)) {
+          fail(
+            `outputs/${args.slug} belongs to a different product ` +
+              `(existing ${formatSourceIdentity(existingSource)}, this run is ` +
+              `${formatSourceIdentity(currentSource)}). ` +
+              `This cannot be bypassed with --force.`,
+            'generation-owner-mismatch',
+          );
+        }
+        // Same product, new run. A differing productId is EXPECTED here and is
+        // not evidence of anything: it is this execution's id.
+      } else if (contentProductId && existingManifestId && contentProductId !== existingManifestId) {
+        // IDENTITY NOT PROVABLE ON BOTH SIDES — fall back to the run id, which
+        // fails closed exactly as it did before. An unresolvable source URL is
+        // an unknown, and two unknowns are never treated as a match.
+        const why = !existingSource
+          ? `the existing landing's source URL does not identify a product`
+          : `this run's source URL does not identify a product`;
+        fail(
+          `outputs/${args.slug} belongs to a different product lineage ` +
+            `(existing productId ${existingManifestId}, content.json has ${contentProductId}), ` +
+            `and ${why}, so the two cannot be proved to be the same. ` +
+            `This cannot be bypassed with --force.`,
+          'generation-owner-mismatch',
+        );
+      }
     }
 
     if (dirExists && !contentProductId && existingManifestId) {
@@ -816,6 +870,7 @@ async function main() {
       fail(`outputs/${args.slug} already exists. Use --force to overwrite.`);
     }
 
+    resolvedSource = currentSource ?? existingSource;
     resolvedProductId = canonicalProductId;
     if (contentProductId) {
       resolvedLineage = 'scraped';
@@ -1311,6 +1366,11 @@ async function main() {
       lineage: resolvedLineage,
       sourceUrl: typeof provenance.sourceUrl === 'string' ? provenance.sourceUrl : null,
       itemId: typeof provenance.itemId === 'string' ? provenance.itemId : null,
+      // PRODUCT IDENTITY, beside the run identity above. `sourceUrl` is kept
+      // verbatim for provenance and debugging — it is where the scrape
+      // actually went — and `source.canonicalUrl` is the same link with the
+      // recommendation context removed.
+      source: resolvedSource,
       productName: input.product && typeof input.product.name === 'string' ? input.product.name : null,
       // Fase 5: which Shopify product this landing sells, and whether it was
       // generated buyable at all. Auditable without opening the .env — and

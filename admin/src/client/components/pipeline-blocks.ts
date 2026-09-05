@@ -234,6 +234,7 @@ export function emptyBlocks(): PipelineBlock[] {
       jobId: null,
       startedAt: null,
       endedAt: null,
+      errorDetail: null,
       error: null,
       detail: null,
     })),

@@ -6,6 +6,8 @@ import type { FastifyInstance } from 'fastify';
 import { runPipeline, type PipelineRecord } from '../pipeline';
 import * as store from '../pipeline-store';
 import type { JobRegistry } from '../jobs/registry';
+import { validateAliExpressUrl } from '../validation/aliexpress-url';
+import { resolveSourceIdentity } from '../../../../scripts/lib/source-identity.mjs';
 
 const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const HANDLE_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -31,6 +33,25 @@ export function validateStart(body: StartPipelineBody): { ok: true } | { ok: fal
   }
   if (body.url && !/^https?:\/\//i.test(body.url)) {
     return { ok: false, message: 'url must start with http:// or https://' };
+  }
+  // THE LINK MUST NAME A PRODUCT, and this is where an operator finds out.
+  //
+  // Without it a mistyped or short link reached the scraper, which has its own
+  // silent fallback to a hardcoded default product — and, worse, produced a
+  // landing whose source identity nothing could resolve, so the lineage guard
+  // had no product to compare on the next run.
+  //
+  // GENERIC FIRST: any registered provider will do. The AliExpress validator is
+  // consulted only for the SENTENCE, because it is the one that can say "short
+  // links are not supported" instead of "unrecognised".
+  if (body.url && !resolveSourceIdentity(body.url)) {
+    const detail = validateAliExpressUrl(body.url);
+    return {
+      ok: false,
+      message: detail.ok
+        ? `"${body.url}" does not identify a product from any supported provider.`
+        : detail.message,
+    };
   }
   // Empty string means "no handle" — preview mode — and must not be treated
   // as an invalid handle. Only a NON-empty malformed value is an error.
