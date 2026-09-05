@@ -156,17 +156,36 @@ check('Favicon valid', () => {
 });
 
 check('Social preview', () => {
-  // Absence is a legitimate, reported state — better than shipping another
-  // product's artwork. What must never happen is the TEMPLATE's own cover
-  // surviving into a generated landing.
-  if (!has('public/og-cover.png')) return 'absent (reported: no PNG main image)';
-  const shipped = createHash('sha256').update(readFileSync(path.join(out, 'public/og-cover.png'))).digest('hex');
+  // THE LANDING DECLARES ITS OWN. src/data/og.ts is generated beside the file,
+  // so the extension follows the real image instead of a historical `.png`.
+  // `null` is a legitimate, reported state — better than shipping another
+  // product's artwork, which is exactly what a fixed filename resolved against
+  // a hardcoded domain used to do.
+  if (!has('src/data/og.ts')) return 'no og module (legacy generation)';
+  const declared = /ogImageFile: string \| null = (?:'([^']+)'|null)/.exec(read('src/data/og.ts'))?.[1] ?? null;
+  if (!declared) return 'absent (this product has no usable main image)';
+
+  must(has(path.join('public', declared)), `src/data/og.ts names ${declared}, which is not in public/`);
+  const shipped = createHash('sha256').update(readFileSync(path.join(out, 'public', declared))).digest('hex');
+
+  // THE TEMPLATE'S OWN COVER IS CHECKED FIRST, and the order is the message.
+  // Both rules below reject the same file, but only this one can say WHOSE
+  // product it is — and "you are about to share AstraVibe's artwork" is what
+  // an operator needs to read. The manifest rule that follows is the general
+  // case and would otherwise answer the specific one with a vaguer sentence.
   const template = path.join(ROOT, FIXED_TEMPLATE_RELATIVE, 'public/og-cover.png');
   if (existsSync(template)) {
     const original = createHash('sha256').update(readFileSync(template)).digest('hex');
     must(shipped !== original, "this landing would share AstraVibe's own artwork as its social preview");
   }
-  return 'the product\'s own photograph';
+
+  // OWNERSHIP: it must be THIS run's asset, not a leftover from another.
+  if (has('.assets.json')) {
+    const manifest = json('.assets.json');
+    const known = new Set(manifest.assets.map((a) => a.sha256));
+    must(known.has(shipped), 'the social preview is not one of this run\'s produced assets');
+  }
+  return `${declared}, this run's own photograph`;
 });
 
 // ─── commerce ──────────────────────────────────────────────────────────────

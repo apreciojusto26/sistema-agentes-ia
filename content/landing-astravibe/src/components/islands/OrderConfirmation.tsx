@@ -167,7 +167,9 @@ export function OrderConfirmation({ paymentRef }: OrderConfirmationProps) {
             },
             {
               title: 'Preparamos tu envío',
-              text: `Empaquetamos tu ${product.brand} y te avisamos en cuanto salga.`,
+              // The NAME, not the brand: what gets packed is the product, and the
+              // brand is null whenever the source listing named no maker.
+              text: `Empaquetamos tu ${product.name} y te avisamos en cuanto salga.`,
             },
             { title: 'Llega a tu casa', text: shippingEta ? shippingEta + ', con envío gratis a España.' : 'Con envío gratis a España.' },
           ].map((step, index) => (

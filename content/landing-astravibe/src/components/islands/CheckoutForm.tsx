@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '@nanostores/react';
 import { $cart } from '@/stores/cart';
 import { product } from '@/data/product';
+import { legal } from '@/data/legal';
 import { policy, returnsHeadline, shippingLine } from '@/lib/policy';
 
 // Checkout trust row: both items were copy asserting policy — a delivery
@@ -271,7 +272,12 @@ export function CheckoutForm({ commerce }: CheckoutFormProps) {
           onResponse: (type) => handleWidgetResponse(type),
           // merchantName is what the buyer reads inside the Google Pay sheet,
           // so it must be the storefront brand, not the legal entity.
-          googlePay: { merchantId: GOOGLE_PAY_MERCHANT_ID, merchantName: product.brand },
+          // THE PAYMENT SHEET NAMES WHO IS BEING PAID. This passed the product
+          // brand — the manufacturer — so a buyer was shown "Pay <someone who
+          // is not the seller>", and once brand became honestly nullable it
+          // would have been null. `tradeName` is the merchant's own commercial
+          // name and is never absent.
+          googlePay: { merchantId: GOOGLE_PAY_MERCHANT_ID, merchantName: legal.identity.tradeName },
           onLoad: () => trackCheckoutEvent('sumup_widget_loaded', { checkoutId, phase: 'widget' }),
         });
       })
@@ -394,7 +400,7 @@ function OrderSummary({ variantTitle, quantity, subtotalCents, discountCents, to
   return (
     <div className="text-sm">
       <div className="flex items-start justify-between gap-4 border-b border-graphite/10 pb-3">
-        <p className="font-display font-bold text-graphite">Astra Vibe <span className="font-sans font-normal text-steel">· {variantTitle} × {quantity}</span></p>
+        <p className="font-display font-bold text-graphite">{product.name} <span className="font-sans font-normal text-steel">· {variantTitle} × {quantity}</span></p>
         <span className="shrink-0 tabular-nums font-semibold text-graphite">{formatPrice(totalCents)}</span>
       </div>
       <dl className="space-y-2 pt-3">

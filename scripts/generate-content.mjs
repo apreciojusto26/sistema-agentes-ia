@@ -560,6 +560,23 @@ async function main() {
   // downstream; a model that wrote them anyway does not get them onto a page.
   if (args.fixed === true) parsed.testimonials = [];
 
+  // BRAND IS PROJECTED FROM THE SCRAPE, and this is the upstream half of the
+  // net whose downstream half is the assembler.
+  //
+  // A brand is a claim about who MADE the thing. Asked for one, a model gave a
+  // light tube "LumiFlex" — a company that does not exist — and it shipped as
+  // the product's brand, the site's logo and the name on the payment sheet.
+  //
+  // OVERWRITTEN, NOT DELETED, exactly like packs: the Version A schema still
+  // requires the key, so the honest canonical value replaces the invented one
+  // and `null` propagates when the listing published no maker at all.
+  if (args.fixed === true) {
+    const canonicalBrand = product.identity?.brand;
+    parsed.product.brand = typeof canonicalBrand === 'string' && canonicalBrand.trim() !== ''
+      ? canonicalBrand
+      : null;
+  }
+
   const socialProof = product.socialProof ?? {};
   parsed.product.ratingAverage =
     typeof socialProof.rating === 'number' ? socialProof.rating : null;

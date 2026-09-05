@@ -35,7 +35,9 @@ const MERCHANT_FIXTURE = path.join(REPO_ROOT, 'admin/test/fixtures/merchant/test
 
 /** The smallest content output the assembler accepts — copy and narrative only. */
 const contentOutput = () => ({
-  brand: 'Marca',
+  // NO `brand`. It is a product FACT, owned by the scrape, and a content output
+  // carrying one is now rejected — see "the Content Agent has no authority over
+  // the brand" below.
   name: 'Producto',
   tagline: 'Un titular',
   subtagline: 'Un subtitular',

@@ -23,7 +23,10 @@ import { product } from '@/data/product';
 // — no LCP regression, no per-request server function for the landing page.
 export const prerender = true;
 
-const title = `${product.brand} — ${product.tagline}`;
+// BRAND IS FACTUAL AND OFTEN ABSENT. This interpolated it unconditionally, so
+// a product whose source published no brand would have titled itself
+// "null — …". The separator belongs to the brand, not to the title.
+const title = product.brand ? `${product.brand} — ${product.tagline}` : product.tagline;
 const description = product.subtagline;
 
 // Memoized in lib/shopify/catalog.ts — no extra network call even though

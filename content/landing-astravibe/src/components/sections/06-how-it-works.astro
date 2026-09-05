@@ -7,18 +7,29 @@ import { product } from '@/data/product';
 <section id="como-funciona" class="scroll-mt-4 bg-white py-12 md:py-16">
   <Container>
     <h2 class="bg-gradient-to-r from-grape-deep via-grape-soft to-grape-deep bg-[length:200%_auto] bg-clip-text text-display font-black text-transparent animate-shine md:text-4xl lg:text-5xl">
-      Cómo usar mi
+      {/*
+        WAS "Cómo usar mi<br />Astra Vibe". Not made dynamic: a section heading
+        that works for any product is GENERIC UI COPY, and turning it into a
+        data slot would ask the Content Agent for a sentence the layout already
+        knows. It must not be built as "Cómo usar mi " + brand either — brand is
+        null whenever the source published none.
+
+        The <br /> stays: the element tree is unchanged, only the text.
+      */}
+      Cómo se
       <br />
-      Astra Vibe
+      usa
     </h2>
     <p class="mt-2 max-w-md text-sm text-graphite md:text-base">
-      Transforma cualquier espacio en un cielo estrellado y disfruta de un ambiente único en segundos.
+      {/* Was "…un cielo estrellado…" — the projector's promise. Generic now,
+          claiming nothing about any particular product. */}
+      Tres pasos, y listo.
     </p>
 
     <div
       data-steps-carousel
       role="region"
-      aria-label="Cómo usar mi Astra Vibe"
+      aria-label="Cómo se usa"
       tabindex="0"
       class="-mx-5 mt-8 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-6 [scrollbar-width:none] [-ms-overflow-style:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden md:mx-0 md:block md:space-y-8 md:overflow-visible md:px-0 md:pb-0 md:[scroll-snap-type:none] xl:grid xl:grid-cols-3 xl:gap-6 xl:space-y-0"
     >

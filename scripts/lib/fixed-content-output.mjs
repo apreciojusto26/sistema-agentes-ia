@@ -48,7 +48,6 @@
 
 /** Slots a Fixed page fills from the Content Agent, and only from it. */
 export const FIXED_CONTENT_FIELDS = [
-  'brand',
   'name',
   'tagline',
   'subtagline',
@@ -71,6 +70,19 @@ export const FIXED_CONTENT_FIELDS = [
 
 /** Slots owned by another authority. Named so the guard can reject them. */
 export const FIXED_CONTENT_FOREIGN_FIELDS = [
+  // BRAND IS THE SCRAPE'S, and this is the projection half of a double net.
+  //
+  // It used to be a Fixed content field, and on the first real landing a model
+  // asked for one supplied "LumiFlex" for a light tube whose listing named no
+  // maker. A brand is a claim about who MADE the thing — the same class of
+  // claim as a reviewer's name, and unavailable to a model for the same reason.
+  //
+  // DROPPED FROM A VERSION A DOCUMENT, REJECTED IN A FIXED ONE, exactly like
+  // `packs`: content-contract.mjs still requires the field of Version A, so a
+  // content.json carrying it is the historical format behaving correctly. What
+  // must not happen is the value reaching the page — and the assembler, which
+  // reads only CanonicalProduct.identity.brand, is the other half of the net.
+  'brand',
   // SOCIAL PROOF IS THE SCRAPE'S. A card with an author, a star rating and a
   // body asserts a stranger's experience, and a language model cannot have one.
   // scripts/lib/fixed-social-proof.mjs projects these from CanonicalReview.

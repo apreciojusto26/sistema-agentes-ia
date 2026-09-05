@@ -4,6 +4,8 @@ import { legal } from '@/data/legal';
 import { policy, shippingLine } from '@/lib/policy';
 
 const { identity } = legal;
+// See cookies.astro — the domain is the landing's, never the template's.
+const siteLabel = Astro.site?.host ?? 'este sitio web';
 const commercialGuaranteeDays = policy?.commercialGuarantee?.days ?? null;
 const eta = policy ? shippingLine(policy).replace('Envío de ', '') : null;
 ---
@@ -13,7 +15,7 @@ const eta = policy ? shippingLine(policy).replace('Envío de ', '') : null;
   description="Condiciones generales de contratación: pedidos, precios, pago, entrega y garantías."
 >
   <p>
-    Estas condiciones regulan la compra de productos en {identity.site}, titularidad de {identity.holder}. Al realizar
+    Estas condiciones regulan la compra de productos en {siteLabel}, titularidad de {identity.holder}. Al realizar
     un pedido aceptas estas condiciones en su versión vigente en ese momento.
   </p>
 

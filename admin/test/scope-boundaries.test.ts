@@ -470,6 +470,79 @@ describe('scope-boundaries (Batch G — machine-checkable, spec R14)', () => {
         }
       });
     });
+
+    // ─── THE FIX PACK 1 EXCEPTIONS, PINNED ONE BY ONE ────────────────────
+    //
+    // The first real landing — an RGB light tube — shipped with the star
+    // projector's H1 ("24 ambientes. Un solo proyector."), the star
+    // projector's how-it-works heading ("Cómo usar mi Astra Vibe"), the star
+    // projector's name in its purchase bar and cart, and an og:image on the
+    // star projector's DOMAIN. Product-specific copy was hardcoded in the
+    // template every landing is copied from, so it survived into a product it
+    // had nothing to do with.
+    //
+    // THE DIRECTORY IS STILL NOT UNLOCKED. Every protected path above stays
+    // protected and the git check still covers every other file. What follows
+    // pins each approved mutation BY ITS CONTENT, so an exception cannot
+    // quietly become a licence.
+    //
+    // EVERY ONE OF THEM IS A TEXT SUBSTITUTION. No element was added, removed
+    // or made conditional — proved structurally by
+    // contract.fixed-grammar-v3.test.ts, which shows the sealed grammar does
+    // not move. Here the claim is about the SOURCE: the literals are gone and
+    // each slot reads from a data authority.
+    describe('the approved FIX PACK 1 exceptions: product copy comes from data', () => {
+      const src = (rel: string) =>
+        readFileSync(path.join(REPO_ROOT, 'content/landing-astravibe/src', rel), 'utf-8');
+
+      // Each entry: the file, the expressions it must now read, and the
+      // literals that must be gone from the code it actually runs.
+      const PINNED: Array<{ file: string; reads: RegExp[] }> = [
+        // The H1 and its subline. `tagline`/`subtagline` already fed <title>
+        // and the meta description and simply had no consumer in the page.
+        { file: 'components/sections/03-hero.astro', reads: [/\{product\.tagline\}/, /\{product\.subtagline\}/] },
+        // The buy box's paragraph was a full description of the projector.
+        { file: 'components/sections/05-buy-box.astro', reads: [/\{product\.subtagline\}/] },
+        // NOT made dynamic: a section heading that works for any product is
+        // generic UI copy. It must not be built as "Cómo usar mi " + brand
+        // either — brand is null whenever the source published none.
+        { file: 'components/sections/06-how-it-works.astro', reads: [/Cómo se/] },
+        // The comparison names the product twice and compared it to the
+        // projector's own category.
+        { file: 'components/sections/11-comparison.astro', reads: [/const label = product\.brand \?\? product\.name;/] },
+        { file: 'components/sections/13-real-results.astro', reads: [/\{product\.brand \?\? product\.name\}/] },
+        // Header and footer carry the STORE's name. It was the product brand —
+        // a different claim, and null whenever the listing named no maker.
+        { file: 'components/sections/02-site-header.astro', reads: [/const storeName = legal\.identity\.tradeName;/] },
+        { file: 'components/sections/14-site-footer.astro', reads: [/\{legal\.identity\.tradeName\}<span/] },
+        // The purchase bar, the cart line and the order summary each printed
+        // the projector's name verbatim.
+        { file: 'components/islands/StickyAddToCart.tsx', reads: [/\{projection\.totalUnits\}x \{product\.name\}/] },
+        { file: 'components/islands/CartDrawer.tsx', reads: [/\{product\.name\}/] },
+        { file: 'components/islands/CheckoutForm.tsx', reads: [/\{product\.name\}/, /merchantName: legal\.identity\.tradeName/] },
+        { file: 'components/islands/OrderConfirmation.tsx', reads: [/Empaquetamos tu \$\{product\.name\}/] },
+        // The social card, and the title that interpolated a nullable brand.
+        { file: 'layouts/Base.astro', reads: [/ogImageFile \? new URL\(`\/\$\{ogImageFile\}`/] },
+        { file: 'pages/index.astro', reads: [/product\.brand \? `\$\{product\.brand\} — \$\{product\.tagline\}` : product\.tagline/] },
+      ];
+
+      it.each(PINNED)('$file reads its copy from data', ({ file, reads }) => {
+        const text = src(file);
+        for (const re of reads) {
+          expect(text, `${file} no longer carries its approved expression ${re}`).toMatch(re);
+        }
+      });
+
+      it('no approved file grew a conditional while its text was replaced', () => {
+        // The mutations are text substitutions. A `&& (` inside a section
+        // would be a structural decision nobody reviewed — the F7 exception
+        // above is the only one of those, and it is pinned separately.
+        for (const { file } of PINNED) {
+          if (!file.startsWith('components/sections/')) continue;
+          expect(src(file), `${file} grew a length-based guard`).not.toMatch(/\.length > 0 && \(/);
+        }
+      });
+    });
   });
 
   describe('boundary: no authentication/authorization surface added to admin/', () => {

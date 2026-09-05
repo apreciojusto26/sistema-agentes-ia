@@ -3,6 +3,11 @@ import Legal from '@/layouts/Legal.astro';
 import { legal } from '@/data/legal';
 
 const { identity } = legal;
+// THE SITE IS THE LANDING'S OWN, from the SITE_URL authority. It used to be
+// the template's hardcoded 'astravibe.bamzuk.com'. In prose an unconfigured
+// preview reads "este sitio web", which is true of any page and claims no
+// domain.
+const siteLabel = Astro.site?.host ?? 'este sitio web';
 ---
 
 <Legal
@@ -10,7 +15,7 @@ const { identity } = legal;
   description="Qué cookies utiliza este sitio, para qué sirven y cómo puedes gestionarlas."
 >
   <p>
-    Esta política explica qué cookies y tecnologías similares utiliza {identity.site}, conforme al artículo 22.2 de la
+    Esta política explica qué cookies y tecnologías similares utiliza {siteLabel}, conforme al artículo 22.2 de la
     LSSI-CE y a las directrices de la Agencia Española de Protección de Datos.
   </p>
 

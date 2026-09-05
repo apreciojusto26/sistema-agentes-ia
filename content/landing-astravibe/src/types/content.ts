@@ -152,7 +152,20 @@ export interface FaqItem {
  * This is today's `Product` minus sku/currency/basePriceCents/compareAtCents.
  */
 export interface ProductContent {
-  brand: string;
+  /**
+   * The product's brand — `null` when the source published none.
+   *
+   * IT WAS `string`, AND THAT TYPE WAS THE BUG'S ACCOMPLICE. The one authority
+   * is CanonicalProduct.identity.brand (see FixedIdentity), which has always
+   * been nullable; a non-null type here meant something downstream had to
+   * invent a value to satisfy it, and something did — a model supplied
+   * "LumiFlex" for a light tube whose listing named no brand, and the emitter
+   * shipped it as fact.
+   *
+   * Every consumer now decides what to render in its absence, and none of them
+   * may borrow the seller's legal name to fill it.
+   */
+  brand: string | null;
   name: string;
   tagline: string;
   subtagline: string;

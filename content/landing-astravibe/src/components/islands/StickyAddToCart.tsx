@@ -7,6 +7,7 @@ import { formatPrice } from '@/lib/format';
 import { centsToUnits, trackEvent } from '@/lib/analytics';
 import type { ProductCommerce } from '@/lib/shopify/types';
 import type { PricePack } from '@/types/content';
+import { product } from '@/data/product';
 
 interface StickyAddToCartProps {
   commerce: ProductCommerce;
@@ -102,7 +103,9 @@ export function StickyAddToCart({
     >
       <div className="flex items-center gap-2 px-5 py-3">
         <div className="shrink-0">
-          <p className="whitespace-nowrap text-sm font-bold text-graphite">{projection.totalUnits}x Astra Vibe</p>
+          {/* Was the literal "Astra Vibe" — the star projector's name, shipped in
+                the purchase bar of every landing this template produces. */}
+          <p className="whitespace-nowrap text-sm font-bold text-graphite">{projection.totalUnits}x {product.name}</p>
           <p className="mt-0.5 text-sm font-semibold tabular-nums text-grape">{formatPrice(totalCents)}</p>
         </div>
 

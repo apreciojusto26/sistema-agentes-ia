@@ -352,16 +352,28 @@ function deriveLegacyAssets(content) {
   };
 }
 
+/**
+ * EVERY FIELD THE ASSEMBLER OWNS IS EMITTED FROM IT.
+ *
+ * This read `product.*` — the raw Content Agent document — for fields whose
+ * authority the assembler had already resolved, so the boundary was undone one
+ * line before disk. It has now happened twice: `steps` in F4, and `brand` on
+ * the first real landing, where a model's invented "LumiFlex" shipped over a
+ * canonical `null`.
+ *
+ * `product` is still read for the Version A-only fields the template's type
+ * requires and no Fixed section renders — badges, offer, benefits, heroPills,
+ * specs. Those have no assembler counterpart to come from.
+ */
 function buildProductTs(product, shopifyHandle, fixed) {
-  const errors = product.errors ?? DEFAULT_ERRORS;
   const lines = [
     `import type { Product } from '@/types/content';`,
     ``,
     `export const product = {`,
-    `  brand: ${serialize(product.brand, 2, 1)},`,
-    `  name: ${serialize(product.name, 2, 1)},`,
-    `  tagline: ${serialize(product.tagline, 2, 1)},`,
-    `  subtagline: ${serialize(product.subtagline, 2, 1)},`,
+    `  brand: ${serialize(fixed.identity.brand, 2, 1)},`,
+    `  name: ${serialize(fixed.identity.name, 2, 1)},`,
+    `  tagline: ${serialize(fixed.copy.tagline, 2, 1)},`,
+    `  subtagline: ${serialize(fixed.copy.subtagline, 2, 1)},`,
     ``,
     `  // NEVER agent-generated (agents.MD §1) — provision the real Shopify handle`,
     `  // before this landing can accept orders.`,
@@ -378,16 +390,16 @@ function buildProductTs(product, shopifyHandle, fixed) {
     `    bundleOfferActive: false,`,
     `  },`,
     ``,
-    `  variantGroupLabel: ${serialize(product.variantGroupLabel, 2, 1)},`,
+    `  variantGroupLabel: ${serialize(fixed.copy.variantGroupLabel, 2, 1)},`,
     ``,
-    `  errors: ${serialize(errors, 2, 1)},`,
+    `  errors: ${serialize(fixed.copy.commerceMessages, 2, 1)},`,
     ``,
-    `  ratingAverage: ${serialize(product.ratingAverage, 2, 1)},`,
-    `  ratingCount: ${serialize(product.ratingCount, 2, 1)},`,
+    `  ratingAverage: ${serialize(fixed.socialProof.ratingAverage, 2, 1)},`,
+    `  ratingCount: ${serialize(fixed.socialProof.ratingCount, 2, 1)},`,
     ``,
     `  badges: ${serialize(product.badges, 2, 1)},`,
     ``,
-    `  trustTicker: ${serialize(product.trustTicker, 2, 1)},`,
+    `  trustTicker: ${serialize(fixed.copy.trustTicker, 2, 1)},`,
     ``,
     `  offer: ${serialize(product.offer, 2, 1)},`,
     ``,
@@ -411,7 +423,7 @@ function buildProductTs(product, shopifyHandle, fixed) {
     // quietly undone the merge one line before it reached disk.
     `  steps: ${serialize(fixed.narrative.steps, 2, 1)},`,
     ``,
-    `  comparison: ${serialize(product.comparison, 2, 1)},`,
+    `  comparison: ${serialize(fixed.narrative.comparison, 2, 1)},`,
     ``,
     // `comparisonRival` IS NO LONGER EMITTED. It named the generic alternative
     // for landing-base's comparison heading; the Fixed template labels that
@@ -437,7 +449,7 @@ function buildProductTs(product, shopifyHandle, fixed) {
     ``,
     `  shipping: ${serialize({ freeOverCents: fixed.commercial.freeShippingOverCents }, 2, 1)},`,
     ``,
-    `  cta: ${serialize(product.cta, 2, 1)},`,
+    `  cta: ${serialize(fixed.copy.cta, 2, 1)},`,
     `} as const satisfies Product;`,
     ``,
   ];
@@ -822,6 +834,15 @@ async function main() {
   // — `todos` is not declared until later, and a second list would be a second
   // place to forget.
   let packsConfigured = false;
+  /**
+   * THE BRAND THE ASSEMBLER RESOLVED — the only value any later stage may use.
+   *
+   * The favicon stage read `input.product.brand`, the Content Agent's own
+   * document, so a model that invented a brand got its invention stamped into
+   * the monogram on every tab. Hoisted for the same reason `packsConfigured`
+   * is: the authority is decided in write-data and consumed after it.
+   */
+  let assembledBrand = null;
   /** The real asset production, when a scrape drove it. Reused by copy-images. */
   let producedAssets = null;
   /** Set when the template's social cover was removed for want of a PNG. */
@@ -906,9 +927,16 @@ async function main() {
     try {
       fixed = assembleFixedProductData({
         // Without --product the scrape is not part of this generation at all,
-        // and identity falls back to the content document's own factual
-        // fields. That is the legacy path, not the Fixed one.
-        canonicalProduct: canonicalProduct ?? { identity: { brand: input.product.brand, name: input.product.name } },
+        // and identity falls back to the content document's own name. That is
+        // the legacy path, not the Fixed one.
+        //
+        // BRAND IS NOT AMONG THE FIELDS IT MAY FALL BACK TO, and that closes
+        // this bypass at its source. Passing the content document's brand here
+        // made it CanonicalProduct.identity.brand one line before the assembler
+        // read it — so the assembler's "only the scrape decides brand" rule
+        // held perfectly while a model's invention walked through the front
+        // door wearing the scrape's name. No scrape means no brand: `null`.
+        canonicalProduct: canonicalProduct ?? { identity: { brand: null, name: input.product.name } },
         contentOutput,
         assetOutput,
         merchantConfig: input.__merchantConfig ?? null,
@@ -926,6 +954,7 @@ async function main() {
     }
 
     packsConfigured = fixed.commercial.packs.length > 0;
+    assembledBrand = fixed.identity.brand;
 
     writeFileSync(path.join(outDir, 'src/data/product.ts'), buildProductTs(input.product, args.shopifyHandle, fixed));
     writeFileSync(path.join(outDir, 'src/data/faq.ts'), buildFaqTs(input.faq));
@@ -1013,7 +1042,9 @@ async function main() {
         operatorPath: args.favicon ?? null,
         previous: existingFaviconManifest,
         generate: null,
-        brand: input.product?.brand ?? null,
+        // FROM THE ASSEMBLER. This read the Content Agent's document, so the
+        // monogram on every tab could be a brand no source ever published.
+        brand: assembledBrand,
         productName: input.product?.name ?? null,
         palette,
       });
@@ -1138,32 +1169,34 @@ async function main() {
         // an EMPTY placeholder for a key it cannot find.
         writeFileSync(path.join(outDir, 'src/data/images.ts'), buildImagesModule(plan));
 
-        // THE SOCIAL PREVIEW.
+        // THE SOCIAL PREVIEW, from this product's own photograph.
         //
-        // Every landing shipped the template's og-cover.png, so a pillow posted
-        // to WhatsApp previewed as AstraVibe's star projector — someone else's
-        // product, on a link claiming to be yours.
+        // Every landing used to ship the template's og-cover.png — and worse,
+        // Base.astro resolved it against a hardcoded `astravibe.bamzuk.com`, so
+        // a real product advertised another product's artwork on another
+        // product's domain.
         //
-        // Base.astro requests a FIXED `/og-cover.png` and that file lives under
-        // content/landing-astravibe/src/layouts, which scope-boundaries
-        // protects alongside kv.ts, shopify and the API routes. So the head
-        // cannot be pointed elsewhere, and this repo has no raster transcoder
-        // to turn a scraped JPEG into a PNG — nor may it grow one during a
-        // product generation.
-        //
-        // What is left is the rule already established for the brand mark:
-        // ABSENCE BEATS THE WRONG IDENTITY. A PNG passes straight through; any
-        // other format means the template's cover is DELETED rather than
-        // shipped, and the operator is told. A missing preview is honest; a
-        // competitor's product is not.
+        // THE REAL EXTENSION IS KEPT. The layout reads the filename from
+        // src/data/og.ts now, so there is no fixed `.png` to satisfy and no
+        // reason to rename a JPEG into a lie about a file other systems read.
+        // The template's own cover is deleted either way: it belongs to a
+        // different product and nothing generated may serve it.
         const ogSource = plan.assets[0];
-        const ogTarget = path.join(outDir, 'public/og-cover.png');
-        if (ogSource && path.extname(ogSource.dest).toLowerCase() === '.png') {
-          cpSync(ogSource.srcPath, ogTarget);
-        } else if (existsSync(ogTarget)) {
-          rmSync(ogTarget);
-          ogCoverRemoved = ogSource ? path.extname(ogSource.dest) : null;
+        const staleCover = path.join(outDir, 'public/og-cover.png');
+        if (existsSync(staleCover)) rmSync(staleCover);
+
+        let ogName = null;
+        if (ogSource) {
+          ogName = `og-cover${path.extname(ogSource.dest)}`;
+          cpSync(ogSource.srcPath, path.join(outDir, 'public', ogName));
+        } else {
+          ogCoverRemoved = 'sin media utilizable';
         }
+        writeFileSync(
+          path.join(outDir, 'src/data/og.ts'),
+          `// GENERATED by scripts/generate-landing.mjs — this product's own photograph.\n` +
+            `export const ogImageFile: string | null = ${ogName ? `'${ogName}'` : 'null'};\n`,
+        );
 
         // PROVENANCE, WRITTEN DOWN. Enough to prove no file was invented: each
         // copied asset tied back to the source reference the scrape recorded,

@@ -50,12 +50,27 @@ export const CONTENT_FORBIDDEN_MEDIA_FIELDS = ['gallery', 'heroExtras', 'ugcStri
  * keeps out of content-contract.mjs, restated at the assembly boundary so the
  * rule holds for a caller that builds a content output by hand.
  */
-// DERIVED, never restated. These two lists were written out by hand and had
+/**
+ * FACTUAL claims about the product itself. The scrape owns them.
+ *
+ * A third category, and it exists because the other two would both LIE about
+ * this one. `brand` is not media and it is emphatically not merchant
+ * configuration — telling an operator that the product's maker "is merchant
+ * configuration, not copy" would send them to fix the wrong file, and would
+ * contradict the rule that a legal name is never a brand.
+ *
+ * It is a claim about who MADE the thing, which only the source listing can
+ * answer. A model asked for one invented "LumiFlex" for a light tube.
+ */
+export const CONTENT_FORBIDDEN_FACTUAL_FIELDS = ['brand'];
+
+// DERIVED, never restated. These lists were written out by hand and had
 // already drifted by one entry — `freeOverCents` was forbidden here and absent
 // from the projection, so the assembler delegated a check it then failed to
-// make. Whatever the projection calls foreign and is not media is commercial.
+// make. Whatever the projection calls foreign and is neither media nor
+// factual is commercial.
 export const CONTENT_FORBIDDEN_COMMERCIAL_FIELDS = FIXED_CONTENT_FOREIGN_FIELDS.filter(
-  (f) => !CONTENT_FORBIDDEN_MEDIA_FIELDS.includes(f),
+  (f) => !CONTENT_FORBIDDEN_MEDIA_FIELDS.includes(f) && !CONTENT_FORBIDDEN_FACTUAL_FIELDS.includes(f),
 );
 
 export class FixedAssemblyError extends Error {
@@ -119,6 +134,20 @@ export function collectAssemblyIssues({
           message:
             `contentOutput carries commercial configuration it has no authority over: ${commercial.join(', ')}. ` +
             'Packs, thresholds, guarantees and returns terms are merchant configuration, not copy.',
+        });
+      }
+      const factual = (issue.fields ?? []).filter((f) =>
+        CONTENT_FORBIDDEN_FACTUAL_FIELDS.includes(f),
+      );
+      if (issue.code === 'fixed-content-foreign-authority' && factual.length) {
+        issues.push({
+          code: 'content-writes-factual',
+          source: 'contentOutput',
+          fields: factual,
+          message:
+            `contentOutput carries product facts it has no authority over: ${factual.join(', ')}. ` +
+            'The brand is whoever the source listing says made the product — the scrape decides it, ' +
+            'and absence is a real answer. It is never the seller\'s legal name and never a model\'s guess.',
         });
       }
       if (issue.code !== 'fixed-content-foreign-authority') {
@@ -254,14 +283,18 @@ export function assembleFixedProductData(sources = {}) {
     shopifyProductLink = null,
   } = sources;
 
-  // Brand resolution, in the order F3A fixed: the scrape, then an explicitly
-  // configured merchant brand, then absence. `null` is a real answer and the
-  // Content Agent never appears in this chain.
-  const brand =
-    canonicalProduct?.identity?.brand ??
-    canonicalProduct?.brand ??
-    merchantConfig?.legalName ??
-    null;
+  // BRAND HAS ONE AUTHORITY: the scrape. `null` is a real answer.
+  //
+  // The chain used to end in `merchantConfig.legalName`, and the first real
+  // landing showed why that is wrong twice over. A legal name is the SELLER's
+  // identity — "Daniel Longone" is not the brand of a light tube — and the
+  // Content Agent, which has no authority here at all, filled the gap first
+  // anyway: it invented "LumiFlex" for a product whose source published no
+  // brand, and the emitter shipped it.
+  //
+  // A storefront/trade name is a DIFFERENT concept and would need its own
+  // field. It must never borrow this one.
+  const brand = canonicalProduct?.identity?.brand ?? canonicalProduct?.brand ?? null;
 
   return {
     identity: {

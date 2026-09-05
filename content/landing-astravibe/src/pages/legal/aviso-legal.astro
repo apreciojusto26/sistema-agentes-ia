@@ -3,6 +3,11 @@ import Legal from '@/layouts/Legal.astro';
 import { legal } from '@/data/legal';
 
 const { identity } = legal;
+// A TABLE OF LEGAL FACTS states the domain or states that it is pending — the
+// same rule the rest of this layer follows for an unconfigured merchant.
+// Naming the template's domain here would be a false identifying statement
+// under LSSI-CE art. 10, which is exactly what this page exists to get right.
+const siteLabel = Astro.site?.host ?? 'Pendiente de configuración';
 ---
 
 <Legal
@@ -23,7 +28,7 @@ const { identity } = legal;
       <tr><th>Domicilio</th><td>{identity.address}</td></tr>
       <tr><th>Email</th><td><a href={`mailto:${identity.email}`}>{identity.email}</a></td></tr>
       <tr><th>Teléfono</th><td>{identity.phone}</td></tr>
-      <tr><th>Sitio web</th><td>{identity.site}</td></tr>
+      <tr><th>Sitio web</th><td>{siteLabel}</td></tr>
     </tbody>
   </table>
 

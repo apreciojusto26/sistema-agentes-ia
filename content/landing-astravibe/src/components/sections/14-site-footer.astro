@@ -1,6 +1,5 @@
 ---
 import Container from '@/components/ui/Container.astro';
-import { product } from '@/data/product';
 import { legal } from '@/data/legal';
 import { policy, returnsHeadline } from '@/lib/policy';
 
@@ -49,10 +48,13 @@ const year = new Date().getFullYear();
       <div>
         <a
           href="/"
-          aria-label={`${product.brand} — ir al inicio`}
+          aria-label={`${legal.identity.tradeName} — ir al inicio`}
           class="font-display text-lg font-black tracking-tight text-bone transition hover:text-grape-soft"
         >
-          {product.brand}<span class="align-super text-[0.6em] text-grape">™</span>
+          {/* The STORE's name, like the header — see 02-site-header.astro. It
+              was the product brand, which is a different claim and is null
+              whenever the source listing named no maker. */}
+          {legal.identity.tradeName}<span class="align-super text-[0.6em] text-grape">™</span>
         </a>
         {/* "Garantía de N días" read product.guarantee.days — a number nothing
             configured. It states the RETURNS window now, from merchant config,

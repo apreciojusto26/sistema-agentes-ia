@@ -7,16 +7,26 @@ const check = ICONS.check;
 const cross = ICONS.cross;
 const rows = product.comparison;
 const rowCount = rows.length;
+
+// THE PRODUCT'S OWN LABEL. `product.brand` is null whenever the source
+// published no maker, and this table named it twice — once as a heading and
+// once as a column header. The name is factual and always present, so it is
+// what an unbranded product is called here.
+const label = product.brand ?? product.name;
 ---
 
 <section class="bg-white py-12 md:py-16">
   <Container>
     <p class="text-eyebrow font-bold uppercase text-grape">Comparativa</p>
-    <h2 class="mt-1 text-display md:text-4xl lg:text-5xl">{product.brand} vs. lámparas decorativas comunes</h2>
+    {/* WAS "… vs. lámparas decorativas comunes" — the star projector's category,
+        stated as this table's premise on every landing the template produces. A
+        comparison whose rows are written per product cannot hardcode what they
+        are compared against. */}
+    <h2 class="mt-1 text-display md:text-4xl lg:text-5xl">{label} vs. las alternativas habituales</h2>
 
     <div class="mx-auto mt-6 grid max-w-4xl grid-cols-[1.3fr_1fr_1fr] overflow-hidden rounded-card text-sm">
       <div class="bg-surface p-3 font-semibold text-graphite">Característica</div>
-      <div class="bg-grape-tint p-3 text-center font-semibold text-graphite">{product.brand}</div>
+      <div class="bg-grape-tint p-3 text-center font-semibold text-graphite">{label}</div>
       <div class="bg-white p-3 text-center font-semibold text-graphite">Otros</div>
 
       {

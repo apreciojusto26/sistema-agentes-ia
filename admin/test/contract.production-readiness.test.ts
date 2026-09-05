@@ -57,11 +57,17 @@ describe('a landing never shares another product as its own', () => {
     }
   });
 
-  test('a non-PNG main image removes the cover rather than shipping the wrong one', () => {
-    // Base.astro requests a fixed /og-cover.png and lives under a path
-    // scope-boundaries protects, and this repo has no raster transcoder. The
-    // rule is the one already established for the brand mark: absence beats the
-    // wrong identity.
+  test('a JPEG main image becomes the preview under its REAL extension', () => {
+    // THIS TEST USED TO ASSERT THE OPPOSITE, and the reversal is an improvement
+    // rather than a relaxation. The old rule deleted the cover whenever the
+    // source was not a PNG, because Base.astro requested a fixed
+    // `/og-cover.png` and lived under a protected path.
+    //
+    // That path is now authorized and fixed: the layout reads the filename from
+    // src/data/og.ts, so there is no `.png` to satisfy and no reason to rename a
+    // JPEG into a lie about a file other systems read. Absence is still the
+    // answer when there is no usable media — it is no longer the answer to a
+    // file extension.
     const dir = mkdtempSync(path.join(tmpdir(), 'og-jpg-'));
     mkdirSync(path.join(dir, 'images'), { recursive: true });
     cpSync(path.join(FIX, 'assets/a/images/img_0.png'), path.join(dir, 'images/img_0.jpg'));
@@ -72,13 +78,15 @@ describe('a landing never shares another product as its own', () => {
         media: { images: [{ url: null, localPath: 'images/img_0.jpg', order: 0 }], videos: [] },
       }),
     );
-    const { out, stdout } = generate('zz-og-jpg', [
+    const { out } = generate('zz-og-jpg', [
       '--images', path.join(dir, 'images'),
       '--product', path.join(dir, 'product.json'),
     ]);
     try {
+      expect(existsSync(path.join(out, 'public/og-cover.jpg'))).toBe(true);
+      expect(readFileSync(path.join(out, 'src/data/og.ts'), 'utf-8')).toContain("'og-cover.jpg'");
+      // The template's own cover never survives, whatever the extension.
       expect(existsSync(path.join(out, 'public/og-cover.png'))).toBe(false);
-      expect(stdout, 'the removal was silent').toMatch(/NO SOCIAL PREVIEW/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
       rmSync(out, { recursive: true, force: true });
@@ -130,9 +138,15 @@ describe('one command answers "is this ready?"', () => {
       '--product', path.join(FIX, 'assets/a/product.json'),
     ]);
     try {
+      // Written OVER the file the landing DECLARES — the only way this artwork
+      // could actually reach a social card now that the filename is generated
+      // beside the image instead of being a fixed `/og-cover.png`.
+      const declared = /ogImageFile: string \| null = '([^']+)'/.exec(
+        readFileSync(path.join(out, 'src/data/og.ts'), 'utf-8'),
+      )![1];
       cpSync(
         path.join(REPO_ROOT, 'content/landing-astravibe/public/og-cover.png'),
-        path.join(out, 'public/og-cover.png'),
+        path.join(out, 'public', declared),
       );
       const r = check(out);
       expect(r.status).toBe(1);

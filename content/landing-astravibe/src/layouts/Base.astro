@@ -1,4 +1,5 @@
 ---
+import { ogImageFile } from '@/data/og';
 import '@/styles/global.css';
 import { getSecret } from 'astro:env/server';
 import { CONSENT_KEY, LEGACY_CONSENT_KEY } from '@/lib/consent';
@@ -12,7 +13,14 @@ interface Props {
 }
 
 const { title, description } = Astro.props;
-const ogImage = new URL('/og-cover.png', Astro.site ?? Astro.url).toString();
+// THE SOCIAL PREVIEW IS THIS RUN'S ASSET, and its filename is generated
+// alongside it — the extension follows the real file, because renaming a JPEG
+// to .png is a lie about a file other systems read.
+//
+// `Astro.site` is undefined until a landing is given a domain, and the
+// fallback is the REQUEST url rather than any hardcoded host. A preview
+// therefore advertises itself, never someone else.
+const ogImage = ogImageFile ? new URL(`/${ogImageFile}`, Astro.site ?? Astro.url).toString() : null;
 
 // Gated to prod so local/preview traffic doesn't pollute GA4/Clarity data.
 const gaId = import.meta.env.PROD ? getSecret('PUBLIC_GA_MEASUREMENT_ID') : undefined;
@@ -40,7 +48,7 @@ const legacyConsentKey = LEGACY_CONSENT_KEY;
     <meta property="og:type" content="website" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
-    <meta property="og:image" content={ogImage} />
+    {ogImage && <meta property="og:image" content={ogImage} />}
     <meta name="twitter:card" content="summary_large_image" />
 
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

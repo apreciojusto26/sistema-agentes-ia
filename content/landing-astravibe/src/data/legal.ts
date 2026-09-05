@@ -22,7 +22,13 @@ export const legal = {
     address: 'Calle la Iglesia, 7, Fariza de Sayago, 49213 Zamora, España',
     email: 'bamzukafiliados@gmail.com',
     phone: '+34 602 057 976',
-    site: 'astravibe.bamzuk.com',
+    // `site` WAS THE LITERAL 'astravibe.bamzuk.com' and it is gone.
+    //
+    // This module is copied verbatim into every generated landing, so a legal
+    // notice for a light tube stated, as a legal fact under LSSI-CE art. 10,
+    // that it was served from the star projector's domain. The three pages
+    // that render it read `Astro.site` instead — the one SITE_URL authority —
+    // and say the value is pending when the landing has no domain yet.
   },
 
   /** Fecha de última revisión mostrada al pie de cada página legal. */

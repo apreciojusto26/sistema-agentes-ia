@@ -1,15 +1,26 @@
 ---
-import { product } from '@/data/product';
+import { legal } from '@/data/legal';
 import { CartButton } from '@/components/islands/CartButton';
+
+// THE LOGO IS THE STORE'S NAME, NOT THE PRODUCT'S BRAND. It read the product
+// brand — a fact about who MANUFACTURES the thing — and used it as the
+// identity of the shop selling it. The two are different claims, and the
+// difference became visible the moment brand became honestly nullable: a
+// product whose listing named no maker rendered a bare "™" as its logo.
+//
+// `legal.identity.tradeName` is the concept that was missing. It already
+// exists, it is already the merchant's declared commercial name on the legal
+// notice, and it is never null.
+const storeName = legal.identity.tradeName;
 ---
 
 <header class="sticky top-9 z-40 flex h-14 items-center justify-between bg-white px-5">
   <a
     href="/"
-    aria-label={`${product.brand} — ir al inicio`}
+    aria-label={`${storeName} — ir al inicio`}
     class="font-display text-xl font-black leading-none tracking-tight text-graphite transition hover:text-grape"
   >
-    {product.brand}<span class="align-super text-[0.6em] text-grape">™</span>
+    {storeName}<span class="align-super text-[0.6em] text-grape">™</span>
   </a>
 
   <CartButton client:load />
