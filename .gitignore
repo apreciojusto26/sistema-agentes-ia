@@ -18,3 +18,8 @@ admin/.staged/
 
 # skill-registry cache — regenerated on demand, never source
 .skill-registry.cache.json
+
+# Operator merchant configuration — real legal identity (NIF, address,
+# phone). It is the seller, not the code: it belongs to the machine that runs
+# the Admin, never to the repository.
+admin/merchant.json

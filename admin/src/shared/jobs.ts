@@ -45,6 +45,8 @@ export type GenerateParams = {
    * anything an operator could look at.
    */
   merchantPath?: string | null;
+  /** This landing's public origin. Persisted into the output, never a secret. */
+  siteUrl?: string | null;
   /**
    * F3: the asset pipeline's output — gallery, hero clips, UGC strip.
    *

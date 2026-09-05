@@ -222,13 +222,15 @@ describe('a single generation flow', () => {
     expect(container.textContent).toContain('Opciones avanzadas');
 
     act(() => button('Opciones avanzadas')!.click());
-    // TWO tools now, not three. "Handle de Shopify" was never an advanced
-    // setting — linking a product is a commercial decision, and it moved to
-    // the visible Shopify section where the product is CHOSEN from the shop
-    // instead of spelled from memory.
-    expect(container.querySelectorAll('input')).toHaveLength(3);
+    // "Handle de Shopify" is NOT among them — linking a product is a commercial
+    // decision, and it moved to the visible Shopify section where the product
+    // is CHOSEN from the shop instead of spelled from memory. What IS here is
+    // the publication domain, which is deploy configuration and belongs with
+    // the other things an operator sets deliberately or not at all.
+    expect(container.querySelectorAll('input')).toHaveLength(4);
     expect(container.textContent).toContain('Reusar scrape');
     expect(container.textContent).toContain('Slug manual');
+    expect(container.textContent).toContain('Dominio de publicación');
     expect(container.textContent, 'the handle box came back as a hidden setting').not.toContain(
       'Handle de Shopify',
     );

@@ -82,6 +82,9 @@ function parseArgs(argv) {
     else if (a === '--images') args.images = argv[++i];
     else if (a === '--images-manifest') args.imagesManifest = argv[++i];
     else if (a === '--product-id') args.productId = argv[++i];
+    // The landing's public origin. Persisted into the output so a later
+    // build or deploy does not depend on remembering to export it.
+    else if (a === '--site-url') args.siteUrl = argv[++i];
     // Fase 4: the CanonicalProduct whose media[] drives the asset pipeline.
     // Opt-in — its absence keeps both legacy --images modes byte-identical.
     else if (a === '--product') args.productJson = argv[++i];
@@ -175,6 +178,16 @@ function parseArgs(argv) {
   // write-manifest) can trust args.productId is either undefined or a
   // well-formed id, never a garbled string that would silently poison the
   // manifest. No `--reset` flag exists — see design D4/D5 Open Questions.
+  if (args.siteUrl !== undefined) {
+    // Validated in parseArgs, before anything is written: a malformed origin
+    // must not reach disk and must not produce a half-generated landing.
+    try {
+      args.siteUrl = validateSiteUrl(args.siteUrl);
+    } catch (err) {
+      fail(err.message, 'site-url-invalid');
+    }
+  }
+
   if (args.productId !== undefined && !isProductId(args.productId)) {
     fail(`--product-id "${args.productId}" is not a valid productId (expected prd_{base36ts}-{rand8})`);
   }
@@ -243,6 +256,48 @@ function serialize(value, indent = 2, level = 0) {
 }
 
 // --- file generators ------------------------------------------------------
+
+/**
+ * Validates a public origin for THIS landing, or throws.
+ *
+ * ─── WHY THE GENERATOR OWNS THIS ───────────────────────────────────────────
+ *
+ * `SITE_URL` is the one authority for "where does this landing live": Astro
+ * resolves `Astro.site` from it and the payment layer builds its SumUp callback
+ * URLs from it. Until now it existed ONLY in the environment of whoever ran the
+ * build, so a landing generated with a domain and rebuilt later without one
+ * silently lost its canonical origin and stopped advertising a social card —
+ * the operator had to remember to export it again, every time, forever.
+ *
+ * SAME RULES AS EVERY OTHER LAYER. astro.config.mjs enforces these at config
+ * time and src/lib/site-origin.ts at runtime; they are restated here because
+ * this is a plain node script that cannot import either, and a value that
+ * passes here must pass there.
+ *
+ * NO FALLBACK, and specifically no fallback to the template's own domain: an
+ * absent origin stays absent, and a preview says so.
+ */
+function validateSiteUrl(raw) {
+  const value = String(raw ?? '').trim();
+  if (!value) throw new Error('--site-url was given but empty. Omit the flag instead — a preview has no domain.');
+
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error(`--site-url must be a valid absolute URL origin, got ${JSON.stringify(value)}`);
+  }
+  const local =
+    url.hostname === 'localhost' || url.hostname.endsWith('.localhost') || url.hostname.startsWith('127.');
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && local)) {
+    throw new Error('--site-url must use HTTPS outside localhost');
+  }
+  if (url.username || url.password) throw new Error('--site-url must not contain credentials');
+  if (url.pathname !== '/' || url.search || url.hash) {
+    throw new Error('--site-url must contain only an origin, without path, query or fragment');
+  }
+  return url.origin;
+}
 
 /**
  * Sets one key in a .env, NEVER clobbering the file.
@@ -1386,6 +1441,9 @@ async function main() {
       lineage: resolvedLineage,
       sourceUrl: typeof provenance.sourceUrl === 'string' ? provenance.sourceUrl : null,
       itemId: typeof provenance.itemId === 'string' ? provenance.itemId : null,
+      // THE PUBLIC ORIGIN this landing was generated for, when it has one.
+      // A hostname is not a secret; nothing else about deployment is recorded.
+      siteUrl: args.siteUrl ?? null,
       // PRODUCT IDENTITY, beside the run identity above. `sourceUrl` is kept
       // verbatim for provenance and debugging — it is where the scrape
       // actually went — and `source.canonicalUrl` is the same link with the
@@ -1434,6 +1492,24 @@ async function main() {
     // PREVIEW — no handle. Nothing Shopify-related is written and the landing
     // is explicitly NOT buyable. It cannot silently inherit another product's
     // handle, because resolveProductHandle() throws without one.
+    // THE PUBLIC ORIGIN, PERSISTED WITH THE LANDING.
+    //
+    // Written to the output's own .env so the NEXT build reads it without the
+    // operator exporting anything. It is a public hostname, not a secret — the
+    // same reason the Shopify handle may be written here and the three
+    // credentials may not.
+    //
+    // Absent stays absent: no key is written at all, `Astro.site` stays
+    // undefined, and the landing advertises no canonical origin rather than
+    // inventing one.
+    if (args.siteUrl) {
+      writeEnvKey(path.join(outDir, '.env'), 'SITE_URL', args.siteUrl, [
+        '# Generated by scripts/generate-landing.mjs.',
+        '# SITE_URL is this landing\'s public origin — a hostname, not a secret.',
+      ]);
+      console.log(`✓ site origin — SITE_URL=${args.siteUrl} written to .env`);
+    }
+
     if (args.shopifyHandle) {
       const envPath = path.join(outDir, '.env');
 

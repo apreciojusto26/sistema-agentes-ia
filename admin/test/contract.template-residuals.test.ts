@@ -189,12 +189,20 @@ describe('the template names no site of its own', () => {
     const body = /function configuredSite\(\) \{[\s\S]*?\n\}/.exec(source)?.[0];
     expect(body, 'configuredSite() is gone — this test is checking nothing').toBeTruthy();
 
-    const configuredSite = new Function(
-      'process',
-      `${body}\nreturn configuredSite;`,
-    )({ env: {} }) as () => string | undefined;
-    const withEnv = (SITE_URL: string | undefined) =>
-      (new Function('process', `${body}\nreturn configuredSite;`)({ env: { SITE_URL } }) as () => string | undefined)();
+    // `configuredSite` now consults the landing's own .env when the variable is
+    // not exported — Astro does not load it at config time, and that gap made
+    // the origin depend on whoever remembered to export it. The file reader is
+    // stubbed to "no file" here so this test measures the RULES; the reader's
+    // own behaviour is covered below.
+    const evaluate = (SITE_URL: string | undefined) =>
+      (new Function(
+        'process',
+        'siteUrlFromEnvFile',
+        `${body}\nreturn configuredSite;`,
+      )({ env: { SITE_URL } }, () => undefined) as () => string | undefined)();
+
+    const configuredSite = () => evaluate(undefined);
+    const withEnv = (SITE_URL: string | undefined) => evaluate(SITE_URL);
 
     expect(configuredSite(), 'no SITE_URL means no site').toBeUndefined();
     expect(withEnv(''), 'an empty SITE_URL is absence, not an origin').toBeUndefined();
@@ -210,6 +218,42 @@ describe('the template names no site of its own', () => {
     ]) {
       expect(() => withEnv(bad), `${bad} was accepted as a site origin`).toThrow();
     }
+  });
+
+  test('and the origin is read back from the landing\'s own .env', () => {
+    // THE HALF THAT MAKES PERSISTENCE REAL. The generator writes SITE_URL into
+    // the output's .env; Vite loads .env into `import.meta.env` for the APP,
+    // but the config file is evaluated by Node first, so `process.env.SITE_URL`
+    // is undefined exactly when `site` has to be decided. Found by building a
+    // landing whose .env carried a real origin and watching it emit no
+    // og:image.
+    const source = readFileSync(path.join(TEMPLATE, 'astro.config.mjs'), 'utf-8');
+    const reader = /function siteUrlFromEnvFile\(\) \{[\s\S]*?\n\}/.exec(source)?.[0];
+    expect(reader, 'the .env reader is gone — persistence is broken again').toBeTruthy();
+
+    // `import.meta.url` cannot appear inside `new Function`, so the ONE
+    // reference to it is substituted for a literal path. Everything the test
+    // actually measures — which key, how it is parsed, what absence means — is
+    // the real source.
+    const evaluable = reader!.replace('import.meta.url', "'file:///landing/astro.config.mjs'");
+    const build = (contents: string | null) =>
+      new Function(
+        'existsSync',
+        'readFileSync',
+        `${evaluable}\nreturn siteUrlFromEnvFile;`,
+      )(() => contents !== null, () => contents) as () => string | undefined;
+
+    expect(build(null)(), 'no .env means no origin').toBeUndefined();
+    expect(build('PUBLIC_COMMERCE_MODE=preview\n')(), 'an .env without the key means no origin').toBeUndefined();
+    expect(build('PUBLIC_COMMERCE_MODE=preview\nSITE_URL=https://tienda.example\n')()).toBe(
+      'https://tienda.example',
+    );
+    // Quoted the way dotenv writes them.
+    expect(build('SITE_URL="https://tienda.example"\n')()).toBe('https://tienda.example');
+
+    // AN EXPORT STILL WINS — persisting a default must not stop an operator
+    // overriding it for one build.
+    expect(source).toMatch(/process\.env\.SITE_URL \?\? siteUrlFromEnvFile\(\)/);
   });
 });
 

@@ -111,6 +111,13 @@
 
 export const MERCHANT_REQUIRED_FIELDS = [
   'legalName',
+  // THE COMMERCIAL NAME, and it is required by the same article as the legal
+  // one: LSSI-CE art. 10.1.a asks for "nombre o denominación social" AND the
+  // name the business trades under. It lived hardcoded in src/data/legal.ts as
+  // 'Bamzuk', a second authority for a fact the merchant config already owned
+  // half of — so a landing for any operator stated Bamzuk's commercial name on
+  // its legal notice, and the site header used it as the shop's logo.
+  'tradeName',
   'taxId',
   'address',
   'contactEmail',
@@ -122,6 +129,11 @@ export const MERCHANT_REQUIRED_FIELDS = [
 ];
 
 export const MERCHANT_OPTIONAL_FIELDS = [
+  // OPTIONAL, and the reason is the law rather than convenience. LSSI-CE art.
+  // 10.1.b asks for contact data allowing "comunicación directa y efectiva";
+  // an email satisfies that, and a merchant without a published phone must not
+  // be blocked from publishing. It was hardcoded in legal.ts too.
+  'phone',
   'dataControllerEmail',
   'commercialGuaranteeDays',
   'freeShippingOverCents',
@@ -133,6 +145,8 @@ export const MERCHANT_ALL_FIELDS = [...MERCHANT_REQUIRED_FIELDS, ...MERCHANT_OPT
 /** Which legal page each field is load-bearing for — used in the error message. */
 export const MERCHANT_FIELD_PAGES = {
   legalName: 'aviso-legal, contacto, terminos, privacidad',
+  tradeName: 'aviso-legal, el título de las páginas legales, la cabecera y el pie',
+  phone: 'aviso-legal, contacto',
   taxId: 'aviso-legal',
   address: 'aviso-legal, contacto, privacidad',
   contactEmail: 'contacto, terminos, devoluciones',
@@ -426,6 +440,10 @@ export function normalizeMerchant(input) {
   if (!input) return null;
   return {
     legalName: input.legalName,
+    tradeName: input.tradeName,
+    // Absent stays absent — the pages that show it say so rather than
+    // rendering an empty row that reads like a missing value.
+    phone: input.phone ?? null,
     taxId: input.taxId,
     address: input.address,
     contactEmail: input.contactEmail,

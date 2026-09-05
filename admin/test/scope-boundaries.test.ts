@@ -521,13 +521,15 @@ describe('scope-boundaries (Batch G — machine-checkable, spec R14)', () => {
         { file: 'components/sections/13-real-results.astro', reads: [/\{product\.brand \?\? product\.name\}/] },
         // Header and footer carry the STORE's name. It was the product brand —
         // a different claim, and null whenever the listing named no maker.
-        { file: 'components/sections/02-site-header.astro', reads: [/const storeName = legal\.identity\.tradeName;/] },
-        { file: 'components/sections/14-site-footer.astro', reads: [/\{legal\.identity\.tradeName\}<span/] },
+        // The store's name comes from merchant config now, through the legal
+        // adapter — it was `legal.identity.tradeName`, a hardcoded 'Bamzuk'.
+        { file: 'components/sections/02-site-header.astro', reads: [/import \{ storeName \} from '@\/data\/legal';/] },
+        { file: 'components/sections/14-site-footer.astro', reads: [/\{storeName\}<span/, /orPending\(legal\.identity\.holder\)/] },
         // The purchase bar, the cart line and the order summary each printed
         // the projector's name verbatim.
         { file: 'components/islands/StickyAddToCart.tsx', reads: [/\{projection\.totalUnits\}x \{product\.name\}/] },
         { file: 'components/islands/CartDrawer.tsx', reads: [/\{product\.name\}/] },
-        { file: 'components/islands/CheckoutForm.tsx', reads: [/\{product\.name\}/, /merchantName: legal\.identity\.tradeName/] },
+        { file: 'components/islands/CheckoutForm.tsx', reads: [/\{product\.name\}/, /merchantName: storeName/] },
         { file: 'components/islands/OrderConfirmation.tsx', reads: [/Empaquetamos tu \$\{product\.name\}/] },
         // The social card, and the title that interpolated a nullable brand.
         { file: 'layouts/Base.astro', reads: [/ogImageFile && Astro\.site \? new URL\(`\/\$\{ogImageFile\}`, Astro\.site\)/] },

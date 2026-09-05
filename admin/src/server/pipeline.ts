@@ -176,6 +176,13 @@ export type PipelineInput = {
   shopifyHandle?: string | null;
   /** F3: the operator's commercial configuration — identity, policy and packs. */
   merchantPath?: string | null;
+  /**
+   * The landing's public origin, when the operator has one.
+   *
+   * OPTIONAL AND IT STAYS OPTIONAL. A preview has no domain, and inventing one
+   * is what put another product's host on a real landing's social card.
+   */
+  siteUrl?: string | null;
   /** F3: an explicit asset-pipeline output. Absent = media derived from the scrape. */
   assetsPath?: string | null;
   /** F5: the operator's palette. Absent = the canonical AstraVibe colours. */
@@ -466,6 +473,7 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
     // flag, so there is nothing here to omit.
     productJsonPath: canonicalPath,
     merchantPath: input.merchantPath ?? null,
+    siteUrl: input.siteUrl ?? null,
     // The stage's own output takes precedence; an explicit input is the escape hatch.
     assetsPath: assetsPath ?? input.assetsPath ?? null,
     themePath: input.themePath ?? null,

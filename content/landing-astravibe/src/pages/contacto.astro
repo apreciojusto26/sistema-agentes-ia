@@ -1,6 +1,6 @@
 ---
 import Legal from '@/layouts/Legal.astro';
-import { legal } from '@/data/legal';
+import { legal, orPending } from '@/data/legal';
 
 const { identity } = legal;
 ---
@@ -14,10 +14,10 @@ const { identity } = legal;
   <h2>Datos de contacto</h2>
   <table>
     <tbody>
-      <tr><th>Email</th><td><a href={`mailto:${identity.email}`}>{identity.email}</a></td></tr>
-      <tr><th>Teléfono</th><td>{identity.phone}</td></tr>
-      <tr><th>Responsable</th><td>{identity.holder}</td></tr>
-      <tr><th>Domicilio</th><td>{identity.address}</td></tr>
+      <tr><th>Email</th><td>{identity.email ? <a href={`mailto:${identity.email}`}>{identity.email}</a> : orPending(null)}</td></tr>
+      <tr><th>Teléfono</th><td>{identity.phone ?? 'No publicado'}</td></tr>
+      <tr><th>Responsable</th><td>{orPending(identity.holder)}</td></tr>
+      <tr><th>Domicilio</th><td>{orPending(identity.address)}</td></tr>
     </tbody>
   </table>
 

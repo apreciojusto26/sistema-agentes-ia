@@ -8,7 +8,7 @@ import Base from '@/layouts/Base.astro';
 import Container from '@/components/ui/Container.astro';
 import SiteHeader from '@/components/sections/02-site-header.astro';
 import SiteFooter from '@/components/sections/14-site-footer.astro';
-import { legal } from '@/data/legal';
+import { legal, storeName } from '@/data/legal';
 
 interface Props {
   title: string;
@@ -18,7 +18,7 @@ interface Props {
 const { title, description } = Astro.props;
 ---
 
-<Base title={`${title} — ${legal.identity.tradeName}`} description={description}>
+<Base title={`${title} — ${storeName}`} description={description}>
   <SiteHeader />
 
   <main class="bg-white py-10 md:py-14">

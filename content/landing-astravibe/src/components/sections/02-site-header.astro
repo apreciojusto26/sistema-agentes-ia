@@ -1,5 +1,5 @@
 ---
-import { legal } from '@/data/legal';
+import { storeName } from '@/data/legal';
 import { CartButton } from '@/components/islands/CartButton';
 
 // THE LOGO IS THE STORE'S NAME, NOT THE PRODUCT'S BRAND. It read the product
@@ -11,7 +11,8 @@ import { CartButton } from '@/components/islands/CartButton';
 // `legal.identity.tradeName` is the concept that was missing. It already
 // exists, it is already the merchant's declared commercial name on the legal
 // notice, and it is never null.
-const storeName = legal.identity.tradeName;
+// From the merchant config now, via the legal adapter — it was a hardcoded
+// 'Bamzuk' in src/data/legal.ts, shipped on every landing whoever was selling.
 ---
 
 <header class="sticky top-9 z-40 flex h-14 items-center justify-between bg-white px-5">

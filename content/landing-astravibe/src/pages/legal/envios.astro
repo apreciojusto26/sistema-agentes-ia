@@ -1,6 +1,6 @@
 ---
 import Legal from '@/layouts/Legal.astro';
-import { legal } from '@/data/legal';
+import { legal, orPending } from '@/data/legal';
 import { policy, shippingLine } from '@/lib/policy';
 
 const { identity } = legal;
@@ -48,7 +48,7 @@ const eta = policy ? shippingLine(policy).replace('Envío de ', '') : null;
   <h2>6. Incidencias</h2>
   <p>
     Si tu pedido no llega en el plazo previsto, llega dañado o no es el producto correcto, escríbenos a
-    <a href={`mailto:${identity.email}`}>{identity.email}</a> con tu número de pedido. Consulta también
+    {identity.email ? <a href={`mailto:${identity.email}`}>{identity.email}</a> : orPending(null)} con tu número de pedido. Consulta también
     <a href="/legal/devoluciones">devoluciones y desistimiento</a>.
   </p>
 </Legal>

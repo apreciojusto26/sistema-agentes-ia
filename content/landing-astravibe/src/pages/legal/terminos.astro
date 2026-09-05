@@ -1,9 +1,30 @@
 ---
 import Legal from '@/layouts/Legal.astro';
-import { legal } from '@/data/legal';
+import { legal, orPending } from '@/data/legal';
+import { product } from '@/data/product';
 import { policy, shippingLine } from '@/lib/policy';
 
 const { identity } = legal;
+
+// THE TERRITORY AND THE JURISDICTION ARE THE MERCHANT'S, not literals. This
+// page named one country three times while `merchant.country` travelled to
+// every landing and was rendered by nobody — so an operator selling from
+// anywhere else published someone else's jurisdiction as their binding terms.
+const country = orPending(identity.country);
+
+// AND THE FREE-SHIPPING PROMISE IS A CONFIGURED FACT. "El envío es gratuito"
+// sat hardcoded in the price clause of a binding document, so a merchant who
+// offers no such thing promised it in their own terms of sale.
+// `freeOverCents` is the merchant's threshold carried through the assembler:
+// 0 means every order, a positive number means above that amount, and null
+// means none is offered — in which case the clause states the plain truth.
+const freeOver = product.shipping.freeOverCents;
+const shippingCostLine =
+  freeOver === null
+    ? 'Los gastos de envío, cuando existan, se muestran antes de confirmar el pedido.'
+    : freeOver === 0
+      ? 'El <strong>envío es gratuito</strong>; no se añade ningún coste al finalizar la compra.'
+      : `El <strong>envío es gratuito</strong> a partir de ${(freeOver / 100).toFixed(2).replace('.', ',')} €; por debajo de ese importe se muestra el coste antes de confirmar.`;
 // See cookies.astro — the domain is the landing's, never the template's.
 const siteLabel = Astro.site?.host ?? 'este sitio web';
 const commercialGuaranteeDays = policy?.commercialGuarantee?.days ?? null;
@@ -15,14 +36,14 @@ const eta = policy ? shippingLine(policy).replace('Envío de ', '') : null;
   description="Condiciones generales de contratación: pedidos, precios, pago, entrega y garantías."
 >
   <p>
-    Estas condiciones regulan la compra de productos en {siteLabel}, titularidad de {identity.holder}. Al realizar
+    Estas condiciones regulan la compra de productos en {siteLabel}, titularidad de {orPending(identity.holder)}. Al realizar
     un pedido aceptas estas condiciones en su versión vigente en ese momento.
   </p>
 
   <h2>1. Ámbito</h2>
   <p>
-    Vendemos exclusivamente a consumidores mayores de 18 años con dirección de entrega en <strong>España</strong>. No
-    realizamos envíos fuera del territorio español.
+    Vendemos exclusivamente a consumidores mayores de 18 años con dirección de entrega en <strong>{country}</strong>. No
+    realizamos envíos fuera de ese territorio.
   </p>
 
   <h2>2. Proceso de compra</h2>
@@ -40,7 +61,7 @@ const eta = policy ? shippingLine(policy).replace('Envío de ', '') : null;
   <h2>3. Precios y pago</h2>
   <ul>
     <li>Todos los precios se muestran en <strong>euros (EUR)</strong> e <strong>incluyen el IVA</strong> aplicable.</li>
-    <li>El <strong>envío es gratuito</strong> a toda España; no se añade ningún coste al finalizar la compra.</li>
+    <li set:html={shippingCostLine} />
     <li>El importe total que verás antes de pagar es el importe final.</li>
     <li>El pago se procesa a través de <strong>SumUp</strong>. No almacenamos datos de tarjeta.</li>
   </ul>
@@ -83,7 +104,7 @@ const eta = policy ? shippingLine(policy).replace('Envío de ', '') : null;
 
   <h2>7. Atención al cliente y reclamaciones</h2>
   <p>
-    Escríbenos a <a href={`mailto:${identity.email}`}>{identity.email}</a>. Atendemos en español y respondemos lo antes
+    Escríbenos a {identity.email ? <a href={`mailto:${identity.email}`}>{identity.email}</a> : orPending(null)}. Atendemos en español y respondemos lo antes
     posible.
   </p>
   <p>
@@ -93,7 +114,7 @@ const eta = policy ? shippingLine(policy).replace('Envío de ', '') : null;
 
   <h2>8. Legislación aplicable</h2>
   <p>
-    Estas condiciones se rigen por la legislación española. En caso de controversia serán competentes los juzgados y
+    Estas condiciones se rigen por la legislación de <strong>{country}</strong>. En caso de controversia serán competentes los juzgados y
     tribunales del domicilio del consumidor.
   </p>
 </Legal>

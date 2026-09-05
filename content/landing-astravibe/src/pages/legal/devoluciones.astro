@@ -1,6 +1,6 @@
 ---
 import Legal from '@/layouts/Legal.astro';
-import { legal } from '@/data/legal';
+import { legal, orPending } from '@/data/legal';
 import { policy } from '@/lib/policy';
 
 const { identity } = legal;
@@ -46,7 +46,7 @@ const commercialGuaranteeDays = policy?.commercialGuarantee?.days ?? null;
 
   <h2>2. Cómo devolver</h2>
   <ol>
-    <li>Escríbenos a <a href={`mailto:${identity.email}`}>{identity.email}</a> indicando tu número de pedido.</li>
+    <li>Escríbenos a {identity.email ? <a href={`mailto:${identity.email}`}>{identity.email}</a> : orPending(null)} indicando tu número de pedido.</li>
     <li>Te confirmamos la dirección de devolución y los pasos a seguir.</li>
     <li>Envías el producto, a ser posible en su embalaje original.</li>
     <li>Al recibirlo y comprobarlo, tramitamos el reembolso.</li>
@@ -79,7 +79,7 @@ const commercialGuaranteeDays = policy?.commercialGuarantee?.days ?? null;
   <p>Puedes copiar este texto y enviárnoslo por email:</p>
   <div class="rounded-tile bg-bone p-4 text-sm">
     <p>
-      A la atención de {identity.holder}, {identity.address}, {identity.email}:
+      A la atención de {orPending(identity.holder)}, {orPending(identity.address)}, {orPending(identity.email)}:
     </p>
     <p class="mt-3">
       Por la presente le comunico que desisto de mi contrato de venta del siguiente bien:

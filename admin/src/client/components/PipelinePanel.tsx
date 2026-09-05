@@ -55,6 +55,15 @@ export default function PipelinePanel() {
    * representation; what changed is that an operator no longer has to know one.
    */
   const [handle, setHandle] = useState<string | null>(null);
+  /**
+   * THIS LANDING'S PUBLIC ORIGIN, when the operator has one.
+   *
+   * Optional and it stays optional: a preview has no domain and must not be
+   * made to invent one. When it IS given, the generator persists it into the
+   * landing's own .env — so a later build or deploy uses the same origin
+   * without anyone remembering to export a variable.
+   */
+  const [siteUrl, setSiteUrl] = useState('');
   const [advanced, setAdvanced] = useState(false);
   const [starting, setStarting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -88,6 +97,7 @@ export default function PipelinePanel() {
       scrapeJobId: scrapeJobId.trim() || undefined,
       slug: effectiveSlug,
       shopifyHandle: handle,
+      siteUrl: siteUrl.trim() || null,
       force: true,
     });
     setStarting(false);
@@ -172,7 +182,7 @@ export default function PipelinePanel() {
             above where it is visible and where the product is chosen from the
             shop instead of spelled from memory. */}
         {advanced && (
-          <div className="mt-2 grid gap-3 border-t border-hairline-soft pt-2 sm:grid-cols-2">
+          <div className="mt-2 grid gap-3 border-t border-hairline-soft pt-2 sm:grid-cols-3">
             <label className="text-xs text-ink-soft">
               Reusar scrape (jobId)
               <input
@@ -185,6 +195,21 @@ export default function PipelinePanel() {
               />
               <span id="help-scrape-job" className="mt-1 block text-[11px] text-ink-faint">
                 Reutiliza la extracción de una ejecución anterior sin volver a consultar al proveedor.
+              </span>
+            </label>
+            <label className="text-xs text-ink-soft">
+              Dominio de publicación
+              <input
+                value={siteUrl}
+                onChange={(e) => setSiteUrl(e.target.value)}
+                placeholder="https://producto.tudominio.com"
+                disabled={running}
+                aria-describedby="help-site-url"
+                className="mt-1 w-full rounded-lg border border-hairline bg-panel-soft px-2 py-1.5 text-sm text-ink placeholder:text-ink-faint disabled:opacity-50"
+              />
+              <span id="help-site-url" className="mt-1 block text-[11px] text-ink-faint">
+                El origen público de esta landing. Se guarda con ella, así un build posterior lo usa sin volver a
+                configurarlo. Vacío = preview, sin dominio y sin tarjeta social.
               </span>
             </label>
             <label className="text-xs text-ink-soft">

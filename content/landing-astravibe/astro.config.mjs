@@ -1,4 +1,5 @@
 // @ts-check
+import { existsSync, readFileSync } from 'node:fs';
 import { defineConfig, envField } from 'astro/config';
 import react from '@astrojs/react';
 import vercel from '@astrojs/vercel';
@@ -29,7 +30,7 @@ import tailwindcss from '@tailwindcss/vite';
 // layout falls back to the REQUEST url, which is right for a preview that has
 // no domain yet. Inventing one is how the previous product's identity survived.
 function configuredSite() {
-  const raw = process.env.SITE_URL?.trim();
+  const raw = (process.env.SITE_URL ?? siteUrlFromEnvFile())?.trim();
   if (!raw) return undefined;
 
   let url;
@@ -50,6 +51,34 @@ function configuredSite() {
 }
 
 const site = configuredSite();
+
+/**
+ * Reads SITE_URL out of this landing's OWN .env.
+ *
+ * ASTRO DOES NOT DO THIS FOR US, and that is the whole reason this function
+ * exists. Vite loads .env into `import.meta.env` for the APP, but the config
+ * file is evaluated by Node before any of that, so `process.env.SITE_URL` is
+ * undefined at the moment `site` has to be decided. Verified by building a
+ * landing whose .env carried a real origin and watching it produce no og:image.
+ *
+ * That gap made the origin depend on whoever remembered to export a variable:
+ * a landing generated WITH a domain and rebuilt later without one silently
+ * lost its canonical origin. The generator writes SITE_URL into the output's
+ * .env; this is the half that reads it back.
+ *
+ * ONE KEY, PARSED NARROWLY. `process.loadEnvFile()` would hoist every line of
+ * the file into the process — including the operator's Shopify credentials —
+ * for the sake of one public hostname. An explicit `process.env.SITE_URL`
+ * still wins: an export is a deliberate override of what was persisted.
+ */
+function siteUrlFromEnvFile() {
+  const envPath = new URL('./.env', import.meta.url);
+  if (!existsSync(envPath)) return undefined;
+  const match = /^SITE_URL=(.*)$/m.exec(readFileSync(envPath, 'utf-8'));
+  // Quotes are stripped the way dotenv does; anything else is passed through
+  // to the validation below, which is the only thing that decides.
+  return match?.[1]?.trim().replace(/^["']|["']$/g, '') || undefined;
+}
 
 // https://astro.build/config
 export default defineConfig({

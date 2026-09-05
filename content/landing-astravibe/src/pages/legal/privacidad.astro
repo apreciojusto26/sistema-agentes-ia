@@ -1,6 +1,6 @@
 ---
 import Legal from '@/layouts/Legal.astro';
-import { legal } from '@/data/legal';
+import { legal, orPending } from '@/data/legal';
 
 const { identity } = legal;
 ---
@@ -17,10 +17,17 @@ const { identity } = legal;
   <h2>1. Responsable del tratamiento</h2>
   <table>
     <tbody>
-      <tr><th>Responsable</th><td>{identity.holder}</td></tr>
-      <tr><th>NIF</th><td>{identity.taxId}</td></tr>
-      <tr><th>Domicilio</th><td>{identity.address}</td></tr>
-      <tr><th>Email</th><td><a href={`mailto:${identity.email}`}>{identity.email}</a></td></tr>
+      <tr><th>Responsable</th><td>{orPending(identity.holder)}</td></tr>
+      <tr><th>NIF</th><td>{orPending(identity.taxId)}</td></tr>
+      <tr><th>Domicilio</th><td>{orPending(identity.address)}</td></tr>
+      {/* THE DATA CONTROLLER'S ADDRESS, not the general one. `dataControllerEmail`
+          reached every landing and was rendered by nobody, while this page asked
+          for `email` — so a merchant with a separate DPO published the wrong
+          contact on the one page where the distinction is the point. It falls
+          back to contactEmail in merchant.mjs, so it is never emptier. */}
+      <tr><th>Email</th><td>{identity.dataControllerEmail
+        ? <a href={`mailto:${identity.dataControllerEmail}`}>{identity.dataControllerEmail}</a>
+        : orPending(null)}</td></tr>
     </tbody>
   </table>
 
@@ -80,7 +87,9 @@ const { identity } = legal;
     <li><strong>Retirar el consentimiento</strong> prestado, sin efectos retroactivos.</li>
   </ul>
   <p>
-    Escríbenos a <a href={`mailto:${identity.email}`}>{identity.email}</a> indicando el derecho que deseas ejercer.
+    Escríbenos a {identity.dataControllerEmail
+      ? <a href={`mailto:${identity.dataControllerEmail}`}>{identity.dataControllerEmail}</a>
+      : orPending(null)} indicando el derecho que deseas ejercer.
     Responderemos en el plazo máximo de un mes.
   </p>
   <p>

@@ -127,9 +127,23 @@ describe('every footer route is a real page', () => {
 describe('merchant facts are configured, never invented', () => {
   test('the required set is audited, not defensive — and it GREW for a reason', () => {
     expect(merchantLib.MERCHANT_REQUIRED_FIELDS).toEqual([
-      'legalName', 'taxId', 'address', 'contactEmail', 'country', 'returnsWindowDays', 'carrierName',
-      'shippingEtaLabel', 'returnShippingPaidBy',
+      'legalName', 'tradeName', 'taxId', 'address', 'contactEmail', 'country', 'returnsWindowDays',
+      'carrierName', 'shippingEtaLabel', 'returnShippingPaidBy',
     ]);
+
+    // `tradeName` IS THE NEWEST ENTRY, and it grew for the same reason
+    // `shippingEtaLabel` did: it was already being published, from the wrong
+    // place. src/data/legal.ts hardcoded `tradeName: 'Bamzuk'` and every
+    // landing this system produced carried it — onto the legal notice, where
+    // LSSI-CE art. 10.1.a makes the commercial name a binding identification,
+    // and onto the site header as the shop's logo. Two authorities for one
+    // fact, and the pages read the wrong one.
+    //
+    // `phone` joined the OPTIONAL set rather than this one, and the difference
+    // is the law: art. 10.1.b asks for contact allowing "comunicación directa
+    // y efectiva", which an email satisfies. A merchant without a published
+    // phone must not be blocked from publishing.
+    expect(merchantLib.MERCHANT_OPTIONAL_FIELDS).toContain('phone');
 
     // `shippingEtaLabel` USED TO BE ASSERTED ABSENT here, with the note
     // "product.shipping.etaLabel already holds it, and two sources for one
@@ -163,7 +177,7 @@ describe('merchant facts are configured, never invented', () => {
     // buy/packs at min 1, so a landing without them fails validation and the
     // generator says so in its TODO block instead of inventing a bundle.
     expect(merchantLib.MERCHANT_OPTIONAL_FIELDS).toEqual([
-      'dataControllerEmail', 'commercialGuaranteeDays', 'freeShippingOverCents', 'packs',
+      'phone', 'dataControllerEmail', 'commercialGuaranteeDays', 'freeShippingOverCents', 'packs',
     ]);
     expect(merchantLib.MERCHANT_REQUIRED_FIELDS).not.toContain('commercialGuaranteeDays');
     expect(merchantLib.MERCHANT_REQUIRED_FIELDS).not.toContain('freeShippingOverCents');

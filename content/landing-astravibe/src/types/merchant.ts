@@ -13,6 +13,16 @@
  */
 export interface Merchant {
   legalName: string;
+  /**
+   * The name the business TRADES under — LSSI-CE art. 10.1.a asks for this
+   * beside the legal one.
+   *
+   * It was hardcoded in src/data/legal.ts as 'Bamzuk' and copied into every
+   * generated landing, so a legal notice for any operator named Bamzuk as its
+   * commercial identity and the site header used it as the shop's logo. It is
+   * a merchant fact and it lives with the other merchant facts.
+   */
+  tradeName: string;
   taxId: string;
   address: string;
   contactEmail: string;
@@ -25,6 +35,12 @@ export interface Merchant {
   shippingEtaLabel: string;
   /** Who pays the return leg. "Free returns" is a claim, so it is configured. */
   returnShippingPaidBy: 'merchant' | 'customer';
+  /**
+   * Published phone, or `null`. OPTIONAL because the law is: LSSI-CE art.
+   * 10.1.b asks for contact allowing "comunicación directa y efectiva", and an
+   * email satisfies it. Also formerly hardcoded in legal.ts.
+   */
+  phone: string | null;
   /** Falls back to contactEmail when the merchant has no separate DPO. */
   dataControllerEmail: string;
   /**

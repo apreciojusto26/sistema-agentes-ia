@@ -10,6 +10,7 @@ export type StartPipelineBody = {
   scrapeJobId?: string;
   slug: string;
   shopifyHandle?: string | null;
+  siteUrl?: string | null;
   force?: boolean;
 };
 

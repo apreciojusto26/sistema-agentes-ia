@@ -1,6 +1,6 @@
 ---
 import Legal from '@/layouts/Legal.astro';
-import { legal } from '@/data/legal';
+import { legal, orPending } from '@/data/legal';
 
 const { identity } = legal;
 // THE SITE IS THE LANDING'S OWN, from the SITE_URL authority. It used to be
@@ -87,6 +87,6 @@ const siteLabel = Astro.site?.host ?? 'este sitio web';
   <p>
     El tratamiento de los datos recogidos mediante cookies se detalla en nuestra
     <a href="/legal/privacidad">política de privacidad</a>. Para cualquier duda, escríbenos a
-    <a href={`mailto:${identity.email}`}>{identity.email}</a>.
+    {identity.email ? <a href={`mailto:${identity.email}`}>{identity.email}</a> : orPending(null)}.
   </p>
 </Legal>

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '@nanostores/react';
 import { $cart } from '@/stores/cart';
 import { product } from '@/data/product';
-import { legal } from '@/data/legal';
+import { storeName } from '@/data/legal';
 import { policy, returnsHeadline, shippingLine } from '@/lib/policy';
 
 // Checkout trust row: both items were copy asserting policy — a delivery
@@ -277,7 +277,7 @@ export function CheckoutForm({ commerce }: CheckoutFormProps) {
           // is not the seller>", and once brand became honestly nullable it
           // would have been null. `tradeName` is the merchant's own commercial
           // name and is never absent.
-          googlePay: { merchantId: GOOGLE_PAY_MERCHANT_ID, merchantName: legal.identity.tradeName },
+          googlePay: { merchantId: GOOGLE_PAY_MERCHANT_ID, merchantName: storeName },
           onLoad: () => trackCheckoutEvent('sumup_widget_loaded', { checkoutId, phase: 'widget' }),
         });
       })

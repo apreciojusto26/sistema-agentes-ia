@@ -7,5 +7,7 @@
   "returnsWindowDays": 14,
   "carrierName": "Transportista Ficticio",
   "shippingEtaLabel": "Entrega estimada en 3-5 días laborables",
-  "returnShippingPaidBy": "customer"
+  "returnShippingPaidBy": "customer",
+  "tradeName": "FIXTURE Store",
+  "phone": "+34 900 000 000"
 }

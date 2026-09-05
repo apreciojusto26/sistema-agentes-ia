@@ -19,8 +19,31 @@ export type StartPipelineBody = {
   scrapeJobId?: string;
   slug?: string;
   shopifyHandle?: string | null;
+  siteUrl?: string | null;
   force?: boolean;
 };
+
+/**
+ * The landing's public origin. Same rules the generator, astro.config.mjs and
+ * src/lib/site-origin.ts all enforce — restated at the HTTP edge so an
+ * operator is told immediately rather than by a failed generation.
+ */
+export function checkSiteUrl(raw: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(raw.trim());
+  } catch {
+    return 'siteUrl must be a valid absolute URL origin (e.g. https://producto.example.com)';
+  }
+  const local =
+    url.hostname === 'localhost' || url.hostname.endsWith('.localhost') || url.hostname.startsWith('127.');
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && local)) return 'siteUrl must use https://';
+  if (url.username || url.password) return 'siteUrl must not contain credentials';
+  if (url.pathname !== '/' || url.search || url.hash) {
+    return 'siteUrl must be only an origin — no path, query or fragment';
+  }
+  return null;
+}
 
 /** Pure so the validation can be unit-tested without a server. */
 export function validateStart(body: StartPipelineBody): { ok: true } | { ok: false; message: string } {
@@ -36,6 +59,12 @@ export function validateStart(body: StartPipelineBody): { ok: true } | { ok: fal
   if (body.url && !/^https?:\/\//i.test(body.url)) {
     return { ok: false, message: 'url must start with http:// or https://' };
   }
+  // Empty means "no domain yet", which is a preview and entirely valid.
+  if (body.siteUrl?.trim()) {
+    const problem = checkSiteUrl(body.siteUrl);
+    if (problem) return { ok: false, message: problem };
+  }
+
   // THE LINK MUST NAME A PRODUCT, and this is where an operator finds out.
   //
   // Without it a mistyped or short link reached the scraper, which has its own
@@ -101,6 +130,7 @@ export function registerPipelineRoutes(app: FastifyInstance, registry: JobRegist
           scrapeJobId: body.scrapeJobId,
           slug: body.slug!,
           shopifyHandle: body.shopifyHandle?.trim() ? body.shopifyHandle.trim() : null,
+          siteUrl: body.siteUrl?.trim() ? body.siteUrl.trim() : null,
           force: body.force ?? false,
         },
         {

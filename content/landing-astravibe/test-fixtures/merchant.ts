@@ -11,7 +11,7 @@
 import type { Merchant } from '@/types/merchant';
 
 export const merchant: Merchant | null = {
-  legalName: 'Fixture Comercial S.L.',
+  legalName: 'Fixture Comercial S.L.', tradeName: 'Fixture', phone: '+34 900 000 000',
   taxId: 'B00000000',
   address: 'Calle Ficticia 1, 00000 Ciudad',
   contactEmail: 'fixture@example.invalid',
