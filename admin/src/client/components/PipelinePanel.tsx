@@ -13,6 +13,7 @@ import { useState } from 'react';
 import PipelineColumn from './PipelineColumn';
 import ActiveStagePanel from './ActiveStagePanel';
 import JobHistory from './JobHistory';
+import ShopifySection from './ShopifySection';
 import { buildBlocks, activeBlock, emptyBlocks } from './pipeline-blocks';
 import { startPipeline, usePipelineStream } from '../http/pipeline';
 import * as api from '../http/client';
@@ -47,7 +48,13 @@ export default function PipelinePanel() {
   const [url, setUrl] = useState('');
   const [scrapeJobId, setScrapeJobId] = useState('');
   const [slug, setSlug] = useState('');
-  const [handle, setHandle] = useState('');
+  /**
+   * The linked Shopify product, as a handle — CHOSEN in ShopifySection, not
+   * typed. `null` is Preview, which is a normal outcome and not a missing
+   * value. The handle is still what the generator takes, so it stays the
+   * representation; what changed is that an operator no longer has to know one.
+   */
+  const [handle, setHandle] = useState<string | null>(null);
   const [advanced, setAdvanced] = useState(false);
   const [starting, setStarting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -80,7 +87,7 @@ export default function PipelinePanel() {
       url: url.trim() || undefined,
       scrapeJobId: scrapeJobId.trim() || undefined,
       slug: effectiveSlug,
-      shopifyHandle: handle.trim() || null,
+      shopifyHandle: handle,
       force: true,
     });
     setStarting(false);
@@ -109,7 +116,7 @@ export default function PipelinePanel() {
     }
   }
 
-  const commerceNow = handle.trim() ? COMMERCE_LABEL['commerce-configured'] : COMMERCE_LABEL['preview-only'];
+  const commerceNow = handle ? COMMERCE_LABEL['commerce-configured'] : COMMERCE_LABEL['preview-only'];
 
   return (
     <div className="mx-auto w-full max-w-[76rem] px-5 pb-10">
@@ -143,6 +150,8 @@ export default function PipelinePanel() {
           {effectiveSlug && <span className="rounded-full bg-panel-muted px-1.5 py-0.5 text-ink-soft">/{effectiveSlug}</span>}
         </p>
 
+        <ShopifySection handle={handle} onChange={setHandle} disabled={running} />
+
         <button
           type="button"
           onClick={() => setAdvanced((v) => !v)}
@@ -152,8 +161,18 @@ export default function PipelinePanel() {
           {advanced ? 'Ocultar opciones avanzadas' : 'Opciones avanzadas'}
         </button>
 
+        {/* ── ADVANCED: TOOLS, NOT SETTINGS ────────────────────────────────
+            Both of these were unlabelled boxes an operator could only use by
+            already knowing what they did. Neither participates in product
+            identity — the scrape is an input and the slug is an output PATH —
+            and saying so is the point of the help text.
+
+            "Handle de Shopify" LEFT this panel entirely. Linking a product is
+            a commercial decision, not a debugging switch, and it now happens
+            above where it is visible and where the product is chosen from the
+            shop instead of spelled from memory. */}
         {advanced && (
-          <div className="mt-2 grid gap-2 border-t border-hairline-soft pt-2 sm:grid-cols-3">
+          <div className="mt-2 grid gap-3 border-t border-hairline-soft pt-2 sm:grid-cols-2">
             <label className="text-xs text-ink-soft">
               Reusar scrape (jobId)
               <input
@@ -161,8 +180,12 @@ export default function PipelinePanel() {
                 onChange={(e) => setScrapeJobId(e.target.value)}
                 placeholder="opcional"
                 disabled={running}
+                aria-describedby="help-scrape-job"
                 className="mt-1 w-full rounded-lg border border-hairline bg-panel-soft px-2 py-1.5 text-sm text-ink placeholder:text-ink-faint disabled:opacity-50"
               />
+              <span id="help-scrape-job" className="mt-1 block text-[11px] text-ink-faint">
+                Reutiliza la extracción de una ejecución anterior sin volver a consultar al proveedor.
+              </span>
             </label>
             <label className="text-xs text-ink-soft">
               Slug manual
@@ -171,18 +194,13 @@ export default function PipelinePanel() {
                 onChange={(e) => setSlug(e.target.value)}
                 placeholder={slugFromUrl(url) || 'se deriva de la URL'}
                 disabled={running}
+                aria-describedby="help-slug"
                 className="mt-1 w-full rounded-lg border border-hairline bg-panel-soft px-2 py-1.5 text-sm text-ink placeholder:text-ink-faint disabled:opacity-50"
               />
-            </label>
-            <label className="text-xs text-ink-soft">
-              Handle de Shopify
-              <input
-                value={handle}
-                onChange={(e) => setHandle(e.target.value)}
-                placeholder="vacío = preview"
-                disabled={running}
-                className="mt-1 w-full rounded-lg border border-hairline bg-panel-soft px-2 py-1.5 text-sm text-ink placeholder:text-ink-faint disabled:opacity-50"
-              />
+              <span id="help-slug" className="mt-1 block text-[11px] text-ink-faint">
+                Sobrescribe la URL/ruta de salida. Si lo dejás vacío se genera automáticamente. No identifica al
+                producto.
+              </span>
             </label>
           </div>
         )}

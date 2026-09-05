@@ -38,6 +38,7 @@ const stage = (name: string, status: PipelineStageStatus, over: Partial<Pipeline
   startedAt: null,
   endedAt: null,
   error: null,
+  errorDetail: null,
   detail: null,
   ...over,
 });
@@ -221,9 +222,29 @@ describe('a single generation flow', () => {
     expect(container.textContent).toContain('Opciones avanzadas');
 
     act(() => button('Opciones avanzadas')!.click());
-    expect(container.querySelectorAll('input')).toHaveLength(4);
+    // TWO tools now, not three. "Handle de Shopify" was never an advanced
+    // setting — linking a product is a commercial decision, and it moved to
+    // the visible Shopify section where the product is CHOSEN from the shop
+    // instead of spelled from memory.
+    expect(container.querySelectorAll('input')).toHaveLength(3);
     expect(container.textContent).toContain('Reusar scrape');
-    expect(container.textContent).toContain('Handle de Shopify');
+    expect(container.textContent).toContain('Slug manual');
+    expect(container.textContent, 'the handle box came back as a hidden setting').not.toContain(
+      'Handle de Shopify',
+    );
+  });
+
+  it('explains what each advanced tool does, because neither is self-evident', () => {
+    // They were unlabelled boxes usable only by someone who already knew what
+    // they did. And neither participates in product identity — the scrape is
+    // an INPUT, the slug is an output PATH — which is the part an operator
+    // most needs told.
+    render(<PipelinePanel />);
+    act(() => button('Opciones avanzadas')!.click());
+    const text = container.textContent ?? '';
+    expect(text).toContain('Reutiliza la extracción de una ejecución anterior');
+    expect(text).toContain('Sobrescribe la URL/ruta de salida');
+    expect(text).toContain('No identifica al producto');
   });
 
   it('derives a slug from the URL so the common path needs no extra field', () => {
@@ -273,16 +294,39 @@ describe('a single generation flow', () => {
 // ── 10: commerce modes ─────────────────────────────────────────────────────
 
 describe('Preview vs Commerce', () => {
-  it('announces Preview only until a handle is entered, then Commerce configured', () => {
+  it('announces Preview only, and says plainly that a preview does not sell', () => {
+    // PREVIEW IS NOT A DEGRADED MODE. It is how you look at the work before
+    // deciding to sell it, and the panel must not read like something is
+    // missing — while still being unambiguous that nothing is buyable.
     render(<PipelinePanel />);
     expect(container.textContent).toContain('Preview only');
-
-    act(() => button('Opciones avanzadas')!.click());
-    setValue([...container.querySelectorAll('input')][3]!, 'mi-producto');
-
-    expect(container.textContent).toContain('Commerce configured');
+    expect(container.textContent).toContain('Sin producto vinculado');
+    expect(container.textContent).toContain('que no vende');
     // The third state is the verifier's to grant, never the UI's.
     expect(container.textContent).not.toContain('Shopify live verified');
+  });
+
+  it('generating never requires a linked product', () => {
+    // The button is enabled by a URL alone. A form that demanded a Shopify
+    // product to produce a preview would make the cheap, safe path the
+    // expensive one.
+    render(<PipelinePanel />);
+    setValue(container.querySelector('input')!, 'https://es.aliexpress.com/item/1005007345199501.html');
+    const start = button('Generar landing');
+    expect(start, 'the primary action disappeared').toBeTruthy();
+    expect((start as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('offers to link a product, and refuses to pretend it can create one', () => {
+    // "Crear producto" needs the Admin API: no client, no credential, no route.
+    // A button that looked live would be a promise the backend cannot keep.
+    render(<PipelinePanel />);
+    const text = container.textContent ?? '';
+    expect(text).toContain('Vincular producto existente');
+    expect(text).toContain('Crear producto en Shopify');
+    expect(text).toContain('Próximamente');
+    const create = button('Crear producto en Shopify');
+    expect((create as HTMLButtonElement | undefined)?.disabled).toBe(true);
   });
 });
 
@@ -434,7 +478,11 @@ describe('the modern dashboard shell is present, and the legacy one is not', () 
     const text = container.textContent ?? '';
     expect(text).toContain('Reusar scrape');
     expect(text).toContain('Slug manual');
-    expect(text).toContain('Handle de Shopify');
+    // The Shopify capability was not dropped — it was PROMOTED out of this
+    // drawer into a visible section of its own, where it is a product picker
+    // rather than a handle an operator has to remember.
+    expect(text).toContain('Shopify');
+    expect(text).toContain('Vincular producto existente');
   });
 
   it('the six agent portraits the rail needs all exist on disk', () => {
