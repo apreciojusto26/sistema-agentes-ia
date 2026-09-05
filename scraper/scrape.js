@@ -2,6 +2,7 @@ const { chromium } = require('playwright');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
+const { classifyScrapeFailure } = require('../scripts/lib/scrape-failure.cjs');
 
 // ---------------------------------------------------------------------------
 // STRUCTURED PROGRESS PROTOCOL (spec R5, design §4) — additive, opt-in.
@@ -393,6 +394,13 @@ async function extractVariants(page) {
 // PIPELINE
 // ---------------------------------------------------------------------------
 
+/**
+ * What the response actually was, kept so a failure can be classified on
+ * evidence rather than on the wording of a timeout. Only a status and a body
+ * PREFIX: enough to recognise a vendor's challenge page, never the page itself.
+ */
+const pageEvidence = { status: null, bodySample: null };
+
 async function scrapeAliExpress(url) {
   // FIRST, BEFORE THE BROWSER. A run that dies at navigation must not leave the
   // previous product's identity on disk for the archiver to find.
@@ -406,10 +414,32 @@ async function scrapeAliExpress(url) {
   });
   const page = await context.newPage();
 
+  /**
+   * Samples what the browser was actually shown, once, when a run is failing.
+   *
+   * A PREFIX only: enough for a vendor's own marker to be recognised, never the
+   * page. It runs in the failure path so a successful scrape pays nothing for
+   * it, and it swallows its own errors — a diagnostic that can itself throw
+   * would replace the real cause with its own.
+   */
+  const sampleBody = async () => {
+    try {
+      const html = await page.content();
+      pageEvidence.bodySample = typeof html === 'string' ? html.slice(0, 4000) : null;
+    } catch {
+      pageEvidence.bodySample = null;
+    }
+  };
+
   try {
     await withStage('open', async () => {
       console.log('🚀 Abriendo producto...');
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+      // THE RESPONSE IS KEPT, not discarded. It used to be thrown away one line
+      // before `waitForSelector('h1')`, so a page served with HTTP 403 and an
+      // anti-bot interstitial surfaced to the operator as "timeout waiting for
+      // h1" — the symptom, with the cause already in hand and dropped.
+      const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+      pageEvidence.status = response ? response.status() : null;
       await page.waitForSelector('h1', { timeout: 30000 });
       await page.waitForTimeout(3000);
     });
@@ -560,6 +590,12 @@ async function scrapeAliExpress(url) {
     });
 
     return product;
+  } catch (err) {
+    // Sampled HERE, while the browser is still open and showing whatever it was
+    // served. One read, then the error continues untouched: this observes the
+    // failure, it does not handle it.
+    await sampleBody();
+    throw err;
   } finally {
     await withStage('close', () => browser.close());
   }
@@ -570,7 +606,25 @@ async function scrapeAliExpress(url) {
 const targetUrl = process.argv[2] || 'https://es.aliexpress.com/item/1005007502111078.html';
 
 scrapeAliExpress(targetUrl).catch(err => {
-  emit('error', currentStage, { message: err.message }); // NEW — no-op when LG_EVENTS unset
+  // CLASSIFIED BEFORE IT LEAVES. The Admin renders `code` as a human summary
+  // and keeps the raw message in its technical area, so an operator is told
+  // "the provider blocked automated extraction" instead of being handed a
+  // selector timeout to interpret.
+  const classified = classifyScrapeFailure({
+    status: pageEvidence.status,
+    bodySample: pageEvidence.bodySample,
+    message: err.message,
+    url: targetUrl,
+  });
+  emit('error', currentStage, {
+    message: err.message,
+    code: classified.code,
+    // Evidence, not prose: what was observed, so the classification can be
+    // argued with rather than trusted.
+    vendor: classified.vendor,
+    httpStatus: classified.status,
+    evidence: classified.evidence,
+  });
   console.error('\n💥', err.message);                     // UNCHANGED
   process.exit(1);                                        // UNCHANGED
 });

@@ -51,6 +51,42 @@ function isArchiveOwnershipDeadEnd(job: JobRecord): boolean {
   return job.status === 'failed' && job.error?.stage === 'archive' && job.error?.code === 'archive-ownership-mismatch';
 }
 
+/**
+ * The scrape failure the scraper was able to CLASSIFY, and the copy for it.
+ *
+ * The Admin used to put the raw technical error in the summary line, so a
+ * provider that blocked us with an anti-bot challenge reported itself as
+ * "page.waitForSelector: Timeout 30000ms exceeded". True, and useless to
+ * anyone deciding what to do next.
+ *
+ * The classification is made in the scraper from the RESPONSE — status and
+ * vendor markers — never from the wording of the timeout, so an h1 timeout with
+ * no such evidence stays generic and keeps showing its technical error. The raw
+ * message is never hidden; it moves to the technical area below.
+ */
+function scrapeFailureCopy(job: JobRecord): { title: string; body: string; badge: string } | null {
+  if (job.status !== 'failed' || job.kind !== 'scrape') return null;
+  if (job.error?.code === 'ANTI_BOT') {
+    return {
+      title: 'No pudimos acceder al producto',
+      body:
+        'El proveedor bloqueó la extracción automática mediante su sistema anti-bot. ' +
+        'El producto no fue procesado.',
+      badge: 'ANTI_BOT',
+    };
+  }
+  if (job.error?.code === 'SCRAPE_FAILED') {
+    return {
+      title: 'No pudimos extraer el producto',
+      body:
+        'La página respondió, pero no encontramos los datos del producto donde esperábamos. ' +
+        'Puede ser un cambio en la web del proveedor o un problema temporal.',
+      badge: 'SCRAPE_FAILED',
+    };
+  }
+  return null;
+}
+
 function toneClass(tone: 'running' | 'done' | 'failed' | 'idle'): string {
   switch (tone) {
     case 'running':
@@ -78,6 +114,7 @@ export default function AgentRunPanel({
   const cancellable = !!onCancel && (job?.status === 'running' || job?.status === 'queued');
   const productId = job ? jobProductId(job) : null;
   const archiveDeadEnd = job ? isArchiveOwnershipDeadEnd(job) : false;
+  const scrapeFailure = job ? scrapeFailureCopy(job) : null;
 
   return (
     <section className="flex flex-col gap-3">
@@ -103,7 +140,9 @@ export default function AgentRunPanel({
                 producto <span className="font-mono">{productId}</span>
               </span>
             )}
-            {job.error && !archiveDeadEnd ? <span className="text-state-failed">Error: {job.error.message}</span> : null}
+            {job.error && !archiveDeadEnd && !scrapeFailure ? (
+              <span className="text-state-failed">Error: {job.error.message}</span>
+            ) : null}
             {cancellable && (
               <button
                 type="button"
@@ -114,6 +153,30 @@ export default function AgentRunPanel({
               </button>
             )}
           </p>
+
+          {scrapeFailure && (
+            <div className="rounded-lg border-2 border-red-300 bg-red-50 p-3 text-sm text-red-800">
+              <p className="flex items-center gap-2">
+                <span className="font-semibold">{scrapeFailure.title}</span>
+                <span className="rounded bg-red-200 px-1.5 py-0.5 font-mono text-[10px] font-bold text-red-900">
+                  {scrapeFailure.badge}
+                </span>
+              </p>
+              <p className="mt-1 text-xs">{scrapeFailure.body}</p>
+              {/*
+                THE TECHNICAL ERROR IS NOT HIDDEN, it is demoted. Collapsed by
+                default so the summary reads for a person, one click away so
+                nobody debugging has to go hunting in the logs.
+              */}
+              <details className="mt-2">
+                <summary className="cursor-pointer text-xs text-red-700">Detalles técnicos</summary>
+                <p className="mt-1 font-mono text-[11px] text-red-700">{job.error?.message}</p>
+                {job.error?.stage && (
+                  <p className="mt-0.5 font-mono text-[11px] text-red-600">etapa: {job.error.stage}</p>
+                )}
+              </details>
+            </div>
+          )}
 
           {archiveDeadEnd && (
             <div className="rounded-lg border-2 border-red-300 bg-red-50 p-3 text-sm text-red-800">
