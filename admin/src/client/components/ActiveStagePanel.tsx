@@ -7,6 +7,7 @@
 // cannot show a metric the backend never reported. There is no progress bar,
 // because no stage reports progress — the canvas had none either.
 import AgentAvatar from './AgentAvatar';
+import AgentSteps from './AgentSteps';
 import StageMark, { STATUS_TEXT } from './StageMark';
 import { STAGE_LABEL, type PipelineBlock } from './pipeline-blocks';
 
@@ -80,6 +81,15 @@ export default function ActiveStagePanel({ block, index, total, idleHint }: Acti
               <span className={`min-w-0 flex-1 text-[13px] ${s.status === 'skipped' ? 'text-ink-faint' : 'text-ink'}`}>
                 {STAGE_LABEL[s.name] ?? s.name}
                 {s.detail && <span className="block font-mono text-[11px] text-ink-soft">{s.detail}</span>}
+                {/* THE OPERATIONS THE CHILD ACTUALLY RAN. Reported by it, not
+                    predicted here — an agent used to go pending → working →
+                    done, which said that something was happening and nothing
+                    about what. */}
+                {s.steps.length > 0 && (
+                  <span className="mt-1.5 block border-l border-hairline-soft pl-3">
+                    <AgentSteps steps={s.steps} />
+                  </span>
+                )}
                 {/* The per-stage line stays terse: when the failure has a
                     human form, the headline is the sentence and the identifiers
                     live in the disclosure below. */}

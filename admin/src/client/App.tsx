@@ -13,6 +13,9 @@
 // same JobRegistry underneath.
 import { useEffect, useState } from 'react';
 import PipelinePanel from './components/PipelinePanel';
+import LandingsLibrary from './components/LandingsLibrary';
+import LandingDetail from './components/LandingDetail';
+import type { LandingDetail as Detail } from './http/landings';
 import { useTheme } from './http/useTheme';
 import * as api from './http/client';
 
@@ -33,9 +36,39 @@ function MoonIcon() {
   );
 }
 
+/**
+ * TWO VIEWS, ONE COMPONENT — state, not a router.
+ *
+ * The Admin is a single screen with a single running pipeline; adding a router
+ * would bring URL ownership, history and code splitting to a surface with two
+ * destinations and no deep links. Tabs match how the app already works: the
+ * pipeline panel keeps its own state and its SSE subscription across a tab
+ * switch, so leaving to look at the library never interrupts a run.
+ */
+type View = { tab: 'nueva' } | { tab: 'paginas'; slug: string | null };
+
 export default function App() {
   const { theme, toggle } = useTheme();
   const [apiOk, setApiOk] = useState<boolean | null>(null);
+  const [view, setView] = useState<View>({ tab: 'nueva' });
+  /** Bumped after a delete or a finished run so both lists re-read outputs/. */
+  const [libraryKey, setLibraryKey] = useState(0);
+  const [prefill, setPrefill] = useState<
+    { url: string; slug: string; siteUrl: string | null; shopifyHandle: string | null } | null
+  >(null);
+
+  const openLanding = (slug: string) => setView({ tab: 'paginas', slug });
+  const regenerate = (detail: Detail) => {
+    // The URL the landing was generated FROM. Without it there is nothing to
+    // regenerate from and the form stays empty rather than guessing one.
+    setPrefill({
+      url: detail.runs[0]?.sourceUrl ?? detail.landing.source?.canonicalUrl ?? '',
+      slug: detail.landing.slug,
+      siteUrl: detail.landing.siteUrl,
+      shopifyHandle: detail.landing.shopifyHandle,
+    });
+    setView({ tab: 'nueva' });
+  };
 
   // Real health, polled once on load. `null` means "not asked yet" and renders
   // as a neutral dot — never as a green one we have not earned.
@@ -105,8 +138,63 @@ export default function App() {
         </div>
       </header>
 
-      <main className="flex-1 pt-4">
-        <PipelinePanel />
+      {/* ── the two destinations ─────────────────────────────────────── */}
+      <nav aria-label="Vistas" className="mx-auto w-full max-w-[76rem] px-5 pt-3">
+        <div className="inline-flex gap-1 rounded-xl border border-hairline-soft bg-panel p-1">
+          {([
+            ['nueva', 'Nueva generación'],
+            ['paginas', 'Páginas creadas'],
+          ] as const).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              aria-current={view.tab === id ? 'page' : undefined}
+              onClick={() => setView(id === 'nueva' ? { tab: 'nueva' } : { tab: 'paginas', slug: null })}
+              className={`rounded-lg px-3.5 py-1.5 text-[13px] transition ${
+                view.tab === id ? 'bg-panel-muted font-semibold text-ink' : 'text-ink-soft hover:text-ink'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </nav>
+
+      <main className="flex-1 pt-3">
+        {/* The pipeline panel is never UNMOUNTED, only hidden: a run in flight
+            keeps its SSE subscription and its state while the operator looks
+            at the library. Unmounting would drop the stream and re-open it on
+            return, losing everything the run had reported so far. */}
+        <div hidden={view.tab !== 'nueva'}>
+          <PipelinePanel
+            onOpenLanding={openLanding}
+            onSeeAllLandings={() => setView({ tab: 'paginas', slug: null })}
+            libraryKey={libraryKey}
+            prefill={prefill}
+          />
+        </div>
+
+        {view.tab === 'paginas' && (
+          <div className="mx-auto w-full max-w-[76rem] px-5 pb-10">
+            {view.slug ? (
+              <LandingDetail
+                slug={view.slug}
+                onBack={() => setView({ tab: 'paginas', slug: null })}
+                onDeleted={() => {
+                  setLibraryKey((k) => k + 1);
+                  setView({ tab: 'paginas', slug: null });
+                }}
+                onRegenerate={regenerate}
+              />
+            ) : (
+              <LandingsLibrary
+                refreshKey={libraryKey}
+                onOpen={openLanding}
+                onCreateFirst={() => setView({ tab: 'nueva' })}
+              />
+            )}
+          </div>
+        )}
       </main>
     </div>
   );

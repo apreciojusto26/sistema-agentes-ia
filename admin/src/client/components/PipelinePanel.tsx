@@ -9,12 +9,13 @@
 // the SSE subscription; PipelineColumn, ActiveStagePanel and the result bar are
 // presentational and receive what the server said. They cannot disagree with
 // the run because they hold nothing of their own.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import PipelineColumn from './PipelineColumn';
+import RecentLandings from './RecentLandings';
 import ActiveStagePanel from './ActiveStagePanel';
 import JobHistory from './JobHistory';
 import ShopifySection from './ShopifySection';
-import { buildBlocks, activeBlock, emptyBlocks } from './pipeline-blocks';
+import { buildBlocks, activeBlock, emptyBlocks, type BlockId, type PipelineBlock } from './pipeline-blocks';
 import { startPipeline, usePipelineStream } from '../http/pipeline';
 import * as api from '../http/client';
 import { useJobs } from '../http/useJobs';
@@ -44,7 +45,22 @@ export function slugFromUrl(url: string): string {
   }
 }
 
-export default function PipelinePanel() {
+export type PipelinePanelProps = {
+  /** Opens one landing in the library view. */
+  onOpenLanding: (slug: string) => void;
+  onSeeAllLandings: () => void;
+  /** Bumped by the shell so the recent list re-reads after a delete. */
+  libraryKey?: number;
+  /** Prefills the form when the operator asked to regenerate a landing. */
+  prefill?: { url: string; slug: string; siteUrl: string | null; shopifyHandle: string | null } | null;
+};
+
+export default function PipelinePanel({
+  onOpenLanding,
+  onSeeAllLandings,
+  libraryKey = 0,
+  prefill = null,
+}: PipelinePanelProps) {
   const [url, setUrl] = useState('');
   const [scrapeJobId, setScrapeJobId] = useState('');
   const [slug, setSlug] = useState('');
@@ -73,20 +89,61 @@ export default function PipelinePanel() {
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewStarting, setPreviewStarting] = useState(false);
 
+  // REGENERATION IS THE SAME FORM, PREFILLED. There is no second code path
+  // for "generate again": the operator sees exactly what will run and can
+  // change any of it before starting.
+  useEffect(() => {
+    if (!prefill) return;
+    setUrl(prefill.url);
+    setSlug(prefill.slug);
+    setSiteUrl(prefill.siteUrl ?? '');
+    setHandle(prefill.shopifyHandle);
+    setAdvanced(true);
+  }, [prefill]);
+
   const record = usePipelineStream(pipelineId);
   const { jobs } = useJobs();
+
+  /**
+   * WHICH AGENT THE CENTRE PANEL IS SHOWING.
+   *
+   * `null` means "follow the run". While the pipeline is in flight the panel
+   * tracks whichever agent is working, which is what an operator watching a
+   * generation wants and what the rail has always done.
+   *
+   * The moment they click an agent it stops following and shows that one. A
+   * panel that jumped away mid-read because the next stage started would make
+   * the reports unusable exactly when they became interesting.
+   */
+  const [pinned, setPinned] = useState<BlockId | null>(null);
 
   const running = record?.status === 'running' || starting;
   // Before a run exists the six blocks still render, all pending, so the flow
   // reads on arrival instead of being an empty column.
   const blocks = record ? buildBlocks(record.stages) : emptyBlocks();
-  const active = record ? activeBlock(blocks) : null;
+  const following = record ? activeBlock(blocks) : null;
+  // A pinned agent wins, but only while it still exists in this run.
+  const pinnedBlock = pinned ? (blocks.find((b) => b.meta.id === pinned) ?? null) : null;
+  const active = pinnedBlock ?? following;
   const activeIndex = active ? blocks.findIndex((b) => b.meta.id === active.meta.id) : 0;
+
+  /**
+   * An agent is selectable once it has SOMETHING TO SHOW.
+   *
+   * Before a run, and for stages that have not started, there is no report —
+   * so the card is inert rather than opening an empty panel and implying the
+   * data is missing rather than not yet produced.
+   */
+  const selectable = (block: PipelineBlock) =>
+    block.stages.some((stage) => stage.status !== 'pending');
 
   const effectiveSlug = slug.trim() || slugFromUrl(url);
   const canStart = !running && !!effectiveSlug && (!!url.trim() || !!scrapeJobId.trim());
 
   async function submit() {
+    // A new run follows itself again — a pin from the previous one would leave
+    // the panel showing a finished agent while a new pipeline moves behind it.
+    setPinned(null);
     setFormError(null);
     setPreviewUrl(null);
     setPreviewError(null);
@@ -240,16 +297,26 @@ export default function PipelinePanel() {
           a ~17rem history. Wider than the previous 13rem rail because the
           cards carry an avatar and a pill, not a single row of text. */}
       <div className="mt-3 grid items-start gap-3 lg:grid-cols-[19rem_minmax(0,1fr)_17rem]">
-        <PipelineColumn blocks={blocks} activeId={active?.meta.id ?? null} />
+        <PipelineColumn
+          blocks={blocks}
+          activeId={active?.meta.id ?? null}
+          selectable={selectable}
+          onSelect={(id) => setPinned(id)}
+        />
 
         <ActiveStagePanel block={active} index={activeIndex} total={blocks.length || 6} />
 
-        <div className="flex flex-col gap-2">
-          <span className="cap pl-1 text-ink-faint">Historial</span>
-          <div className="max-h-[28rem] overflow-y-auto pr-0.5">
-            <JobHistory jobs={jobs} />
-          </div>
-        </div>
+        {/* ── RECENT PAGES, not job history ──────────────────────────────
+            This column listed JOBS and an operator read it as their pages.
+            They are different things — one landing generated four times is
+            four jobs and one page — so the navigational column is now the
+            library, and the raw job list stays reachable from it. */}
+        <RecentLandings
+          refreshKey={libraryKey}
+          onOpen={onOpenLanding}
+          onSeeAll={onSeeAllLandings}
+          jobCount={jobs.length}
+        />
       </div>
 
       {/* ── Resultado ────────────────────────────────────────────────── */}

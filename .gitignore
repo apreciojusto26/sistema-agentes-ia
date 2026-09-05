@@ -23,3 +23,6 @@ admin/.staged/
 # phone). It is the seller, not the code: it belongs to the machine that runs
 # the Admin, never to the repository.
 admin/merchant.json
+
+# One file per generation run — reports the Admin reads back after a restart.
+admin/.pipelines/

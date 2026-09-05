@@ -49,6 +49,14 @@ export const OUTPUTS_DIR = path.join(REPO_ROOT, 'outputs');
 export const MERCHANT_CONFIG_PATH = path.join(ADMIN_ROOT, 'merchant.json');
 
 export const JOBS_DIR = path.join(ADMIN_ROOT, '.jobs');
+/**
+ * One file per generation run — the report an operator opens days later.
+ *
+ * Beside .jobs rather than inside outputs/: a run that FAILED produced no
+ * output directory, and a report that only survived success would be missing
+ * exactly when it is most wanted.
+ */
+export const PIPELINES_DIR = path.join(ADMIN_ROOT, '.pipelines');
 export const STAGED_DIR = path.join(ADMIN_ROOT, '.staged');
 export const STAGED_CONTENT_PATH = path.join(STAGED_DIR, 'content.json');
 

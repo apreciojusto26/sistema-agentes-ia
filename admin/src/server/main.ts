@@ -23,6 +23,8 @@ import { registerArtifactsRoutes } from './routes/artifacts';
 import { registerPreviewRoutes } from './routes/preview';
 import { registerPipelineRoutes } from './routes/pipeline';
 import { registerShopifyRoutes } from './routes/shopify';
+import { registerLandingsRoutes } from './routes/landings';
+import * as pipelineStore from './pipeline-store';
 import { ADMIN_ROOT, PORT } from './config';
 
 export type BuildAppOptions = {
@@ -40,6 +42,10 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
   // (design §2) — recover() is synchronous, and this call happens before
   // buildApp() returns, which is before main() below ever calls .listen().
   registry.recover();
+  // The runs those jobs belonged to. Without this the Admin came back with
+  // every job on disk and no way to reach any of them: the report existed and
+  // was unreachable.
+  pipelineStore.recover();
 
   const app = Fastify({ logger: !opts.logger });
   const log = opts.logger ?? { warn: (msg: string) => app.log.warn(msg) };
@@ -52,6 +58,7 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
   registerPreviewRoutes(app);
   registerPipelineRoutes(app, registry);
   registerShopifyRoutes(app);
+  registerLandingsRoutes(app);
 
   const distClientDir = opts.distClientDir ?? path.join(ADMIN_ROOT, 'dist', 'client');
   const indexHtmlPath = path.join(distClientDir, 'index.html');

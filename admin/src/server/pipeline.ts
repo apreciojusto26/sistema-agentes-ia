@@ -72,6 +72,39 @@ export type PipelineStageErrorDetail = {
   facts: { label: string; value: string }[];
 };
 
+/**
+ * ONE REAL OPERATION INSIDE A STAGE.
+ *
+ * NOT INVENTED, AND NOT A TIMER. Every step here is a `withStage(...)` block
+ * the child script actually runs and already announces over the NDJSON
+ * protocol (`stage.start` / `stage.end` / `progress` / `warn` / `error`).
+ * scrape.js declares launch, open, defer-load, structured-data, gallery,
+ * variants, reviews, images, write, close; generate-content declares prepare,
+ * generate, save; generate-landing declares args, validate, preflight,
+ * copy-template, write-data, patch-theme, write-favicon, copy-images,
+ * write-manifest, todos.
+ *
+ * The registry has been parsing them into JobRecord.stages and persisting them
+ * to admin/.jobs/<id>/job.json since the protocol existed. Nothing rendered
+ * them. This carries them onto the pipeline record so the UI can, and so a
+ * report survives a restart.
+ *
+ * A UI that showed a checkmark for work that did not happen would be worse
+ * than showing nothing, so there is no mapping from "expected steps" here —
+ * only what the child reported.
+ */
+export type PipelineStep = {
+  /** The child's own stage id, e.g. 'structured-data'. Labelled in the client. */
+  name: string;
+  status: 'running' | 'passed' | 'failed' | 'warning';
+  startedAt: string;
+  endedAt: string | null;
+  ms: number | null;
+  /** Real counters the child emitted, e.g. images 7/8. Never synthesised. */
+  progress: { done: number; total: number; label?: string } | null;
+  warnings: string[];
+};
+
 export type PipelineStage = {
   name: PipelineStageName;
   status: PipelineStageStatus;
@@ -96,7 +129,32 @@ export type PipelineStage = {
   errorDetail: PipelineStageErrorDetail | null;
   /** Short human-readable outcome, e.g. "family=tech · 9 sections". */
   detail: string | null;
+  /**
+   * The child's own operations, mirrored live and kept after the run.
+   *
+   * Empty for a stage that delegates to no child (normalize, validate) or for
+   * one that has not started — absence of steps is not a step.
+   */
+  steps: PipelineStep[];
 };
+
+/** JobRecord.stages -> PipelineStep[]. A projection, never an interpretation. */
+function projectSteps(job: JobRecord | null): PipelineStep[] {
+  if (!job) return [];
+  return job.stages.map((s) => ({
+    name: s.stage,
+    // The child reports running/done/failed. `warning` is derived from the
+    // warnings IT emitted — a step that finished while reporting a problem is
+    // neither a clean pass nor a failure, and flattening it to a green tick
+    // hides the one thing worth reading.
+    status: s.status === 'running' ? 'running' : s.status === 'failed' ? 'failed' : s.warnings.length > 0 ? 'warning' : 'passed',
+    startedAt: s.startedAt,
+    endedAt: s.endedAt,
+    ms: s.ms,
+    progress: s.progress,
+    warnings: s.warnings,
+  }));
+}
 
 /**
  * Commerce posture of the produced landing. THREE distinct states, because
@@ -154,13 +212,27 @@ function freshStages(): PipelineStage[] {
     error: null,
     errorDetail: null,
     detail: null,
+    steps: [],
   }));
 }
 
 /** Waits for a job to reach a genuinely terminal status. */
-async function awaitJob(registry: JobRegistry, jobId: string, pollMs = 250): Promise<JobRecord> {
+async function awaitJob(
+  registry: JobRegistry,
+  jobId: string,
+  /**
+   * Called on every poll with the child's CURRENT steps.
+   *
+   * The poll loop already existed and already had the JobRecord in hand — the
+   * substeps were being parsed, stored and thrown away. No new transport, no
+   * second subscription: the pipeline's own SSE frame now carries them.
+   */
+  onSteps?: (steps: PipelineStep[]) => void,
+  pollMs = 250,
+): Promise<JobRecord> {
   for (;;) {
     const job = registry.get(jobId);
+    if (job) onSteps?.(projectSteps(job));
     if (job && TERMINAL.includes(job.status)) return job;
     await new Promise((r) => setTimeout(r, pollMs));
   }
@@ -332,7 +404,10 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
     s.jobId = job.jobId;
     scrapeJobId = job.jobId;
     emit();
-    const done = await awaitJob(registry, job.jobId);
+    const done = await awaitJob(registry, job.jobId, (steps) => {
+      s.steps = steps;
+      emit();
+    });
     if (done.status !== 'succeeded') return fail('scrape', jobFailure(done));
     pass('scrape', (done.result as { title?: string } | null)?.title ?? undefined);
   }
@@ -364,7 +439,10 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
   });
   contentStage.jobId = contentJob.jobId;
   emit();
-  const contentDone = await awaitJob(registry, contentJob.jobId);
+  const contentDone = await awaitJob(registry, contentJob.jobId, (steps) => {
+    contentStage.steps = steps;
+    emit();
+  });
   if (contentDone.status !== 'succeeded') return fail('content', jobFailure(contentDone));
   const contentPath = (contentDone.result as { stagedPath?: string } | null)?.stagedPath ?? null;
   if (!contentPath || !existsSync(contentPath)) {
@@ -483,7 +561,10 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
   });
   generateStage.jobId = generateJob.jobId;
   emit();
-  const generateDone = await awaitJob(registry, generateJob.jobId);
+  const generateDone = await awaitJob(registry, generateJob.jobId, (steps) => {
+    generateStage.steps = steps;
+    emit();
+  });
   if (generateDone.status !== 'succeeded') {
     // A CONFLICT AN OPERATOR CAN ACT ON.
     //

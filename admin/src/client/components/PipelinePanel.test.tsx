@@ -19,6 +19,13 @@ import { buildBlocks, rollUp, activeBlock, emptyBlocks, BLOCK_META } from './pip
 import { PIPELINE_STAGES } from '../../shared/pipeline-stages';
 import type { PipelineStage, PipelineStageStatus } from '../../server/pipeline';
 
+/**
+ * The shell's callbacks. The panel now lives beside a library view and tells
+ * it when to open a landing — supplied here as no-ops so these tests keep
+ * measuring the panel and nothing else.
+ */
+const panelProps = { onOpenLanding: () => {}, onSeeAllLandings: () => {} };
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const APP_SRC = path.join(__dirname, '../App.tsx');
 const COLUMN_SRC = path.join(__dirname, 'PipelineColumn.tsx');
@@ -39,6 +46,7 @@ const stage = (name: string, status: PipelineStageStatus, over: Partial<Pipeline
   endedAt: null,
   error: null,
   errorDetail: null,
+  steps: [],
   detail: null,
   ...over,
 });
@@ -216,7 +224,7 @@ describe('status roll-up is honest', () => {
 
 describe('a single generation flow', () => {
   it('shows ONE primary input; the technical fields hide behind Opciones avanzadas', () => {
-    render(<PipelinePanel />);
+    render(<PipelinePanel {...panelProps} />);
     expect(container.querySelectorAll('input')).toHaveLength(1);
     expect(container.textContent).toContain('URL del producto');
     expect(container.textContent).toContain('Opciones avanzadas');
@@ -241,7 +249,7 @@ describe('a single generation flow', () => {
     // they did. And neither participates in product identity — the scrape is
     // an INPUT, the slug is an output PATH — which is the part an operator
     // most needs told.
-    render(<PipelinePanel />);
+    render(<PipelinePanel {...panelProps} />);
     act(() => button('Opciones avanzadas')!.click());
     const text = container.textContent ?? '';
     expect(text).toContain('Reutiliza la extracción de una ejecución anterior');
@@ -261,7 +269,7 @@ describe('a single generation flow', () => {
     });
     vi.stubGlobal('fetch', fetchSpy);
 
-    render(<PipelinePanel />);
+    render(<PipelinePanel {...panelProps} />);
     setValue(container.querySelector('input')!, 'https://example.com/item/star-projector.html');
 
     const submit = button('Generar landing')!;
@@ -277,7 +285,7 @@ describe('a single generation flow', () => {
   });
 
   it('keeps the button disabled until there is something to run', () => {
-    render(<PipelinePanel />);
+    render(<PipelinePanel {...panelProps} />);
     expect(button('Generar landing')!.disabled).toBe(true);
   });
 
@@ -286,7 +294,7 @@ describe('a single generation flow', () => {
       'fetch',
       vi.fn().mockResolvedValue({ ok: false, status: 400, json: async () => ({ error: 'slug must be kebab-case' }) }),
     );
-    render(<PipelinePanel />);
+    render(<PipelinePanel {...panelProps} />);
     setValue(container.querySelector('input')!, 'https://example.com/item/x.html');
     await act(async () => button('Generar landing')!.click());
     expect(container.textContent).toContain('slug must be kebab-case');
@@ -300,7 +308,7 @@ describe('Preview vs Commerce', () => {
     // PREVIEW IS NOT A DEGRADED MODE. It is how you look at the work before
     // deciding to sell it, and the panel must not read like something is
     // missing — while still being unambiguous that nothing is buyable.
-    render(<PipelinePanel />);
+    render(<PipelinePanel {...panelProps} />);
     expect(container.textContent).toContain('Preview only');
     expect(container.textContent).toContain('Sin producto vinculado');
     expect(container.textContent).toContain('que no vende');
@@ -312,7 +320,7 @@ describe('Preview vs Commerce', () => {
     // The button is enabled by a URL alone. A form that demanded a Shopify
     // product to produce a preview would make the cheap, safe path the
     // expensive one.
-    render(<PipelinePanel />);
+    render(<PipelinePanel {...panelProps} />);
     setValue(container.querySelector('input')!, 'https://es.aliexpress.com/item/1005007345199501.html');
     const start = button('Generar landing');
     expect(start, 'the primary action disappeared').toBeTruthy();
@@ -322,7 +330,7 @@ describe('Preview vs Commerce', () => {
   it('offers to link a product, and refuses to pretend it can create one', () => {
     // "Crear producto" needs the Admin API: no client, no credential, no route.
     // A button that looked live would be a promise the backend cannot keep.
-    render(<PipelinePanel />);
+    render(<PipelinePanel {...panelProps} />);
     const text = container.textContent ?? '';
     expect(text).toContain('Vincular producto existente');
     expect(text).toContain('Crear producto en Shopify');
@@ -336,7 +344,7 @@ describe('Preview vs Commerce', () => {
 
 describe('result and preview appear only when earned', () => {
   it('no result card before a run finishes', () => {
-    render(<PipelinePanel />);
+    render(<PipelinePanel {...panelProps} />);
     expect(container.textContent).not.toContain('Landing lista');
     expect(button('Abrir preview')).toBeUndefined();
   });
@@ -435,17 +443,27 @@ describe('App is the dashboard shell', () => {
  * one-input form with its advanced fields.
  */
 describe('the modern dashboard shell is present, and the legacy one is not', () => {
-  const REQUIRED_REGIONS = ['Nueva generación', 'Tu equipo IA', 'Historial', 'Opciones avanzadas'];
+  // 'Historial' LEFT THIS LIST. The right-hand column listed JOBS and an
+  // operator read it as their pages — different things: one landing generated
+  // four times is four jobs and one page, and a failed job is not a page at
+  // all. The navigational column is the library now, and the run count stays
+  // beside it.
+  const REQUIRED_REGIONS = ['Nueva generación', 'Tu equipo IA', 'Últimas páginas', 'Opciones avanzadas'];
 
   it.each(REQUIRED_REGIONS)('renders the %s region', (label) => {
-    render(<PipelinePanel />);
+    render(<PipelinePanel {...panelProps} />);
     // Case-insensitive: these labels are uppercased by the `.cap` class in CSS,
     // so asserting the rendered casing would couple this to a style choice.
     expect(container.textContent?.toLowerCase()).toContain(label.toLowerCase());
   });
 
+  it('and the job history is no longer the primary column', () => {
+    render(<PipelinePanel {...panelProps} />);
+    expect(container.textContent?.toLowerCase()).not.toContain('historial');
+  });
+
   it('renders the agent rail with exactly the blocks the server can produce', () => {
-    render(<PipelinePanel />);
+    render(<PipelinePanel {...panelProps} />);
     const text = container.textContent ?? '';
     for (const label of ['Product Agent', 'Content Agent', 'Asset Agent', 'Build Agent', 'Validation Agent']) {
       expect(text, `${label} is missing from the rail`).toContain(label);
@@ -453,7 +471,7 @@ describe('the modern dashboard shell is present, and the legacy one is not', () 
   });
 
   it('renders NO Design Agent, because no run can produce that stage', () => {
-    render(<PipelinePanel />);
+    render(<PipelinePanel {...panelProps} />);
     expect(container.textContent).not.toContain('Design Agent');
     // …and not as a disabled/omitted placeholder either. The rail explains what
     // the team is doing; a permanently absent member is repo archaeology.
@@ -461,7 +479,7 @@ describe('the modern dashboard shell is present, and the legacy one is not', () 
   });
 
   it('renders the legacy three-agent surface nowhere', () => {
-    render(<PipelinePanel />);
+    render(<PipelinePanel {...panelProps} />);
     const text = container.textContent ?? '';
     // The exact strings from the interface this replaced. If any comes back,
     // the old shell has been restored over this one again.
@@ -475,7 +493,7 @@ describe('the modern dashboard shell is present, and the legacy one is not', () 
   it('keeps every advanced capability reachable rather than dropped', () => {
     // The simplification was UX only. Losing a field would be a real
     // regression dressed up as a cleaner form.
-    render(<PipelinePanel />);
+    render(<PipelinePanel {...panelProps} />);
     act(() => button('Opciones avanzadas')!.click());
     const text = container.textContent ?? '';
     expect(text).toContain('Reusar scrape');

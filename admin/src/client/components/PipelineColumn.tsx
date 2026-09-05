@@ -14,9 +14,18 @@ import { STAGE_LABEL, type PipelineBlock } from './pipeline-blocks';
 export type PipelineColumnProps = {
   blocks: PipelineBlock[];
   activeId: string | null;
+  /**
+   * Whether an agent has anything to show yet.
+   *
+   * An agent that has not started has no report, so its card is inert. Making
+   * it clickable would open an empty panel and read as "the data is missing"
+   * rather than "the work has not happened".
+   */
+  selectable?: (block: PipelineBlock) => boolean;
+  onSelect?: (id: PipelineBlock['meta']['id']) => void;
 };
 
-export default function PipelineColumn({ blocks, activeId }: PipelineColumnProps) {
+export default function PipelineColumn({ blocks, activeId, selectable, onSelect }: PipelineColumnProps) {
   return (
     <nav aria-label="Equipo de agentes" className="flex min-w-0 flex-col gap-2">
       <span className="cap pl-1 text-ink-faint">Tu equipo IA</span>
@@ -26,11 +35,18 @@ export default function PipelineColumn({ blocks, activeId }: PipelineColumnProps
           const isActive = block.meta.id === activeId;
           const dim = block.status === 'pending' || block.status === 'skipped';
 
+          const canSelect = selectable?.(block) ?? false;
+
           return (
             <li key={block.meta.id}>
-              <div
+              <button
+                type="button"
+                disabled={!canSelect}
+                onClick={() => canSelect && onSelect?.(block.meta.id)}
                 aria-current={isActive ? 'step' : undefined}
-                className={`relative flex gap-3 overflow-hidden rounded-xl p-3 ${
+                className={`relative flex w-full gap-3 overflow-hidden rounded-xl p-3 text-left transition ${
+                  canSelect ? 'cursor-pointer hover:border-hairline' : 'cursor-default'
+                } ${
                   isActive
                     ? 'bg-panel-muted border border-hairline'
                     : dim
@@ -63,7 +79,7 @@ export default function PipelineColumn({ blocks, activeId }: PipelineColumnProps
                   </div>
                   <span className="sr-only">{STATUS_TEXT[block.status]}</span>
                 </div>
-              </div>
+              </button>
             </li>
           );
         })}

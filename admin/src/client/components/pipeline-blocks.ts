@@ -235,6 +235,7 @@ export function emptyBlocks(): PipelineBlock[] {
       startedAt: null,
       endedAt: null,
       errorDetail: null,
+      steps: [],
       error: null,
       detail: null,
     })),
