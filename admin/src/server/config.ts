@@ -27,6 +27,27 @@ export const CONTENT_CONTRACT_MODULE = path.join(REPO_ROOT, 'scripts', 'lib', 'c
 export const TEMPLATE_DIR = path.join(REPO_ROOT, 'content', FIXED_TEMPLATE_NAME);
 export const OUTPUTS_DIR = path.join(REPO_ROOT, 'outputs');
 
+/**
+ * THE OPERATOR'S MERCHANT CONFIGURATION — seller identity and commercial policy.
+ *
+ * The Admin had no way to supply one. `merchantPath` existed on PipelineInput,
+ * runner.ts already turned it into `--merchant`, and the HTTP route simply
+ * never set it — so every landing generated through the UI reached
+ * `astro build` with `packs: []` and died on "product.packs is empty". The
+ * whole surface was one unset argument away from working.
+ *
+ * ONE FILE, because there is one merchant: this system has one Shopify store,
+ * one payment account and one legal seller (agents.MD §9). It is never written
+ * by an agent and never derived from content — merchant.mjs rejects a config
+ * with a missing fact rather than defaulting one, which is the entire point of
+ * that layer.
+ *
+ * ABSENT IS A REAL STATE. Without it a generation still runs and still
+ * produces a navigable landing whose legal pages say the information is
+ * pending — it simply cannot be built or sold yet, and says so.
+ */
+export const MERCHANT_CONFIG_PATH = path.join(ADMIN_ROOT, 'merchant.json');
+
 export const JOBS_DIR = path.join(ADMIN_ROOT, '.jobs');
 export const STAGED_DIR = path.join(ADMIN_ROOT, '.staged');
 export const STAGED_CONTENT_PATH = path.join(STAGED_DIR, 'content.json');

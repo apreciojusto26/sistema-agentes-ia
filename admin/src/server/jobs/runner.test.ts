@@ -404,6 +404,11 @@ describe('runner — real end-to-end against generate-landing.mjs (no network, f
 
     // Real file on disk, written by the real child, proving this was not an in-process import.
     const productTs = readFileSync(path.join(RUNNER_OUT_DIR, 'src/data/product.ts'), 'utf8');
-    expect(productTs).toContain('as const satisfies Product');
+    // WAS `as const satisfies Product`. `as const` does not widen, so every
+    // value kept its own literal type and the components reading this module
+    // were typed by one product's DATA instead of by their own contract — a
+    // landing with no packs gave `packs` the type `never[]`, and 05-buy-box's
+    // `packs[0].units` stopped compiling. See contract.product-lineage.test.ts.
+    expect(productTs).toContain('export const product: Product = {');
   });
 });

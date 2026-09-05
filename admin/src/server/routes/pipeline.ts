@@ -4,6 +4,8 @@
 // implementation this whole design avoids.
 import type { FastifyInstance } from 'fastify';
 import { runPipeline, type PipelineRecord } from '../pipeline';
+import { existsSync } from 'node:fs';
+import { MERCHANT_CONFIG_PATH } from '../config';
 import * as store from '../pipeline-store';
 import type { JobRegistry } from '../jobs/registry';
 import { validateAliExpressUrl } from '../validation/aliexpress-url';
@@ -87,8 +89,14 @@ export function registerPipelineRoutes(app: FastifyInstance, registry: JobRegist
     // the entire generation.
     const started = await new Promise<PipelineRecord>((resolve) => {
       let first = true;
+      // THE OPERATOR'S MERCHANT CONFIG, when they have written one. Passing it
+      // is what turns a generation into something that can actually build:
+      // packs, the returns window, the carrier and the delivery estimate are
+      // all merchant facts, and a landing with none of them fails structural
+      // validation by design.
       void runPipeline(
         {
+          merchantPath: existsSync(MERCHANT_CONFIG_PATH) ? MERCHANT_CONFIG_PATH : null,
           url: body.url,
           scrapeJobId: body.scrapeJobId,
           slug: body.slug!,

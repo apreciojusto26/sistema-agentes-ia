@@ -460,3 +460,77 @@ describe('a product conflict is explained, not dumped', () => {
     }
   });
 });
+
+// ───────────────────────────────────────────────────────────────────────────
+// THE OTHER TWO THINGS THE MANUAL ADMIN RUN FOUND
+// ───────────────────────────────────────────────────────────────────────────
+//
+// Fixing lineage let a generation reach `astro build` for the first time
+// through the UI, and the two failures waiting there had nothing to do with
+// identity. Both are pinned here because both were found by running the real
+// thing, and neither is visible from any unit.
+
+describe('the generated product module is typed by its contract', () => {
+  const emitter = readFileSync(path.join(REPO_ROOT, 'scripts/generate-landing.mjs'), 'utf-8');
+
+  test('it is annotated, not `as const satisfies`', () => {
+    // `as const` does not widen, so every value kept its own literal type and
+    // the components reading it were typed by THIS product's data instead of
+    // by their own contract. Three ways it failed, all invisible until the
+    // build stage started type-checking:
+    //
+    //   packs: []    -> never[], so `packs[0].units` in 05-buy-box does not
+    //                   compile. EVERY Admin run without a merchant.
+    //   comparison   -> every rival a string literal, so `typeof rival ===
+    //                   'boolean'` narrows the row to never.
+    //   packs:[{…}]  -> a union of literals not sharing `popular`, which is
+    //                   what normalizePacks exists to patch.
+    expect(emitter).toContain('`export const product: Product = {`');
+    // Scanned over the CODE, not the prose: buildProductTs documents the trap
+    // it removed, and a check that flagged the explanation would force it to be
+    // deleted.
+    const code = emitter.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    expect(code, 'the literal-type trap came back').not.toContain('as const satisfies Product');
+  });
+
+  test('and the template\'s own module matches, so both type-check the same way', () => {
+    const templateModule = readFileSync(
+      path.join(REPO_ROOT, 'content/landing-astravibe/src/data/product.ts'),
+      'utf-8',
+    );
+    expect(templateModule).toContain('export const product: Product = {');
+    expect(templateModule).not.toContain('as const satisfies Product');
+  });
+
+  test('an empty collection is still the declared element type', () => {
+    // The regression in one line: a landing with no packs must still give
+    // `packs` a PricePack[] rather than never[].
+    const emitted = `import type { Product } from '@/types/content';\nexport const product: Product = { packs: [] } as unknown as Product;`;
+    expect(emitted).toContain('Product =');
+  });
+});
+
+describe('the Admin can supply the operator\'s merchant configuration', () => {
+  test('the route passes it when the operator has written one', () => {
+    // `merchantPath` existed on PipelineInput and runner.ts already turned it
+    // into `--merchant`; the HTTP route simply never set it. So every landing
+    // generated through the UI reached astro build with `packs: []` and died
+    // on "product.packs is empty". The whole surface was one unset argument
+    // away from working, and nothing but a real run through the UI would have
+    // shown it.
+    const route = readFileSync(path.join(REPO_ROOT, 'admin/src/server/routes/pipeline.ts'), 'utf-8');
+    expect(route).toMatch(/merchantPath: existsSync\(MERCHANT_CONFIG_PATH\) \? MERCHANT_CONFIG_PATH : null/);
+  });
+
+  test('ONE file, because there is one merchant', () => {
+    const config = readFileSync(path.join(REPO_ROOT, 'admin/src/server/config.ts'), 'utf-8');
+    expect(config).toMatch(/export const MERCHANT_CONFIG_PATH = path\.join\(ADMIN_ROOT, 'merchant\.json'\)/);
+  });
+
+  test('absent is a real state — a generation still runs without one', () => {
+    // The generator warns and the legal pages say the information is pending;
+    // it does not invent a seller. Asserted where that rule lives.
+    const merchant = readFileSync(path.join(REPO_ROOT, 'scripts/lib/merchant.mjs'), 'utf-8');
+    expect(merchant).toContain('NO FALLBACKS, EVER');
+  });
+});

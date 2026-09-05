@@ -5,7 +5,7 @@ import type { Product } from '@/types/content';
  * bundle definitions, comparison rows, specs and badges.
  * Sections/islands MUST read from here — never hardcode strings/prices/images.
  */
-export const product = {
+export const product: Product = {
   brand: 'AstraVibe',
   name: 'AstraVibe — Proyector de estrellas USB',
   tagline: 'El cielo estrellado, en tu habitación.',
@@ -321,4 +321,4 @@ export const product = {
     pending: 'Agregando...',
     soldOut: 'Agotado',
   },
-} as const satisfies Product;
+};

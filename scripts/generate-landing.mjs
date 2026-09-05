@@ -398,7 +398,27 @@ function buildProductTs(shopifyHandle, fixed) {
   const lines = [
     `import type { Product } from '@/types/content';`,
     ``,
-    `export const product = {`,
+    // ANNOTATED, NOT `as const satisfies`.
+    //
+    // `as const` does not widen, so every value in this module kept its own
+    // literal type — and the components that read it were then typed by THIS
+    // product's data instead of by their own contract. It failed three ways
+    // before this line was written, each one invisible until the build stage
+    // started type-checking what it builds:
+    //
+    //   packs: []       -> `never[]`, so `packs[0].units` in 05-buy-box does
+    //                      not compile. Every Admin run without a merchant.
+    //   comparison      -> every `rival` a string literal, so `typeof rival
+    //                      === 'boolean'` narrows the row to `never`.
+    //   packs: [{…}]    -> a union of pack literals not sharing `popular`,
+    //                      which is what normalizePacks below exists to patch.
+    //
+    // The declared type is what the components are written against, so it is
+    // what this module should present. Excess-property checking on an object
+    // literal is unchanged, so a field no type declares is still an error —
+    // the narrowness was never buying anything, and nothing reads a literal
+    // type off this module (audited).
+    `export const product: Product = {`,
     `  brand: ${serialize(fixed.identity.brand, 2, 1)},`,
     `  name: ${serialize(fixed.identity.name, 2, 1)},`,
     `  tagline: ${serialize(fixed.copy.tagline, 2, 1)},`,
@@ -479,7 +499,7 @@ function buildProductTs(shopifyHandle, fixed) {
     `  shipping: ${serialize({ freeOverCents: fixed.commercial.freeShippingOverCents }, 2, 1)},`,
     ``,
     `  cta: ${serialize(fixed.copy.cta, 2, 1)},`,
-    `} as const satisfies Product;`,
+    `};`,
     ``,
   ];
   return lines.join('\n');

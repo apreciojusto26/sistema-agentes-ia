@@ -189,7 +189,12 @@ describe('Group A — legacy CLI behavior (LG_EVENTS unset, byte-for-byte baseli
     expect(existsSync(OUT_DIR)).toBe(true);
     const productTs = readFileSync(path.join(OUT_DIR, 'src/data/product.ts'), 'utf-8');
     expect(productTs).toContain("shopifyHandle: 'TODO-provision-in-shared-store'");
-    expect(productTs).toContain('as const satisfies Product;');
+    // WAS `as const satisfies Product`. `as const` does not widen, so every
+    // value kept its own literal type and the components reading this module
+    // were typed by one product's DATA instead of by their own contract — a
+    // landing with no packs gave `packs` the type `never[]`, and 05-buy-box's
+    // `packs[0].units` stopped compiling. See contract.product-lineage.test.ts.
+    expect(productTs).toContain('export const product: Product = {');
   });
 
   test('invalid content.json (unknown product field) fails with the unchanged ✗ message and exit 1', () => {
