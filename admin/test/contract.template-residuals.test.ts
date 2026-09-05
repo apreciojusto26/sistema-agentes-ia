@@ -43,6 +43,8 @@ import { describe, test, expect } from 'vitest';
 import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { structuralFingerprint } from '../../scripts/lib/fingerprint.mjs';
+import { FIXED_GRAMMAR_V3, FIXED_OPTIONAL_SLOTS_V3 } from '../../scripts/lib/fixed-grammar-v3.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
@@ -247,4 +249,70 @@ describe.runIf(AB_BUILT)('a built landing advertises itself and nobody else', ()
   // The domain is different, and that is why it stays. No product's data
   // contains a host — a host in the output can only have come from the
   // template's own configuration.
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// AND NONE OF IT WAS A STRUCTURAL CHANGE
+// ───────────────────────────────────────────────────────────────────────────
+//
+// Every replacement above swapped TEXT. No element was added, removed, wrapped
+// or made conditional — the `<br />` in the hero and in the how-it-works
+// heading were kept for exactly that reason, even where the new sentence did
+// not need one.
+//
+// That claim has to be MEASURED, not asserted, because "I only changed text"
+// is what everyone believes right up until a heading gets a wrapper span. The
+// sealed grammars are the instrument: V1 and V2 still hash to their own seals
+// (contract.fixed-grammar-v3.test.ts), and the pages built from this template
+// still fingerprint identically to each other. No new grammar version was
+// created for these edits, and none was needed.
+
+describe.runIf(AB_BUILT)('replacing copy is not a structural change', () => {
+  const fp = (p: string) =>
+    structuralFingerprint(readFileSync(p, 'utf-8'), FIXED_GRAMMAR_V3, FIXED_OPTIONAL_SLOTS_V3);
+
+  test('two products still fingerprint identically after the copy moved to data', () => {
+    // The premise of the whole Fixed architecture, re-measured on builds
+    // produced AFTER the H1, the buy-box paragraph, the how-it-works heading,
+    // the comparison heading and both logos changed.
+    expect(fp(AB('a', 'preview')).hash).toBe(fp(AB('b', 'preview')).hash);
+    expect(fp(AB('a', 'commerce')).hash).toBe(fp(AB('b', 'commerce')).hash);
+  });
+
+  test('and rewriting the H1 and the H2 by hand does not move the hash', () => {
+    // The direct form of the claim: take the real built page, change the two
+    // headings this fix pack touched, and require the fingerprint to hold.
+    const page = readFileSync(AB('a', 'preview'), 'utf-8');
+    const base = structuralFingerprint(page, FIXED_GRAMMAR_V3, FIXED_OPTIONAL_SLOTS_V3).hash;
+
+    const h1 = /(<h1[^>]*>[\s\S]*?<\/h1>)/.exec(page)?.[1];
+    expect(h1, 'no h1 in the built page — this test is checking nothing').toBeTruthy();
+    const rewritten = page.replace(
+      h1!,
+      h1!.replace(/>([^<>]+)</g, (m, text: string) => (text.trim() ? '>OTRA COSA<' : m)),
+    );
+    expect(rewritten, 'the h1 rewrite was a no-op').not.toBe(page);
+    expect(structuralFingerprint(rewritten, FIXED_GRAMMAR_V3, FIXED_OPTIONAL_SLOTS_V3).hash).toBe(base);
+
+    // And an H2: the how-it-works heading's sibling paragraph is data too.
+    const h2 = /(<h2[^>]*>[\s\S]*?<\/h2>)/.exec(page)?.[1];
+    expect(h2).toBeTruthy();
+    const both = rewritten.replace(
+      h2!,
+      h2!.replace(/>([^<>]+)</g, (m, text: string) => (text.trim() ? '>UN TÍTULO DISTINTO<' : m)),
+    );
+    expect(both).not.toBe(rewritten);
+    expect(structuralFingerprint(both, FIXED_GRAMMAR_V3, FIXED_OPTIONAL_SLOTS_V3).hash).toBe(base);
+  });
+
+  test('while REMOVING the <br /> the copy kept WOULD move it', () => {
+    // The calibration. The line breaks were preserved on purpose; this shows
+    // that dropping one is a structural change the seal would have caught, so
+    // "only text moved" is a measured claim rather than a hopeful one.
+    const page = readFileSync(AB('a', 'preview'), 'utf-8');
+    const base = structuralFingerprint(page, FIXED_GRAMMAR_V3, FIXED_OPTIONAL_SLOTS_V3).hash;
+    const stripped = page.replace('<br>', '');
+    expect(stripped, 'no <br> in the built page — this probe is wrong').not.toBe(page);
+    expect(structuralFingerprint(stripped, FIXED_GRAMMAR_V3, FIXED_OPTIONAL_SLOTS_V3).hash).not.toBe(base);
+  });
 });
