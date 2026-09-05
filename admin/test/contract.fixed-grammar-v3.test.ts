@@ -198,6 +198,30 @@ describe('the comparison row state space', () => {
     expect(component).toMatch(/isLast && 'rounded-b-card'/);
   });
 
+  test('the COMPONENT\'S TYPE agrees with the state model, for every product', () => {
+    // THE STATE MODEL HAS TO BE TRUE AT THE TYPE LEVEL TOO, and it was not.
+    //
+    // `product` is `as const`, so an unannotated `const rows = product.comparison`
+    // gives the row whatever THIS product's data happens to be. On the rerun of
+    // the first real landing every `rival` was a string, so `rival`'s type was a
+    // union of string literals — and `typeof row.rival === 'boolean'` narrowed
+    // the row to `never`, making `row.rival` inside that branch a type error.
+    // The component compiled for one product and failed for the next with
+    // nothing about the component changed, which is the same class of defect as
+    // a grammar assembled from whichever shapes a fixture happened to contain.
+    const component = readFileSync(
+      path.join(REPO_ROOT, 'content/landing-astravibe/src/components/sections/11-comparison.astro'),
+      'utf-8',
+    );
+    expect(component).toMatch(/const rows: readonly ComparisonRow\[\] = product\.comparison;/);
+    // And the interface it names must still be the nine-state one.
+    const types = readFileSync(
+      path.join(REPO_ROOT, 'content/landing-astravibe/src/types/content.ts'),
+      'utf-8',
+    );
+    expect(types).toMatch(/interface ComparisonRow \{[^}]*ours: boolean \| string;[^}]*rival: boolean \| string;[^}]*\}/);
+  });
+
   test('DECLARED: V3 covers all nine in the body and all nine closing', () => {
     expect(COMPARISON_BODY_SHAPES.map((s) => s.state).sort()).toEqual(ROW_STATES.map((s) => s.id).sort());
     expect(COMPARISON_LAST_SHAPES.map((s) => s.state).sort()).toEqual(ROW_STATES.map((s) => s.id).sort());

@@ -2,10 +2,26 @@
 import Container from '@/components/ui/Container.astro';
 import { ICONS } from '@/lib/icons';
 import { product } from '@/data/product';
+import type { ComparisonRow } from '@/types/content';
 
 const check = ICONS.check;
 const cross = ICONS.cross;
-const rows = product.comparison;
+
+// ANNOTATED, AND THE ANNOTATION IS LOAD-BEARING.
+//
+// `product` is `as const`, so without this the row type is whatever THIS
+// product's data happens to be. A table whose `rival` is a string in every row
+// gives `rival` a union of string literals — and then `typeof row.rival ===
+// 'boolean'` narrows the row to `never`, so reading `row.rival` inside that
+// branch is a type error. The component would compile for one product and fail
+// for the next, with nothing about the component changed.
+//
+// `ComparisonRow` says what this component actually accepts: each cell is a
+// boolean or a string, in every row, independently. That is the same state
+// model ASTRAVIBE_FIXED_STRUCTURAL_GRAMMAR_V3 declares — nine reachable row
+// states — and the type has to agree with it or the two describe different
+// components.
+const rows: readonly ComparisonRow[] = product.comparison;
 const rowCount = rows.length;
 
 // THE PRODUCT'S OWN LABEL. `product.brand` is null whenever the source

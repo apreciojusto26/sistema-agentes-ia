@@ -509,7 +509,15 @@ describe('scope-boundaries (Batch G — machine-checkable, spec R14)', () => {
         { file: 'components/sections/06-how-it-works.astro', reads: [/Cómo se/] },
         // The comparison names the product twice and compared it to the
         // projector's own category.
-        { file: 'components/sections/11-comparison.astro', reads: [/const label = product\.brand \?\? product\.name;/] },
+        {
+          file: 'components/sections/11-comparison.astro',
+          reads: [
+            /const label = product\.brand \?\? product\.name;/,
+            // The row type is the component's contract, not this product's
+            // data — see contract.fixed-grammar-v3.test.ts.
+            /const rows: readonly ComparisonRow\[\] = product\.comparison;/,
+          ],
+        },
         { file: 'components/sections/13-real-results.astro', reads: [/\{product\.brand \?\? product\.name\}/] },
         // Header and footer carry the STORE's name. It was the product brand —
         // a different claim, and null whenever the listing named no maker.
