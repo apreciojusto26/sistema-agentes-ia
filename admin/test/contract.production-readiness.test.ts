@@ -388,19 +388,65 @@ describe.runIf(existsSync(path.join(REPO_ROOT, 'outputs/zz-cmp/dist/client/index
       }
     });
 
-    test('THE OTHER ORIGINAL BLOCKER: a social card on a foreign domain fails', () => {
-      // Verbatim from the first real landing's <head>.
+    /** Puts an og:image into the built head, where the layout would have. */
+    const withOgImage = (out: string, url: string) =>
+      patch(out, PAGE, (h) =>
+        h.replace(
+          '<meta property="og:type"',
+          `<meta property="og:image" content="${url}"><meta property="og:type"`,
+        ),
+      );
+
+    test('THE OTHER ORIGINAL BLOCKER: the template\'s own domain is denied by name', () => {
+      // Verbatim from the first real landing's <head>. The literal is no longer
+      // written anywhere in the template — contract.template-residuals.test.ts
+      // proves that — and this is the belt to that brace.
       const { dir, out } = clone();
       try {
-        patch(out, PAGE, (h) =>
-          h.replace(
-            '<meta property="og:type"',
-            '<meta property="og:image" content="https://astravibe.bamzuk.com/og-cover.png"><meta property="og:type"',
-          ),
-        );
+        withOgImage(out, 'https://astravibe.bamzuk.com/og-cover.png');
         const r = check(out);
         expect(r.status).toBe(1);
-        expect(r.stdout).toMatch(/without a configured SITE_URL/);
+        expect(r.stdout).toMatch(/the template's own domain/);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    test('and so is the placeholder a build with no domain would otherwise produce', () => {
+      // `new URL('/x', Astro.url)` at build time yields http://localhost:4321/x
+      // — not another product's artwork, but not a social card either. The tag
+      // is omitted instead; this is the guard for the day it is not.
+      const { dir, out } = clone();
+      try {
+        withOgImage(out, 'http://localhost:4321/og-cover.webp');
+        const r = check(out);
+        expect(r.status).toBe(1);
+        expect(r.stdout).toMatch(/nobody's server but this machine/);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    test('a card on this landing\'s own domain passes, and is checked against SITE_URL when it is known', () => {
+      const { dir, out } = clone();
+      try {
+        withOgImage(out, 'https://tienda.example/og-cover.webp');
+        // MEASURED ON THE ARTEFACT when SITE_URL is not in this shell — a check
+        // that failed because a terminal lacks an env var would be reporting on
+        // the terminal, not the landing.
+        expect(check(out).stdout).toMatch(/https:\/\/tienda\.example — this landing's own/);
+
+        // And when it IS known, the origins must be the same one.
+        const withEnv = (SITE_URL: string) =>
+          spawnSync(process.execPath, [path.join(REPO_ROOT, 'scripts/check-readiness.mjs'), out], {
+            cwd: REPO_ROOT,
+            encoding: 'utf-8',
+            env: { ...process.env, SITE_URL },
+          });
+        expect(withEnv('https://tienda.example').stdout).toMatch(/matches SITE_URL/);
+        const wrong = withEnv('https://otra-tienda.example');
+        expect(wrong.status).toBe(1);
+        expect(wrong.stdout).toMatch(/not this landing's https:\/\/otra-tienda\.example/);
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }

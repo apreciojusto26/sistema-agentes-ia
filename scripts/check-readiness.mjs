@@ -23,6 +23,16 @@ const GRAMMAR_V1 = 'a2fc51ddf61b7dfa6a145eee7e25497a12e10669a7dfd714f07600aa586d
 const GRAMMAR_V2 = '82e3913a2cb7268da0b9f75f72f058fb3e248ba20aee8cf120866d0de80c9f24';
 const GRAMMAR_V3 = 'af765fce5c7d66630f660b64fba1eeab6901a0c0f8342c8c0e2d24083e46acff';
 
+/**
+ * The template's own domain — the one host a generated landing may never claim.
+ *
+ * It is not read from anywhere because it is no longer written anywhere: the
+ * literal left astro.config.mjs and src/data/legal.ts in FIX PACK 1, and
+ * contract.template-residuals.test.ts keeps it out. Naming it here is the
+ * regression guard for the day someone puts it back.
+ */
+const TEMPLATE_DOMAIN = 'astravibe.bamzuk.com';
+
 /** @type {{name: string, ok: boolean, detail: string}[]} */
 const results = [];
 const check = (name, fn) => {
@@ -338,26 +348,62 @@ check('Social preview origin', () => {
   const html = read('dist/client/index.html');
   const og = /<meta property="og:image" content="([^"]*)"/.exec(html);
 
-  // ABSENCE IS THE CORRECT PREVIEW STATE. `og:image` must be absolute, so it
+  // ABSENCE IS A LEGITIMATE PREVIEW STATE. `og:image` must be absolute, so it
   // needs an origin, and a landing without SITE_URL has none. Emitting one
   // anyway is what produced `https://astravibe.bamzuk.com/og-cover.png` on a
-  // light tube — and resolving against the build's request URL only replaces it
-  // with `http://localhost:4321/…`, which is dead for every reader.
-  const site = /^\s*(?:\.\.\.\(site \? \{ site \} : \{\}\)|site:)/m.test(read('astro.config.mjs'))
-    ? (process.env.SITE_URL ?? '').trim()
-    : '';
-  if (!og) {
-    must(site === '', `SITE_URL is set to ${JSON.stringify(site)} but the page advertises no social image`);
-    return 'omitted — this landing has no domain yet';
-  }
+  // light tube — and resolving against the build's request URL only replaces
+  // that with `http://localhost:4321/…`, which is dead for every reader.
+  if (!og) return 'omitted — this landing has no domain yet';
 
-  must(site !== '', `the page advertises ${og[1]} without a configured SITE_URL`);
-  const declared = new URL(site);
-  const shipped = new URL(og[1]);
+  // MEASURED ON THE ARTEFACT FIRST. Readiness runs in its own shell, often
+  // long after the build, so it cannot assume the build's environment is still
+  // present — a check that fails because SITE_URL is unset in THIS terminal
+  // would be reporting on the terminal, not on the landing.
+  let shipped;
+  try {
+    shipped = new URL(og[1]);
+  } catch {
+    throw new Error(`the social image is not a URL: ${og[1]}`);
+  }
+  // LOOPBACK IS CHECKED FIRST, because it has the more useful sentence. A
+  // build with no domain resolves `/og-cover.webp` against the build's own
+  // request URL and produces `http://localhost:4321/…`, which would otherwise
+  // be reported as a plain protocol error and send an operator to configure
+  // TLS on a host that is not a host.
+  const localhost =
+    shipped.hostname === 'localhost' ||
+    shipped.hostname.endsWith('.localhost') ||
+    shipped.hostname.startsWith('127.') ||
+    shipped.hostname === '::1';
+  must(!localhost, `the social image points at ${shipped.host}, which is nobody's server but this machine`);
+  must(shipped.protocol === 'https:', `the social image is served over ${shipped.protocol}, not https`);
+  must(shipped.hostname.includes('.'), `the social image host ${shipped.host} is not a public domain`);
+
+  // THE KNOWN TEMPLATE DOMAIN, denied by name. It is no longer written
+  // anywhere in the template — contract.template-residuals.test.ts proves that
+  // — and this is the belt to that brace: whatever a future edit reintroduces,
+  // a generated landing may not advertise the star projector's host.
   must(
-    shipped.origin === declared.origin,
-    `the social image is served from ${shipped.origin}, not this landing's ${declared.origin}`,
+    shipped.hostname !== TEMPLATE_DOMAIN,
+    `the social image is served from ${TEMPLATE_DOMAIN}, the template's own domain, not this landing's`,
   );
+
+  // And when SITE_URL IS visible here, the stronger rule applies: the page must
+  // advertise the exact origin this landing was configured with.
+  const configured = (process.env.SITE_URL ?? '').trim();
+  if (configured) {
+    let declared;
+    try {
+      declared = new URL(configured);
+    } catch {
+      throw new Error(`SITE_URL is not a URL: ${configured}`);
+    }
+    must(
+      shipped.origin === declared.origin,
+      `the social image is served from ${shipped.origin}, not this landing's ${declared.origin}`,
+    );
+    return `${shipped.origin} — matches SITE_URL`;
+  }
   return `${shipped.origin} — this landing's own`;
 });
 
