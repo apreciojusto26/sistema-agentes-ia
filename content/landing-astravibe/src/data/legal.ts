@@ -3,16 +3,20 @@
  *
  * ─── WHAT THIS MODULE USED TO BE ───────────────────────────────────────────
  *
- * A hand-written object holding `holder: 'Daniel Longone'`, `tradeName:
- * 'Bamzuk'`, a real NIF, a real address, a real email and a real phone — copied
- * verbatim into every landing this system produces, while `src/data/merchant
- * .ts`, generated from the operator's own config, held the same facts.
+ * A hand-written object holding one particular operator's legal name, trade
+ * name, NIF, address, email and phone — copied verbatim into every landing
+ * this system produces, while `src/data/merchant.ts`, generated from whoever
+ * is ACTUALLY selling, held the same facts.
+ *
+ * (Their name is not repeated here on purpose: this module ships inside every
+ * generated landing, and a comment naming a seller who is not the seller is a
+ * smaller version of the same mistake.)
  *
  * TWO AUTHORITIES FOR ONE FACT, and the legal pages read the wrong one. Under
  * LSSI-CE art. 10 those pages are a legally binding identification of who is
- * selling: a landing generated for any other operator published Bamzuk's NIF
- * and address as its own, and nothing in the system could notice, because the
- * page was reading exactly what it was told to read.
+ * selling: a landing generated for any other operator published that first
+ * seller's NIF and address as its own, and nothing in the system could notice,
+ * because the page was reading exactly what it was told to read.
  *
  * ─── WHAT IT IS NOW ────────────────────────────────────────────────────────
  *
@@ -118,7 +122,7 @@ export const legalIdentityConfigured = merchant !== null;
  * The name the shop shows as itself — header logo, page titles, payment sheet.
  *
  * NOT a legal statement and NOT the product's brand: it is the trade name, and
- * before this it was the hardcoded 'Bamzuk' on every landing regardless of who
+ * before this it was one hardcoded name on every landing regardless of who
  * was selling.
  *
  * The fallback is a STATE, not a name. A landing with no merchant has no shop

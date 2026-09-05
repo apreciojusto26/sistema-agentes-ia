@@ -214,6 +214,26 @@ describe('no seller is hardcoded in the template', () => {
     ...printableValues(MERCHANT_B),
   ];
 
+  test('the template names no real seller ANYWHERE, comments included', () => {
+    // Stronger than the per-surface scan below, and it costs nothing: this
+    // module ships INSIDE every generated landing, so a comment naming a
+    // seller who is not the seller is a smaller version of the same mistake.
+    // The explanations survive; the name does not.
+    const walk = (dir: string): string[] => {
+      const out: string[] = [];
+      for (const entry of readdirSync(dir)) {
+        const full = path.join(dir, entry);
+        if (statSync(full).isDirectory()) out.push(...walk(full));
+        else if (/\.(astro|ts|tsx)$/.test(entry)) out.push(full);
+      }
+      return out;
+    };
+    const hits = walk(path.join(TEMPLATE, 'src')).filter((f) =>
+      /Daniel Longone|X9986124F|bamzukafiliados|602 057 976|Bamzuk/.test(readFileSync(f, 'utf-8')),
+    );
+    expect(hits.map((f) => path.relative(TEMPLATE, f))).toEqual([]);
+  });
+
   test.each(SURFACES)('%s names no seller', (rel) => {
     const text = code(rel);
     for (const value of FORBIDDEN) {

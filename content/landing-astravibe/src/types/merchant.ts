@@ -17,10 +17,10 @@ export interface Merchant {
    * The name the business TRADES under — LSSI-CE art. 10.1.a asks for this
    * beside the legal one.
    *
-   * It was hardcoded in src/data/legal.ts as 'Bamzuk' and copied into every
-   * generated landing, so a legal notice for any operator named Bamzuk as its
-   * commercial identity and the site header used it as the shop's logo. It is
-   * a merchant fact and it lives with the other merchant facts.
+   * It was hardcoded in src/data/legal.ts and copied into every generated
+   * landing, so a legal notice for any operator named someone else's business
+   * as its commercial identity, and the site header used it as the shop's
+   * logo. It is a merchant fact and it lives with the other merchant facts.
    */
   tradeName: string;
   taxId: string;
