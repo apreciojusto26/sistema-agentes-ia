@@ -30,8 +30,35 @@ export type ShopifySectionProps = {
   /** The chosen product's handle, or null for Preview. Owned by the parent. */
   handle: string | null;
   onChange: (handle: string | null) => void;
+  /** The landing's public origin, for the readiness summary. Owned by the parent. */
+  siteUrl: string;
   disabled: boolean;
 };
+
+/**
+ * FOUR CONDITIONS, NAMED SEPARATELY — because "Shopify conectado" is not
+ * "Commerce listo", and a status pill that let those read as the same thing
+ * would be the most expensive kind of lie this UI could tell.
+ *
+ *   Shop connected      credentials exist to QUERY the storefront. Nothing more.
+ *   Product linked      this landing sells a specific product.
+ *   Site URL configured it has an origin, so callbacks and the social card work.
+ *   Merchant valid      there is a seller, so the legal pages are publishable.
+ *
+ * They correspond to the three levels plus the operator's own configuration,
+ * and none of them substitutes for another.
+ */
+function ReadinessRow({ label, ok, detail }: { label: string; ok: boolean; detail?: string }) {
+  return (
+    <li className="flex items-baseline gap-2 text-[11px]">
+      <span aria-hidden="true" className={ok ? 'text-state-pass' : 'text-ink-faint'}>
+        {ok ? '✓' : '✗'}
+      </span>
+      <span className={ok ? 'text-ink-soft' : 'text-ink-faint'}>{label}</span>
+      {detail && <span className="ml-auto truncate font-mono text-[10px] text-ink-faint">{detail}</span>}
+    </li>
+  );
+}
 
 type Picker =
   | { state: 'closed' }
@@ -39,8 +66,9 @@ type Picker =
   | { state: 'error'; message: string }
   | { state: 'ready'; products: ShopifyProductSummary[] };
 
-export default function ShopifySection({ handle, onChange, disabled }: ShopifySectionProps) {
+export default function ShopifySection({ handle, onChange, siteUrl, disabled }: ShopifySectionProps) {
   const [connection, setConnection] = useState<ShopifyConnection | null>(null);
+  const [merchantConfigured, setMerchantConfigured] = useState<boolean | null>(null);
   const [picker, setPicker] = useState<Picker>({ state: 'closed' });
   const [query, setQuery] = useState('');
   const [chosen, setChosen] = useState<ShopifyProductSummary | null>(null);
@@ -53,6 +81,10 @@ export default function ShopifySection({ handle, onChange, disabled }: ShopifySe
       // A status endpoint that cannot be reached is reported as "not
       // connected", which is what it means for the operator.
       .catch(() => alive && setConnection({ configured: false, domain: null, apiVersion: null, capabilities: { searchProducts: false, createProduct: false } }));
+    void fetch('/api/health')
+      .then((r) => r.json() as Promise<{ checks?: { merchantConfig?: boolean } }>)
+      .then((h) => alive && setMerchantConfigured(h.checks?.merchantConfig === true))
+      .catch(() => alive && setMerchantConfigured(false));
     return () => {
       alive = false;
     };
@@ -145,6 +177,34 @@ export default function ShopifySection({ handle, onChange, disabled }: ShopifySe
           <span className="ml-1.5 rounded-full bg-panel-muted px-1.5 py-0.5 text-[10px]">Próximamente</span>
         </button>
       </div>
+
+      {/* ── what Commerce still needs ─────────────────────────────────────
+          A shop connection means the Admin can ASK the storefront questions.
+          It does not mean this landing can sell: that needs a product, an
+          origin and a seller, and each is listed on its own so none of them
+          hides behind the others. */}
+      <ul className="mt-2 space-y-0.5 border-t border-hairline-soft pt-2">
+        <ReadinessRow label="Tienda conectada" ok={connected} detail={connection?.domain ?? undefined} />
+        <ReadinessRow label="Producto vinculado" ok={handle !== null} detail={handle ?? 'preview'} />
+        <ReadinessRow
+          label="Dominio configurado"
+          ok={siteUrl.trim() !== ''}
+          detail={siteUrl.trim() || 'sin dominio'}
+        />
+        <ReadinessRow
+          label="Vendedor configurado"
+          ok={merchantConfigured === true}
+          detail={merchantConfigured === false ? 'falta admin/merchant.json' : undefined}
+        />
+      </ul>
+
+      {merchantConfigured === false && (
+        <p className="mt-1.5 rounded-lg bg-state-failed-tint px-2.5 py-1.5 text-[11px] text-state-failed">
+          Sin <code className="font-mono">admin/merchant.json</code> la landing se genera, pero sus páginas legales
+          dicen que los datos del vendedor están pendientes y no es publicable. Es identidad legal real: no se
+          inventa ni se rellena con datos de ejemplo.
+        </p>
+      )}
 
       {/* ── the picker ───────────────────────────────────────────────────── */}
       {picker.state !== 'closed' && (

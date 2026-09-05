@@ -137,7 +137,7 @@ export function CartDrawer({ commerce }: CartDrawerProps) {
                 </div>
 
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
-                  <p className="text-sm font-bold text-graphite">{product.name}</p>
+                  <p className="text-sm font-bold text-graphite">{product.displayName}</p>
                   <p className="text-xs text-steel">{variant.title}</p>
                   <p className="text-sm font-bold text-grape tabular-nums">{formatPrice(cart.totalCents)}</p>
 

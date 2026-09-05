@@ -166,7 +166,18 @@ export interface ProductContent {
    * may borrow the seller's legal name to fill it.
    */
   brand: string | null;
+  /**
+   * The SOURCE TITLE, verbatim — a marketplace keyword field, often 150+
+   * characters. Factual and preserved. Use it where exactness matters
+   * (analytics item names, provenance); use `displayName` in the interface.
+   */
   name: string;
+  /**
+   * The same title, narrowed for display. Every word of it appears in `name`,
+   * in order — derived by scripts/lib/display-name.mjs, never written by a
+   * model.
+   */
+  displayName: string;
   tagline: string;
   subtagline: string;
   /**

@@ -160,7 +160,7 @@ export default function PipelinePanel() {
           {effectiveSlug && <span className="rounded-full bg-panel-muted px-1.5 py-0.5 text-ink-soft">/{effectiveSlug}</span>}
         </p>
 
-        <ShopifySection handle={handle} onChange={setHandle} disabled={running} />
+        <ShopifySection handle={handle} onChange={setHandle} siteUrl={siteUrl} disabled={running} />
 
         <button
           type="button"

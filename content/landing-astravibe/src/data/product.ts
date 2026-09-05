@@ -8,6 +8,7 @@ import type { Product } from '@/types/content';
 export const product: Product = {
   brand: 'AstraVibe',
   name: 'AstraVibe — Proyector de estrellas USB',
+  displayName: 'AstraVibe',
   tagline: 'El cielo estrellado, en tu habitación.',
   subtagline:
     'Proyector de estrellas con proyecciones intercambiables y luz nocturna: cambia la escena y transforma tu habitación en segundos.',

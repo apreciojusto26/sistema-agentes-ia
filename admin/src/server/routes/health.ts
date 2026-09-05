@@ -13,6 +13,7 @@ import {
   OUTPUTS_DIR,
   GENERATE_SCRIPT,
   CONTENT_CONTRACT_MODULE,
+  MERCHANT_CONFIG_PATH,
 } from '../config';
 import type { HealthResponse } from '../../shared/api';
 
@@ -39,6 +40,10 @@ export function getHealthResponse(): HealthResponse {
       // (250 RPD) on every page load's health check would be worse than the
       // dollar-cost reasoning that ruled out probing the Claude CLI.
       geminiApiKey: (process.env.GEMINI_API_KEY ?? '').trim().length > 0,
+      // THE SELLER. Without it a generation still runs, but the landing's legal
+      // pages say the information is pending and it is not publishable — so
+      // the UI has to be able to say that BEFORE the run rather than after.
+      merchantConfig: existsSync(MERCHANT_CONFIG_PATH),
     },
   };
 }

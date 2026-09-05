@@ -45,8 +45,21 @@ export interface FixedIdentity {
    * defect class as the invented reviewer names F2 removed.
    */
   brand: string | null;
-  /** Product name. Factual, from the source listing. */
+  /**
+   * The SOURCE TITLE, verbatim. Factual, from the listing, and preserved —
+   * a 156-character keyword field is still what the source says the product
+   * is, and shortening it in place would destroy the fact.
+   */
   name: string;
+  /**
+   * The same title, narrowed to something a cart line can render.
+   *
+   * DERIVED DETERMINISTICALLY and never authored: every word of it appears in
+   * `name`, in order (scripts/lib/display-name.mjs). A model asked for a
+   * product name answers with one — it produced "LuminArt — …" for a listing
+   * whose maker is unknown — and identity is not a writing task.
+   */
+  displayName: string;
 }
 
 // ───────────────────────────────────────────────────────────────────────────

@@ -214,3 +214,84 @@ describe('the Admin does not grow a second commerce implementation', () => {
     expect(route, 'a write route appeared on a read-only surface').not.toMatch(/app\.(post|put|patch|delete)\(/);
   });
 });
+
+// ───────────────────────────────────────────────────────────────────────────
+// PICKER → ProductLink: the chain, audited without running commerce
+// ───────────────────────────────────────────────────────────────────────────
+//
+// Before a first Commerce run, the question is whether the product an operator
+// picks in the UI actually reaches the thing Fixed Commerce reads — and whether
+// anything along the way quietly conflates the three levels.
+
+describe('the picked product reaches the landing, and only as a PRODUCT', () => {
+  const read = (rel: string) => readFileSync(path.join(REPO_ROOT, rel), 'utf-8');
+
+  test('UI selection carries a handle, not a shop or a token', () => {
+    const section = read('admin/src/client/components/ShopifySection.tsx');
+    // The picker writes the handle the operator CHOSE. It never types one.
+    expect(section).toMatch(/onChange\(p\.handle\)/);
+    expect(section, 'the client handles a token').not.toMatch(/StorefrontAccessToken|storefrontToken/);
+  });
+
+  test('the Admin server passes it through as shopifyHandle', () => {
+    expect(read('admin/src/client/components/PipelinePanel.tsx')).toContain('shopifyHandle: handle,');
+    expect(read('admin/src/server/routes/pipeline.ts')).toMatch(/shopifyHandle: body\.shopifyHandle\?\.trim\(\)/);
+    expect(read('admin/src/server/pipeline.ts')).toMatch(/shopifyHandle: input\.shopifyHandle \?\? null/);
+    expect(read('admin/src/server/jobs/runner.ts')).toMatch(/--shopify-handle/);
+  });
+
+  test('the generator writes it where the landing reads it', () => {
+    const generator = read('scripts/generate-landing.mjs');
+    expect(generator).toMatch(/writeEnvKey\(envPath, 'PUBLIC_SHOPIFY_PRODUCT_HANDLE', args\.shopifyHandle/);
+    // …and the landing resolves exactly that key, failing closed without it.
+    const catalog = read('content/landing-astravibe/src/lib/shopify/catalog.ts');
+    expect(catalog).toMatch(/env\.PUBLIC_SHOPIFY_PRODUCT_HANDLE\?\.trim\(\)/);
+    expect(catalog).toContain('Missing PUBLIC_SHOPIFY_PRODUCT_HANDLE');
+  });
+
+  test('CREDENTIALS ARE NEVER WRITTEN by the generator — only the public slug', () => {
+    const generator = read('scripts/generate-landing.mjs');
+    for (const secret of ['PUBLIC_SHOPIFY_STOREFRONT_TOKEN', 'SHOPIFY_ADMIN_TOKEN', 'SUMUP_API_KEY']) {
+      expect(generator, `${secret} is written into a generated landing`).not.toMatch(
+        new RegExp(`writeEnvKey\\([^)]*${secret}`),
+      );
+    }
+  });
+
+  test('a full ShopifyProductLink is NOT constructed from a handle — and that is correct', () => {
+    // THE SEPARATION, ENFORCED RATHER THAN DESCRIBED. ShopifyProductLink needs
+    // shopId and storefrontId as well as the handle: SHOP and STOREFRONT are
+    // server-side configuration the generator does not hold, so it passes
+    // `null` — a preview — instead of assembling a link out of the one level
+    // it does know. Using the handle as a stand-in for shop identity is the
+    // exact conflation this test exists to prevent.
+    const generator = read('scripts/generate-landing.mjs');
+    expect(generator).toMatch(/shopifyProductLink: null,/);
+    const types = read('content/landing-astravibe/src/types/fixed-product-data.ts');
+    expect(types).toMatch(/interface ShopifyProductLink \{[\s\S]*?shopId: string;[\s\S]*?storefrontId: string;[\s\S]*?productHandle: string;/);
+  });
+
+  test('and an INCOMPLETE link fails closed at the assembler', () => {
+    const assembler = read('scripts/lib/fixed-product-data.mjs');
+    expect(assembler).toContain('Commerce fails closed: an incomplete');
+  });
+
+  test('the UI never presents a shop connection as commerce readiness', () => {
+    // "Shopify conectado" means the Admin can ASK the storefront questions.
+    // Four conditions are listed separately so none hides behind another.
+    const section = read('admin/src/client/components/ShopifySection.tsx');
+    for (const label of [
+      'Tienda conectada',
+      'Producto vinculado',
+      'Dominio configurado',
+      'Vendedor configurado',
+    ]) {
+      expect(section, `${label} is missing from the readiness summary`).toContain(label);
+    }
+    // Scanned over the RENDERED code: the component's own comment explains why
+    // "Shopify conectado" is not "Commerce listo", and a check that flagged the
+    // explanation would force it to be deleted.
+    const rendered = section.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    expect(rendered, 'the UI claims commerce is ready').not.toContain('Commerce listo');
+  });
+});

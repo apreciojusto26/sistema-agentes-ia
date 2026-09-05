@@ -28,6 +28,7 @@
 // purpose, because collapsing them is how a capability flag turns into a
 // content field.
 import { collectAssetOutputIssues } from './fixed-asset-output.mjs';
+import { deriveDisplayName } from './display-name.mjs';
 import { collectFixedContentIssues, FIXED_CONTENT_FOREIGN_FIELDS } from './fixed-content-output.mjs';
 import { projectFixedSocialProof } from './fixed-social-proof.mjs';
 import { collectMerchantIssues, merchantFreeShippingOverCents, merchantPacks } from './merchant.mjs';
@@ -296,10 +297,23 @@ export function assembleFixedProductData(sources = {}) {
   // field. It must never borrow this one.
   const brand = canonicalProduct?.identity?.brand ?? canonicalProduct?.brand ?? null;
 
+  // The factual listing title, from the scrape. `contentOutput.name` is the
+  // last resort of the legacy path only, where no scrape exists at all.
+  const sourceTitle =
+    canonicalProduct?.identity?.name ?? canonicalProduct?.name ?? contentOutput.name;
+
   return {
     identity: {
       brand,
-      name: canonicalProduct?.identity?.name ?? canonicalProduct?.name ?? contentOutput.name,
+      // THE SOURCE TITLE, PRESERVED. It is what the listing says the product
+      // is, and it is never destroyed to obtain a prettier one.
+      name: sourceTitle,
+      // AND A NAME A CART LINE CAN RENDER, derived from it deterministically.
+      // Every word of it appears in the title above, in order — see
+      // display-name.mjs. The Content Agent is not consulted: asked for a name
+      // for this exact listing it produced "LuminArt — …", a company that does
+      // not exist.
+      displayName: deriveDisplayName(sourceTitle) || sourceTitle,
     },
     copy: {
       tagline: contentOutput.tagline,

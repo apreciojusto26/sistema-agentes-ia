@@ -400,7 +400,7 @@ function OrderSummary({ variantTitle, quantity, subtotalCents, discountCents, to
   return (
     <div className="text-sm">
       <div className="flex items-start justify-between gap-4 border-b border-graphite/10 pb-3">
-        <p className="font-display font-bold text-graphite">{product.name} <span className="font-sans font-normal text-steel">· {variantTitle} × {quantity}</span></p>
+        <p className="font-display font-bold text-graphite">{product.displayName} <span className="font-sans font-normal text-steel">· {variantTitle} × {quantity}</span></p>
         <span className="shrink-0 tabular-nums font-semibold text-graphite">{formatPrice(totalCents)}</span>
       </div>
       <dl className="space-y-2 pt-3">

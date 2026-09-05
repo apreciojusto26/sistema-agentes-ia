@@ -105,7 +105,7 @@ export function StickyAddToCart({
         <div className="shrink-0">
           {/* Was the literal "Astra Vibe" — the star projector's name, shipped in
                 the purchase bar of every landing this template produces. */}
-          <p className="whitespace-nowrap text-sm font-bold text-graphite">{projection.totalUnits}x {product.name}</p>
+          <p className="whitespace-nowrap text-sm font-bold text-graphite">{projection.totalUnits}x {product.displayName}</p>
           <p className="mt-0.5 text-sm font-semibold tabular-nums text-grape">{formatPrice(totalCents)}</p>
         </div>
 

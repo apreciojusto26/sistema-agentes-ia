@@ -17,6 +17,7 @@ import { createHash } from 'node:crypto';
 import { FIXED_TEMPLATE_NAME, FIXED_TEMPLATE_RELATIVE } from './lib/fixed-template.mjs';
 import { readCanonicalPalette, collectContrastIssues } from './lib/fixed-theme.mjs';
 import { collectAssetOutputIssues } from './lib/fixed-asset-output.mjs';
+import { isDerivedFrom } from './lib/display-name.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const GRAMMAR_V1 = 'a2fc51ddf61b7dfa6a145eee7e25497a12e10669a7dfd714f07600aa586d77cd';
@@ -341,6 +342,64 @@ check('Copy ownership', () => {
   return emitted.brand === null
     ? `H1 and heading own their slots; no brand (the source published none)`
     : `H1 and heading own their slots; brand ${JSON.stringify(emitted.brand)}`;
+});
+
+check('Product name', () => {
+  const emitted = emittedSlots();
+  const source = /^  name: ("(?:[^"\\\\]|\\\\.)*")/m.exec(read('src/data/product.ts'));
+  must(source !== null, 'src/data/product.ts declares no name');
+  const sourceTitle = JSON.parse(source[1]);
+  const display = /^  displayName: ("(?:[^"\\\\]|\\\\.)*")/m.exec(read('src/data/product.ts'));
+  must(display !== null, 'src/data/product.ts declares no displayName');
+  const displayName = JSON.parse(display[1]);
+
+  must(sourceTitle.trim() !== '', 'the source title is empty — the listing title was not preserved');
+  must(displayName.trim() !== '', 'the display name is empty');
+  must(
+    !/^(TODO|FIXME|placeholder|pendiente|sin nombre|producto)$/i.test(displayName.trim()),
+    `the display name is a placeholder: ${JSON.stringify(displayName)}`,
+  );
+
+  // THE INVARIANT. Every word shown as the product's identity must come from
+  // the source title, in order — the one rule that makes invention impossible.
+  // A model asked for a product name answers with one: this landing's own
+  // Content Agent proposed "LuminArt — …", naming a company that does not
+  // exist.
+  must(
+    isDerivedFrom(displayName, sourceTitle),
+    `the display name ${JSON.stringify(displayName)} is not derived from the source title — ` +
+      'a word appears in it that the listing never contained',
+  );
+
+  // And it must not smuggle a brand past the brand rule.
+  if (emitted.brand === null) {
+    const templateBrand = /^  brand: '(.*)',$/m.exec(
+      readFileSync(path.join(ROOT, FIXED_TEMPLATE_RELATIVE, 'src/data/product.ts'), 'utf-8'),
+    )?.[1];
+    must(
+      !templateBrand || !displayName.includes(templateBrand),
+      `the display name carries the template's brand, ${JSON.stringify(templateBrand)}`,
+    );
+  }
+
+  return sourceTitle === displayName
+    ? `${JSON.stringify(displayName)} (the title needed no narrowing)`
+    : `${JSON.stringify(displayName)} — from a ${sourceTitle.length}-char source title, preserved`;
+});
+
+check('Merchant valid', () => {
+  // THE SELLER, or the honest absence of one. The legal pages project this;
+  // without it every identifying field is null and each page says so.
+  if (!has('src/data/merchant.ts')) return 'no merchant module (legacy generation)';
+  const text = read('src/data/merchant.ts');
+  if (/export const merchant: Merchant \| null = null/.test(text)) {
+    return 'ABSENT — legal pages say the information is pending. Not publishable.';
+  }
+  for (const field of ['legalName', 'tradeName', 'taxId', 'address', 'contactEmail', 'country']) {
+    must(new RegExp(`${field}:\\s*"[^"]+"`).test(text), `merchant.${field} is missing from the generated config`);
+  }
+  const legalName = /legalName:\s*"((?:[^"\\\\]|\\\\.)*)"/.exec(text)?.[1] ?? '';
+  return `${legalName} — identity complete`;
 });
 
 check('Social preview origin', () => {

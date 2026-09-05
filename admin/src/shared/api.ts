@@ -22,6 +22,8 @@ export type HealthResponse = {
     contentContract: boolean;
     /** Presence-only: process.env.GEMINI_API_KEY is set and non-empty. Never a live probe (would burn irreplaceable daily quota). Cannot distinguish a valid key from a revoked/over-quota/region-blocked one. */
     geminiApiKey: boolean;
+    /** The operator's merchant config — seller identity and commercial policy. */
+    merchantConfig: boolean;
   };
 };
 

@@ -59,7 +59,7 @@ const countLabel = count === null ? null : new Intl.NumberFormat('es-ES').format
         {/* Was the hardcoded "Astra Vibe". Reads the brand now, so a generated
             product cannot ship the template's. */}
         <h2 class="mt-1 text-display md:text-4xl lg:text-5xl">
-          Lo que dicen de<br />{product.brand ?? product.name}
+          Lo que dicen de<br />{product.brand ?? product.displayName}
         </h2>
         <div class="mt-2 flex items-center gap-2">
           {/* `rating`, not `product.ratingAverage`: the guard above narrows the

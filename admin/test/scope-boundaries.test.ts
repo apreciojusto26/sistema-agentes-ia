@@ -512,13 +512,16 @@ describe('scope-boundaries (Batch G — machine-checkable, spec R14)', () => {
         {
           file: 'components/sections/11-comparison.astro',
           reads: [
-            /const label = product\.brand \?\? product\.name;/,
+            // The visible surfaces render `displayName`, not `name`: a listing
+            // title is a keyword field — this product's was 156 characters —
+            // and `name` keeps it verbatim as the factual source.
+            /const label = product\.brand \?\? product\.displayName;/,
             // The row type is the component's contract, not this product's
             // data — see contract.fixed-grammar-v3.test.ts.
             /const rows: readonly ComparisonRow\[\] = product\.comparison;/,
           ],
         },
-        { file: 'components/sections/13-real-results.astro', reads: [/\{product\.brand \?\? product\.name\}/] },
+        { file: 'components/sections/13-real-results.astro', reads: [/\{product\.brand \?\? product\.displayName\}/] },
         // Header and footer carry the STORE's name. It was the product brand —
         // a different claim, and null whenever the listing named no maker.
         // The store's name comes from merchant config now, through the legal
@@ -527,10 +530,10 @@ describe('scope-boundaries (Batch G — machine-checkable, spec R14)', () => {
         { file: 'components/sections/14-site-footer.astro', reads: [/\{storeName\}<span/, /orPending\(legal\.identity\.holder\)/] },
         // The purchase bar, the cart line and the order summary each printed
         // the projector's name verbatim.
-        { file: 'components/islands/StickyAddToCart.tsx', reads: [/\{projection\.totalUnits\}x \{product\.name\}/] },
-        { file: 'components/islands/CartDrawer.tsx', reads: [/\{product\.name\}/] },
-        { file: 'components/islands/CheckoutForm.tsx', reads: [/\{product\.name\}/, /merchantName: storeName/] },
-        { file: 'components/islands/OrderConfirmation.tsx', reads: [/Empaquetamos tu \$\{product\.name\}/] },
+        { file: 'components/islands/StickyAddToCart.tsx', reads: [/\{projection\.totalUnits\}x \{product\.displayName\}/] },
+        { file: 'components/islands/CartDrawer.tsx', reads: [/\{product\.displayName\}/] },
+        { file: 'components/islands/CheckoutForm.tsx', reads: [/\{product\.displayName\}/, /merchantName: storeName/] },
+        { file: 'components/islands/OrderConfirmation.tsx', reads: [/Empaquetamos tu \$\{product\.displayName\}/] },
         // The social card, and the title that interpolated a nullable brand.
         { file: 'layouts/Base.astro', reads: [/ogImageFile && Astro\.site \? new URL\(`\/\$\{ogImageFile\}`, Astro\.site\)/] },
         { file: 'pages/index.astro', reads: [/product\.brand \? `\$\{product\.brand\} — \$\{product\.tagline\}` : product\.tagline/] },

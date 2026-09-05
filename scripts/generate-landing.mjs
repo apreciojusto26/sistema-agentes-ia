@@ -476,6 +476,8 @@ function buildProductTs(shopifyHandle, fixed) {
     `export const product: Product = {`,
     `  brand: ${serialize(fixed.identity.brand, 2, 1)},`,
     `  name: ${serialize(fixed.identity.name, 2, 1)},`,
+    // The name a cart line renders. Derived from `name` above, never authored.
+    `  displayName: ${serialize(fixed.identity.displayName, 2, 1)},`,
     `  tagline: ${serialize(fixed.copy.tagline, 2, 1)},`,
     `  subtagline: ${serialize(fixed.copy.subtagline, 2, 1)},`,
     ``,
@@ -836,6 +838,9 @@ async function main() {
    * things on purpose.
    */
   let resolvedSource = null;
+  /** The factual listing title and its rendered form, both from the assembler. */
+  let resolvedSourceTitle = null;
+  let resolvedDisplayName = null;
 
   await withStage('preflight', () => {
     const dirExists = existsSync(outDir);
@@ -1109,6 +1114,8 @@ async function main() {
 
     packsConfigured = fixed.commercial.packs.length > 0;
     assembledBrand = fixed.identity.brand;
+    resolvedSourceTitle = fixed.identity.name;
+    resolvedDisplayName = fixed.identity.displayName;
 
     writeFileSync(path.join(outDir, 'src/data/product.ts'), buildProductTs(args.shopifyHandle, fixed));
     writeFileSync(path.join(outDir, 'src/data/faq.ts'), buildFaqTs(input.faq));
@@ -1449,7 +1456,13 @@ async function main() {
       // actually went — and `source.canonicalUrl` is the same link with the
       // recommendation context removed.
       source: resolvedSource,
-      productName: input.product && typeof input.product.name === 'string' ? input.product.name : null,
+      // FROM THE ASSEMBLER. This read the Content Agent's document, so the
+      // manifest recorded a name the model wrote — on the first real landing
+      // that was "LuminArt — Tubo de Luz LED RGB Portátil", naming a company
+      // that does not exist, while the landing itself correctly shipped the
+      // factual title. Same bypass class as `brand`, one field over.
+      productName: resolvedSourceTitle,
+      productDisplayName: resolvedDisplayName,
       // Fase 5: which Shopify product this landing sells, and whether it was
       // generated buyable at all. Auditable without opening the .env — and
       // the handle is a public slug, so recording it leaks nothing.
