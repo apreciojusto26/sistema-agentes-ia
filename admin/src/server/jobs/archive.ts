@@ -51,7 +51,7 @@ export type ArchiveResult =
   | {
       ok: false;
       fatal: true;
-      code: 'archive-ownership-mismatch';
+      code: 'archive-ownership-mismatch' | 'archive-ownership-unprovable';
       error: string;
       expected: string;
       found: string | null;
@@ -90,6 +90,29 @@ export function archiveScrape(jobId: string, opts: ArchiveOpts = {}): ArchiveRes
   const productJson = existsSync(path.join(destDir, 'product.json'));
   const pruned = pruneGhostImages(destDir);
   const foundProductId = readProductId(destDir);
+
+  // AN EXPECTED ID MAKES IDENTITY MANDATORY, not merely checked-if-present.
+  //
+  // The gate used to read "a missing id on EITHER side is legacy tolerance",
+  // which is right for a legacy caller that mints none. But when the registry
+  // HAS minted one, an archive that carries no id cannot be shown to be this
+  // run's — and the directory it copies from is shared, so "no id" is exactly
+  // what a stale or half-written artifact looks like. Absence is now a
+  // mismatch, and only for callers that asked for an identity.
+  if (opts.expectedProductId && !foundProductId) {
+    rmSync(destDir, { recursive: true, force: true });
+    return {
+      ok: false,
+      fatal: true,
+      code: 'archive-ownership-unprovable',
+      error:
+        `the archived output carries no productId, so it cannot be shown to belong to run ` +
+        `"${opts.expectedProductId}". The scraper writes product.json only on a completed run; ` +
+        `absence means this run wrote none.`,
+      expected: opts.expectedProductId,
+      found: null,
+    };
+  }
 
   if (opts.expectedProductId && foundProductId && foundProductId !== opts.expectedProductId) {
     // Correctness violation, not an IO hiccup — remove the partially-copied

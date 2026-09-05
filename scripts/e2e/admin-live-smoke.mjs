@@ -108,8 +108,18 @@ const persist = () => {
  * pkill anywhere in here.
  */
 const runner = path.join(ROOT, 'scripts/e2e/live-smoke-run.mjs');
+
+// SPAWNED THROUGH tsx, not plain node. The child imports the Admin's
+// orchestrator and registry, which are TypeScript — and this Node cannot load a
+// .ts file, so a plain spawn died with ERR_UNKNOWN_FILE_EXTENSION before the
+// first stage. tsx is already an Admin dependency; nothing new is installed.
+const TSX = path.join(ROOT, 'admin/node_modules/.bin/tsx');
+if (!existsSync(TSX)) {
+  die('tsx is missing — run `pnpm install` in admin/. The harness loads the Admin TypeScript through it.');
+}
+
 const started = Date.now();
-const child = spawnSync(process.execPath, [runner], {
+const child = spawnSync(TSX, [runner], {
   cwd: ROOT,
   encoding: 'utf-8',
   timeout: Number(process.env.SMOKE_TIMEOUT_MS ?? 20 * 60 * 1000),

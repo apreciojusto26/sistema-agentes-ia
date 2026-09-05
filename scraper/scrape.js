@@ -42,6 +42,30 @@ function resolveProductId() {
 const { productId, productIdSource } = resolveProductId();
 const RUN_STARTED_AT = new Date().toISOString();
 
+/**
+ * Drops the PREVIOUS run's identity artifacts before this one begins.
+ *
+ * `output/` is a shared directory: the same two files are overwritten by every
+ * scrape, and they are written in the FINAL stage. So a run that died earlier —
+ * a 403, an anti-bot interstitial, a selector timeout — left the previous
+ * product's `product.json` sitting there, describing a different product, with
+ * nothing in the file saying it was stale.
+ *
+ * archiveScrape copies this whole directory. Today the pipeline is saved by
+ * archiving only on exit code 0, which is a real protection but a single one:
+ * it says "the process finished", not "these files are this run's".
+ *
+ * Deleting them HERE makes absence the honest state of a failed run. Only the
+ * two files this scraper owns are touched — `images/` has its own lifecycle in
+ * the images stage, and nothing else in the tree is assumed to be ours.
+ */
+function purgePreviousRunIdentity() {
+  for (const name of ['product.json', '.scrape-run.json']) {
+    const file = path.join(CONFIG.outputDir, name);
+    if (fs.existsSync(file)) fs.rmSync(file, { force: true });
+  }
+}
+
 let currentStage = null;
 
 async function withStage(stage, fn) {
@@ -370,6 +394,10 @@ async function extractVariants(page) {
 // ---------------------------------------------------------------------------
 
 async function scrapeAliExpress(url) {
+  // FIRST, BEFORE THE BROWSER. A run that dies at navigation must not leave the
+  // previous product's identity on disk for the archiver to find.
+  purgePreviousRunIdentity();
+
   const browser = await withStage('launch', () => chromium.launch({ headless: true }));
   const context = await browser.newContext({
     userAgent: CONFIG.userAgent,

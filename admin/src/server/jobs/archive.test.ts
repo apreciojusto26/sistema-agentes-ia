@@ -166,11 +166,35 @@ describe('archiveScrape — ownership gate (design D3 Layer 2, task 3.2/7.2)', (
     expect(result.ok).toBe(true);
   });
 
-  test('legacy tolerance: archived product.json has NO productId (pre-change scrape) -> ok:true, not fatal, even with an expectedProductId set', async () => {
+  test('an archive with NO productId is REFUSED when the run expected one', async () => {
+    // THIS TEST USED TO ASSERT THE OPPOSITE, and the reversal is recorded
+    // rather than quietly rewritten. It read: "legacy tolerance: archived
+    // product.json has NO productId (pre-change scrape) -> ok:true, not fatal,
+    // even with an expectedProductId set".
+    //
+    // The reasoning was sound and its premise expired. It existed for scrapes
+    // written before productIds were minted — but scrape.js now resolves one
+    // from arg > LG_PRODUCT_ID > self-mint on EVERY run, so no scrape it
+    // produces can lack an id. What an idless product.json means today is a
+    // STALE artifact in the shared `scraper/output/` directory, which is
+    // exactly what this gate is for.
+    //
+    // Found by the first live smoke: the Leroy run died at navigation while
+    // output/ still held a September AliExpress product. Nothing leaked,
+    // because archiving only happens on exit code 0 — one protection, saying
+    // "the process finished" rather than "these files are this run's".
     seedProductJson(undefined);
     const { archiveScrape } = await import('./archive');
     const result = archiveScrape('job-legacy-product', { srcDir, jobsDir, expectedProductId: 'prd_expect0-22222222' });
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(result.productId).toBeNull();
+    expect(result.ok).toBe(false);
+    if (!result.ok && result.fatal) expect(result.code).toBe('archive-ownership-unprovable');
+  });
+
+  test('but a caller that expects no id keeps its tolerance', async () => {
+    // Narrowed, not removed. It still applies where it was meant to: a call
+    // site that never minted an identity cannot assert one.
+    seedProductJson(undefined);
+    const { archiveScrape } = await import('./archive');
+    expect(archiveScrape('job-legacy-none', { srcDir, jobsDir }).ok).toBe(true);
   });
 });
