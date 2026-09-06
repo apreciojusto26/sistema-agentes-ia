@@ -224,6 +224,88 @@ describe('a report outlives the Admin that produced it', () => {
     }
   });
 
+  test('a FAILED Validation Agent survives a restart with every check and its code intact', async () => {
+    // VALIDATION GATES. Written the way a real process actually leaves it —
+    // through the SAME record shape every other stage already persists in,
+    // never a parallel store — then read back exactly as `main.ts` does at
+    // boot, via `recover()`.
+    const { PIPELINES_DIR } = await import('../src/server/config');
+    const store = await import('../src/server/pipeline-store');
+    mkdirSync(PIPELINES_DIR, { recursive: true });
+
+    const written = path.join(PIPELINES_DIR, 'pl_validation_failed.json');
+    const record = {
+      pipelineId: 'pl_validation_failed',
+      slug: 'zz-validation-gates',
+      sourceUrl: 'https://example.com/item/1',
+      productId: 'prd_gate-1',
+      shopifyHandle: null,
+      commerceMode: 'preview-only',
+      status: 'failed',
+      currentStage: 'validate',
+      stages: [
+        {
+          name: 'validate',
+          status: 'failed',
+          jobId: null,
+          startedAt: '2026-09-06T00:00:00.000Z',
+          endedAt: '2026-09-06T00:00:01.000Z',
+          error: 'Validation Agent: 2 invariant(s) demostrablemente inválido(s) — validate:grammar, validate:readiness',
+          errorDetail: {
+            headline: '2 chequeo(s) de Validation fallaron',
+            facts: [
+              { label: 'validate:grammar', value: 'validation-grammar-failed' },
+              { label: 'validate:readiness', value: 'validation-readiness-failed' },
+            ],
+          },
+          detail: null,
+          steps: [
+            { name: 'validate:artifact', status: 'passed', startedAt: '', endedAt: '', ms: 1, progress: null, note: '5 artefactos presentes', warnings: [], code: null },
+            { name: 'validate:grammar', status: 'failed', startedAt: '', endedAt: '', ms: 1, progress: null, note: 'abc123… · 249 elementos', warnings: ['reviews/cards is on the page but its markup matches no shape the grammar declares for it', '1 región(es) de la Structural Grammar V3 sin colapsar o por debajo del mínimo declarado'], code: 'validation-grammar-failed' },
+            { name: 'validate:asset-refs', status: 'passed', startedAt: '', endedAt: '', ms: 1, progress: { done: 19, total: 19, label: 'referencias resueltas' }, note: '32 claves en images.ts', warnings: [], code: null },
+            { name: 'validate:ownership', status: 'passed', startedAt: '', endedAt: '', ms: 1, progress: null, note: 'aliexpress · 1005007345199501', warnings: [], code: null },
+            { name: 'validate:social-proof', status: 'passed', startedAt: '', endedAt: '', ms: 1, progress: { done: 30, total: 30, label: 'factuales' }, note: null, warnings: [], code: null },
+            { name: 'validate:readiness', status: 'failed', startedAt: '', endedAt: '', ms: 1, progress: { done: 14, total: 15, label: 'checks' }, note: '1 sin cumplir', warnings: ['Build present: dist/client/index.html not found', 'production readiness: 1/15 checks sin cumplir'], code: 'validation-readiness-failed' },
+          ],
+        },
+      ],
+      outputPath: '/outputs/zz-validation-gates',
+      createdAt: '2026-09-06T00:00:00.000Z',
+      finishedAt: '2026-09-06T00:00:01.000Z',
+      error: 'Validation Agent: 2 invariant(s) demostrablemente inválido(s) — validate:grammar, validate:readiness',
+    };
+    writeFileSync(written, JSON.stringify(record, null, 2));
+
+    try {
+      expect(store.recover()).toBeGreaterThanOrEqual(1);
+      const runs = store.forSlug('zz-validation-gates');
+      const recovered = runs.find((r) => r.pipelineId === 'pl_validation_failed')!;
+      // THE PIPELINE FINAL STATUS, preserved — never silently upgraded to
+      // succeeded, and never left as `running` by a restart.
+      expect(recovered.status).toBe('failed');
+      const validate = recovered.stages.find((s: { name: string }) => s.name === 'validate')!;
+      expect(validate.status).toBe('failed');
+      // EVERY ONE OF THE SIX CHECKS, preserved — the two that failed AND the
+      // four that passed, so "× Falló" on reopen still shows the whole board.
+      expect(validate.steps.map((s: { name: string }) => s.name)).toEqual([
+        'validate:artifact',
+        'validate:grammar',
+        'validate:asset-refs',
+        'validate:ownership',
+        'validate:social-proof',
+        'validate:readiness',
+      ]);
+      // THE FAILURE CODES, preserved verbatim — programmatically
+      // distinguishable, never re-derived by parsing a message.
+      const codes = Object.fromEntries(validate.steps.map((s: { name: string; code: string | null }) => [s.name, s.code]));
+      expect(codes['validate:grammar']).toBe('validation-grammar-failed');
+      expect(codes['validate:readiness']).toBe('validation-readiness-failed');
+      expect(codes['validate:artifact']).toBeNull();
+    } finally {
+      rmSync(written, { force: true });
+    }
+  });
+
   test('a run interrupted mid-flight comes back FAILED, not running', async () => {
     // Its child processes died with the server. Reporting it as in flight
     // forever would block the next generation on a run nobody can finish.

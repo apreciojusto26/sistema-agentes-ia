@@ -410,8 +410,16 @@ function blockSkeleton(lines, [from, to], { relationalIds = false } = {}) {
   return (relationalIds ? canonicalizeItemIdentity(rows) : rows).join('\n');
 }
 
-/** Does this element line satisfy a grammar entry's wrapper matcher? */
-function matchesWrapper(text, wrapper) {
+/**
+ * Does this element line satisfy a grammar entry's wrapper matcher?
+ *
+ * EXPORTED, purely additively — this was private until Validation needed to
+ * ask the SAME question `applyGrammar` asks internally ("is this region's
+ * wrapper present on the page at all") from OUTSIDE the collapse pass, for
+ * collectUncollapsedRegions() below. No behaviour here changed; only the
+ * binding's visibility did.
+ */
+export function matchesWrapper(text, wrapper) {
   if (!text.startsWith(`<${wrapper.tag}`) && wrapper.tag !== '*') return false;
   for (const cls of wrapper.classes ?? []) {
     // Classes are sorted and space-joined by normalizeClass, so a word-boundary
@@ -814,4 +822,72 @@ export function structuralFingerprint(html, grammar, slots) {
     hash: createHash('sha256').update(skeleton).digest('hex'),
     elements: skeleton ? skeleton.split('\n').length : 0,
   };
+}
+
+/**
+ * Every declared region whose wrapper element is ON THE PAGE but whose
+ * children matched no shape the grammar declares for it — left verbatim by
+ * applyGrammar() rather than collapsed — plus every region collapsed but
+ * BELOW the grammar's own declared minimum count.
+ *
+ * A VALIDATION SIGNAL, not a fingerprint concern. structuralFingerprint()
+ * already reacts to either condition — verbatim markup and an <UNDERFILLED>
+ * marker both move the hash — this only names WHICH region and WHY, for a
+ * caller (Validation's structural gate) that wants to FAIL on it rather than
+ * merely notice a hash it has no earlier reference to compare against.
+ *
+ * A region whose wrapper is absent altogether is NOT reported: that is a
+ * legitimate absence (no reviews, no merchant, no featured quote), the exact
+ * case OPTIONAL<...> and the `zero: 'optional-capability'` regions exist to
+ * make ordinary. This function only speaks to a region that IS on the page
+ * and does not fit the shape the seal says a Fixed page is allowed to have.
+ *
+ * WHY THIS RECOMPUTES ITS OWN SKELETON RATHER THAN TAKING structuralFingerprint()'s
+ * OUTPUT. structuralFingerprint() runs applyOptionalSlots() ON TOP OF
+ * applyGrammar()'s result (see below) — and an optional slot (OPTIONAL<ReviewsSection>
+ * under V2/V3) matches its whole bracketed block, REPEAT<reviews/cards:...> and
+ * REPEAT<reviews/dots:...> markers included, and replaces that entire block with
+ * one outer marker. Those inner REPEAT<> substrings are real but TRANSIENT: they
+ * exist right after applyGrammar() and are gone from the final, fully-collapsed
+ * skeleton. A region search against the FINAL skeleton would misreport every
+ * region living inside an optional slot as "uncollapsed" even when it collapsed
+ * correctly — caught by hand against outputs/1005007345199501, a landing already
+ * fully verified in an earlier session, before this function was ever wired into
+ * a gate. So this asks applyGrammar() the same question structuralFingerprint()
+ * does, but stops one step earlier, before any optional slot can swallow the
+ * markers this function needs to see.
+ *
+ * @param {string} html rendered page markup
+ * @param {object[]} grammar declared regions (e.g. FIXED_GRAMMAR_V3)
+ * @returns {{ id: string, message: string }[]}
+ */
+export function collectUncollapsedRegions(html, grammar) {
+  const rawSkeleton = structuralSkeleton(html);
+  const rawLines = rawSkeleton.split('\n');
+  const grammarSkeleton = applyGrammar(canonicalizeRadioGroups(normalizeContextualValues(rawSkeleton)), grammar);
+  const findings = [];
+  for (const region of grammar ?? []) {
+    const wrapperPresent = rawLines.some((line) => matchesWrapper(line.trim(), region.wrapper));
+    if (!wrapperPresent) continue; // legitimately absent — outside this check's concern
+
+    if (grammarSkeleton.includes(`<UNDERFILLED ${region.id} `)) {
+      findings.push({
+        id: region.id,
+        message: `${region.id} has fewer items than the grammar's declared minimum (min ${region.min ?? 0})`,
+      });
+      continue;
+    }
+
+    const markerPrefixes = region.tuple
+      ? [`TUPLE_REPEAT<${region.id}:`, `TUPLE_LAST<${region.id}:`]
+      : [`${String(region.kind).toUpperCase()}<${region.id}:`];
+    const collapsed = markerPrefixes.some((prefix) => grammarSkeleton.includes(prefix));
+    if (!collapsed) {
+      findings.push({
+        id: region.id,
+        message: `${region.id} is on the page but its markup matches no shape the grammar declares for it`,
+      });
+    }
+  }
+  return findings;
 }

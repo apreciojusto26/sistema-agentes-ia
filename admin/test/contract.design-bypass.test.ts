@@ -134,8 +134,15 @@ function strictRegistry() {
 }
 
 const okBuild = async () => ({ ok: true, message: null });
+// This suite is about the Design Agent boundary, not about a landing's real
+// built-and-ready state — strictRegistry() writes no dist/, so the real
+// check-readiness.mjs would legitimately report NOT READY against it.
+const okReadiness = async () => ({ ready: true, total: 15, results: [] });
 const run = (registry: any) =>
-  runPipeline({ url: 'https://example.com/item/1', slug: 'zz-bypass' }, { registry, runBuild: okBuild });
+  runPipeline(
+    { url: 'https://example.com/item/1', slug: 'zz-bypass' },
+    { registry, runBuild: okBuild, readReadiness: okReadiness },
+  );
 
 describe('the Design Agent is not executed', () => {
   it('a full run succeeds against a registry that cannot produce a design job', async () => {

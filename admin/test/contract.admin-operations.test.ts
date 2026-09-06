@@ -10,11 +10,23 @@
 //
 // ─── AND WHAT MUST STAY TRUE WHILE IT IS CLOSED ────────────────────────────
 //
-// Instrumentation must not become fake progress, and it must not become a
-// gate. Every assertion below is made against a REAL `runPipeline` run over a
-// real temporary archive, never against a hand-built record: the counts are
-// the counts the producer computed, the statuses are the outcomes the calls
-// had, and a stage that used to succeed still succeeds.
+// Instrumentation must not become fake progress. Every assertion below is
+// made against a REAL `runPipeline` run over a real temporary archive, never
+// against a hand-built record: the counts are the counts the producer
+// computed and the statuses are the outcomes the calls had.
+//
+// ─── VALIDATION GATES (later addition) ─────────────────────────────────────
+//
+// The six Validation checks below stayed report-only until this addition: a
+// DEMONSTRATED defect (a broken structural region, an unresolved asset ref, a
+// productId mismatch, an untraceable review, a NOT READY verdict) now fails
+// the stage through `StepFacts.fail()`. A legitimate ABSENCE never did and
+// still does not — a `warning` stays an outcome, not a failure, exactly as
+// before. `run()` below fakes `readReadiness` by default for the same reason
+// it already fakes `runBuild`: none of these fixtures perform a real astro
+// build, so the real check-readiness.mjs would legitimately report NOT READY
+// against nearly every one of them — a fact about the FIXTURE, not about the
+// specific thing each test exists to prove.
 import { afterEach, describe, expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -23,6 +35,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   runPipeline,
+  readReadiness,
   ADMIN_OPERATIONS,
   NORMALIZE_OPERATIONS,
   ASSET_OPERATIONS,
@@ -121,6 +134,20 @@ function fakeOutput() {
     ["export const images = {", "  'product-01': a,", "  'product-02': b,", '};', ''].join('\n'),
   );
   writeFileSync(path.join(dir, '.generation.json'), JSON.stringify({ productId: 'prd_x-1' }));
+  // Matches archiveWithMedia()'s DEFAULT two displayable reviews verbatim —
+  // the third (empty text) is correctly excluded, never written here — so
+  // validate:social-proof's provenance trace finds both bodies and the
+  // landing PASSES on the review data most tests in this file actually use.
+  writeFileSync(
+    path.join(dir, 'src/data/testimonials.ts'),
+    [
+      "export const testimonials = [",
+      '  { id: "r1", author: "M***a", rating: 5, date: "25 AGO 2025", body: "Preciosa, ilumina toda la habitación.", variant: "quote" },',
+      '  { id: "r2", author: "J***n", rating: 4, date: "01 SEP 2025", body: "Cumple lo que promete.", variant: "reel" },',
+      '];',
+      '',
+    ].join('\n'),
+  );
   return dir;
 }
 
@@ -190,13 +217,28 @@ function fakeRegistry(opts: { archive: string; outDir: string; steps?: number })
 
 const okBuild = async () => ({ ok: true, message: null });
 
+// SEAM, LIKE okBuild — see the file header. Only the one test whose actual
+// subject IS the real check-readiness.mjs integration overrides this back.
+const okReadiness = async () => ({ ready: true, total: 15, results: [] });
+
 /** Runs the real pipeline over a real archive. */
-async function run(overrides: { archive?: string; outDir?: string; steps?: number } = {}) {
+async function run(
+  overrides: {
+    archive?: string;
+    outDir?: string;
+    steps?: number;
+    readReadiness?: typeof readReadiness;
+  } = {},
+) {
   const archive = overrides.archive ?? archiveWithMedia();
   const outDir = overrides.outDir ?? fakeOutput();
   const record = await runPipeline(
     { url: 'https://example.com/item/1', slug: 'zz-operations' },
-    { registry: fakeRegistry({ archive, outDir, steps: overrides.steps }), runBuild: okBuild },
+    {
+      registry: fakeRegistry({ archive, outDir, steps: overrides.steps }),
+      runBuild: okBuild,
+      readReadiness: overrides.readReadiness ?? okReadiness,
+    },
   );
   return { record, archive, outDir };
 }
@@ -434,7 +476,9 @@ describe('the Validation Agent reports checks that really ran', () => {
   });
 
   it('readiness is the readiness authority itself, not a second opinion', async () => {
-    const { record } = await run();
+    // The ONE test in this suite that wants the REAL check-readiness.mjs
+    // subprocess — every other test fakes it, exactly as it fakes runBuild.
+    const { record } = await run({ readReadiness });
     const readiness = stepOf(record, 'validate', 'validate:readiness');
     // The real script reports 15 checks today. Asserting the SHAPE rather than
     // the number: a check added to check-readiness.mjs must not fail this.
@@ -496,14 +540,25 @@ describe('the Validation Agent reports checks that really ran', () => {
     const bare = tempDir('lg-ops-nolanding-');
     const { record } = await run({ outDir: bare });
     expect(record.status).toBe('failed');
-    expect(record.error).toContain('product.ts');
     expect(stageOf(record, 'validate').status).toBe('failed');
+    // A bare directory is missing EVERYTHING — validate:ownership and
+    // validate:social-proof correctly, independently fail alongside it now
+    // (aggregation), so the check itself is asserted on its own step rather
+    // than on the stage's rolled-up error string.
+    const artifact = stepOf(record, 'validate', 'validate:artifact');
+    expect(artifact.status).toBe('failed');
+    expect(artifact.code).toBe('validation-artifacts-failed');
+    expect(artifact.warnings.join(' ')).toContain('product.ts');
   });
 
-  it('and the five checks after it never gate a run that used to pass', async () => {
-    // They MEASURE. Turning one into a gate changes what the pipeline promises,
-    // which is a decision for the operator to make on the evidence — and the
-    // evidence is what this stage did not have until now.
+  it('a WARNING never gates a run — only a DEMONSTRATED failure does (VALIDATION GATES)', async () => {
+    // This fixture's grammar check warns (no real dist/ to fingerprint) and
+    // nothing else in it is a real defect — a legitimate absence stays green,
+    // exactly as before this session's change. What DID change: a check that
+    // can DEMONSTRATE a defect (a broken structural region, an unresolved
+    // asset ref, a productId mismatch, an untraceable review, NOT READY) now
+    // fails the stage instead of only reporting it — see the mutation-test
+    // block below for that half of the contract.
     const { record } = await run();
     expect(record.status).toBe('succeeded');
     expect(stageOf(record, 'validate').status).toBe('pass');

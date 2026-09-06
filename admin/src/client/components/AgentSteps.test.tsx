@@ -25,6 +25,7 @@ const step = (over: Partial<PipelineStep> & { name: string; status: PipelineStep
   progress: null,
   note: null,
   warnings: [],
+  code: null,
   ...over,
 });
 

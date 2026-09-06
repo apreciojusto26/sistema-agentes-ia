@@ -10,10 +10,21 @@ export interface FixedSocialProofAudit {
   rejected: { reason: string }[];
 }
 
+/** One rendered testimonial, exactly as written to testimonials.ts. */
+export interface FixedTestimonial {
+  id: string;
+  author: string;
+  rating: number;
+  date: string;
+  /** The provider's own review text, verbatim (trimmed) — the provenance trace. */
+  body: string;
+  variant: 'quote' | 'reel';
+}
+
 export interface FixedSocialProof {
   capability: boolean;
-  testimonials: unknown[];
-  featured: unknown | null;
+  testimonials: FixedTestimonial[];
+  featured: FixedTestimonial | null;
   audit: FixedSocialProofAudit;
 }
 

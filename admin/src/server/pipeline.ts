@@ -26,7 +26,7 @@ import {
   collectUnresolvedRefs,
   FIXED_ASSET_OPERATIONS,
 } from '../../../scripts/lib/fixed-asset-producer.mjs';
-import { structuralFingerprint } from '../../../scripts/lib/fingerprint.mjs';
+import { structuralFingerprint, collectUncollapsedRegions } from '../../../scripts/lib/fingerprint.mjs';
 import {
   FIXED_GRAMMAR_V3,
   FIXED_OPTIONAL_SLOTS_V3,
@@ -131,6 +131,15 @@ export type PipelineStep = {
    */
   note: string | null;
   warnings: string[];
+  /**
+   * The STABLE, machine-checkable identifier for a demonstrated failure —
+   * e.g. `validation-grammar-failed`. `null` unless this step ended `failed`
+   * via `StepFacts.fail()`; a step that threw a genuine, un-anticipated
+   * exception carries no code, because there was no invariant name to give
+   * it. Never parse `note` or `warnings` to find out which invariant broke —
+   * this is the field a test or a future caller matches on.
+   */
+  code: string | null;
 };
 
 export type PipelineStage = {
@@ -189,6 +198,28 @@ export type StepFacts = {
   note(text: string): void;
   /** A real condition it reported. Never invented for the UI's benefit. */
   warn(message: string): void;
+  /**
+   * Marks THIS step failed — the check ran to completion and DEMONSTRATED
+   * the landing is invalid — WITHOUT aborting the operations declared after
+   * it and WITHOUT skipping them.
+   *
+   * THE THIRD OUTCOME, next to `warn()` and a thrown exception. `warn()` is
+   * for a legitimate absence that still ends green — no brand, no factual
+   * reviews, no SITE_URL in Preview, Auto Accent's canonical fallback. A
+   * THROW is for a genuine crash, a check that could not even run, and it
+   * still aborts everything declared after it via `skipRemaining()` — there
+   * is no fact left to report from a stage whose own machinery broke.
+   * `fail()` sits between them: the check completed, and what it found is a
+   * demonstrated defect, but that says nothing about whether the NEXT
+   * independent, read-only check can still run and report its own truth.
+   * Six real defects surfaced in one run beats discovering them one at a
+   * time across six.
+   *
+   * @param code the STABLE, machine-checkable identifier this failure is
+   *   known by, e.g. `validation-grammar-failed`. Never derived by parsing
+   *   `message` — a caller matches on this, not on prose.
+   */
+  fail(message: string, code: string): void;
 };
 
 /**
@@ -280,12 +311,13 @@ class StepRecorder {
         progress: null,
         note: null,
         warnings: [],
+        code: null,
       });
     }
     this.#index = this.#planned.length;
   }
 
-  #begin(name: string): { step: PipelineStep; facts: StepFacts; began: number } {
+  #begin(name: string): { step: PipelineStep; facts: StepFacts; began: number; getFailure: () => { message: string; code: string } | null } {
     const expected = this.#planned[this.#index];
     if (name !== expected) {
       throw new Error(
@@ -302,11 +334,17 @@ class StepRecorder {
       progress: null,
       note: null,
       warnings: [],
+      code: null,
     };
     this.#stage.steps.push(step);
     this.#index += 1;
     this.#emit();
 
+    // Captured by closure rather than written straight onto `step`, so
+    // `#settle` decides the step's actual status — a step that calls both
+    // `warn()` and `fail()` must land on `failed`, never quietly on `warning`
+    // because of write order.
+    let failure: { message: string; code: string } | null = null;
     const facts: StepFacts = {
       count: (done, total, label) => {
         step.progress = label === undefined ? { done, total } : { done, total, label };
@@ -317,17 +355,31 @@ class StepRecorder {
       warn: (message) => {
         step.warnings.push(message);
       },
+      fail: (message, code) => {
+        failure = { message, code };
+      },
     };
-    return { step, facts, began: Date.now() };
+    return { step, facts, began: Date.now(), getFailure: () => failure };
   }
 
-  #settle(ctx: { step: PipelineStep; began: number }): void {
+  #settle(ctx: { step: PipelineStep; began: number; getFailure: () => { message: string; code: string } | null }): void {
     ctx.step.endedAt = nowIso();
     ctx.step.ms = Date.now() - ctx.began;
-    // A FINISHED OPERATION THAT REPORTED A PROBLEM IS NOT A CLEAN PASS. Same
-    // rule projectSteps applies to the children: flattening it to a green tick
-    // hides the one thing worth reading.
-    ctx.step.status = ctx.step.warnings.length > 0 ? 'warning' : 'passed';
+    const failure = ctx.getFailure();
+    if (failure) {
+      // A DEMONSTRATED DEFECT — but the check itself RAN TO COMPLETION, so
+      // this deliberately does NOT call skipRemaining(). One independent,
+      // read-only Validation check finding a real defect says nothing about
+      // whether the next one can still run and report its own truth.
+      ctx.step.status = 'failed';
+      ctx.step.code = failure.code;
+      ctx.step.warnings.push(failure.message);
+    } else {
+      // A FINISHED OPERATION THAT REPORTED A PROBLEM IS NOT A CLEAN PASS. Same
+      // rule projectSteps applies to the children: flattening it to a green
+      // tick hides the one thing worth reading.
+      ctx.step.status = ctx.step.warnings.length > 0 ? 'warning' : 'passed';
+    }
     this.#emit();
   }
 
@@ -422,6 +474,10 @@ function projectSteps(job: JobRecord | null): PipelineStep[] {
     // and warnings and nothing shaped like one, so inventing a summary line
     // here would be the projection interpreting instead of projecting.
     note: null,
+    // A CHILD REPORTS NO CODE EITHER. `code` is StepRecorder's own vocabulary
+    // for the admin's OWN read-only Validation gates; nothing in the NDJSON
+    // protocol emits one.
+    code: null,
     warnings: s.warnings,
   }));
 }
@@ -539,6 +595,17 @@ export type PipelineDeps = {
   /** Seam for tests: replaces the real `astro build` spawn. */
   runBuild?: (outDir: string) => Promise<{ ok: boolean; message: string | null }>;
   /**
+   * Seam for tests: replaces the real `check-readiness.mjs` subprocess.
+   *
+   * PRODUCTION NEVER SETS THIS — `readReadiness` below, the same authority
+   * `validate:readiness` has always called, is the default. A test whose
+   * subject is stage sequencing rather than a landing's real
+   * built-and-ready state (most of the suite predates `validate:readiness`
+   * being a hard gate) supplies a trivial `{ ready: true, ... }` here rather
+   * than growing a genuine astro build the test was never about.
+   */
+  readReadiness?: (outDir: string) => Promise<ReadinessReport | null>;
+  /**
    * The brand-mark provider. UNSET IN PRODUCTION, because none exists: there is
    * no image-generation SDK, API, model or credential anywhere in this repo —
    * audited, not assumed. The seam is here so a backend plugs in without
@@ -556,6 +623,7 @@ export type PipelineDeps = {
 export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Promise<PipelineRecord> {
   const { registry, onUpdate } = deps;
   const runBuild = deps.runBuild ?? defaultRunBuild;
+  const checkReadiness = deps.readReadiness ?? readReadiness;
 
   const record: PipelineRecord = {
     pipelineId: `pl_${Date.now().toString(36)}`,
@@ -1073,6 +1141,10 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
   const validateSteps = new StepRecorder(validateStage, emit, VALIDATE_OPERATIONS);
   try {
     validateSteps.run('validate:artifact', (facts) => {
+      // THE EXISTING CHECK, VERBATIM — a HARD GATE now reports through
+      // `fail()` instead of a throw, so a missing artifact no longer aborts
+      // the five checks declared after it. The set of required files has not
+      // changed by one entry.
       const missing: string[] = [];
       if (!existsSync(path.join(outDir, '.git'))) missing.push('.git (landing is not its own repository)');
       if (!existsSync(path.join(outDir, '.gitignore'))) missing.push('.gitignore');
@@ -1080,7 +1152,10 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
       if (!existsSync(path.join(outDir, 'src/data/images.ts'))) missing.push('src/data/images.ts (asset map)');
       if (!existsSync(path.join(outDir, '.generation.json'))) missing.push('.generation.json');
       if (input.shopifyHandle && !existsSync(path.join(outDir, '.env'))) missing.push('.env (commerce mode handle)');
-      if (missing.length > 0) throw new Error(`the generated landing is missing: ${missing.join(', ')}`);
+      if (missing.length > 0) {
+        facts.fail(`the generated landing is missing: ${missing.join(', ')}`, 'validation-artifacts-failed');
+        return;
+      }
       facts.note(`${input.shopifyHandle ? 6 : 5} artefactos presentes`);
     });
 
@@ -1096,12 +1171,23 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
         facts.warn('la landing no tiene dist/client/index.html — no hay HTML construido que medir');
         return;
       }
-      const fp = structuralFingerprint(
-        readFileSync(built, 'utf-8'),
-        FIXED_GRAMMAR_V3,
-        FIXED_OPTIONAL_SLOTS_V3,
-      );
+      const html = readFileSync(built, 'utf-8');
+      const fp = structuralFingerprint(html, FIXED_GRAMMAR_V3, FIXED_OPTIONAL_SLOTS_V3);
       facts.note(`${fp.hash.slice(0, 12)}… · ${fp.elements} elementos`);
+
+      // THE HARD GATE. A hash alone has nothing to compare itself against —
+      // this asks WHICH region, if any, is on the page but does not fit any
+      // shape V3 declares for it, or is below its declared minimum. Never
+      // reported as a warning, and never fixed by editing the sealed grammar:
+      // V1/V2/V3 stay exactly as sealed.
+      const findings = collectUncollapsedRegions(html, FIXED_GRAMMAR_V3);
+      for (const finding of findings) facts.warn(finding.message);
+      if (findings.length > 0) {
+        facts.fail(
+          `${findings.length} región(es) de la Structural Grammar V3 sin colapsar o por debajo del mínimo declarado`,
+          'validation-grammar-failed',
+        );
+      }
     });
 
     validateSteps.run('validate:asset-refs', (facts) => {
@@ -1135,6 +1221,12 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
       facts.count(refs - unresolved.length, refs, 'referencias resueltas');
       facts.note(`${keys.length} claves en images.ts`);
       for (const issue of unresolved) facts.warn(issue.message);
+      // THE HARD GATE. A landing with a broken image reference cannot stay
+      // green — this is the exact ratio already computed above, just no
+      // longer merely reported.
+      if (unresolved.length > 0) {
+        facts.fail(`${unresolved.length}/${refs} referencias de asset sin resolver`, 'validation-assets-failed');
+      }
     });
 
     validateSteps.run('validate:ownership', (facts) => {
@@ -1142,14 +1234,36 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
       // be the same answer — a folder that belongs to another product is the
       // contamination the whole isolation rule exists to prevent, and
       // `.generation.json` is where the generator recorded it first-hand.
+      // FAIL CLOSED. `.generation.json` is itself one of validate:artifact's
+      // mandatory artifacts — if it is missing or unreadable, ownership CANNOT
+      // be demonstrated when it SHOULD be demonstrable, which is the exact
+      // condition the spec calls out, not a shrug.
       const manifest = readGenerationManifest(outDir);
       if (!manifest) {
-        facts.warn('la landing no registra .generation.json legible — no puede probar de quién es');
+        facts.fail(
+          'la landing no registra .generation.json legible — la propiedad del producto no puede demostrarse',
+          'validation-ownership-failed',
+        );
         return;
       }
       const shipped = manifest.productId ?? null;
       if (shipped && record.productId && shipped !== record.productId) {
-        facts.warn(`la carpeta declara ${shipped} y esta ejecución es ${record.productId}`);
+        facts.fail(
+          `la carpeta declara ${shipped} y esta ejecución es ${record.productId} — pertenece a otro producto`,
+          'validation-ownership-failed',
+        );
+        return;
+      }
+      // BELONGS TO ANOTHER SOURCE PRODUCT, same productId notwithstanding —
+      // only compared when BOTH sides actually carry a source URL, so a
+      // legitimately sourceless product (manual entry, no scrape) never fails
+      // on an absence neither side can be faulted for.
+      if (manifest.sourceUrl && record.sourceUrl && manifest.sourceUrl !== record.sourceUrl) {
+        facts.fail(
+          `la carpeta declara origen ${manifest.sourceUrl} y esta ejecución es ${record.sourceUrl} — pertenece a otro source product`,
+          'validation-ownership-failed',
+        );
+        return;
       }
       const identity = manifest.source
         ? formatSourceIdentity(manifest.source)
@@ -1171,6 +1285,37 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
       for (const rejection of proof.audit.rejected) {
         facts.warn(`reseña descartada: ${rejection.reason}`);
       }
+
+      // THE HARD GATE — on what the page actually RENDERS, not on the
+      // found/displayable ratio. A review missing text or rating is EXCLUDED
+      // before it ever reaches testimonials.ts — `proof.audit.rejected`
+      // already reports that above as a legitimate data gap, never a defect.
+      // What this checks is whether every testimonial WRITTEN to the landing
+      // traces back to a body this same canonical product's reviews produce
+      // right now — the literal reading of "reviews rendered that cannot be
+      // traced to a CanonicalReview".
+      const testimonialsModule = path.join(outDir, 'src/data/testimonials.ts');
+      if (!existsSync(testimonialsModule)) {
+        if (proof.testimonials.length > 0) {
+          facts.fail(
+            `la landing debería mostrar ${proof.testimonials.length} reseña(s) pero no escribió testimonials.ts`,
+            'validation-social-proof-failed',
+          );
+        }
+        return;
+      }
+      const testimonialsSource = readFileSync(testimonialsModule, 'utf-8');
+      const renderedBodies = [...testimonialsSource.matchAll(/body:\s*("(?:[^"\\]|\\.)*")/g)].map(
+        (m) => JSON.parse(m[1]!) as string,
+      );
+      const traceable = new Set(proof.testimonials.map((t) => t.body));
+      const untraceable = renderedBodies.filter((body) => !traceable.has(body));
+      if (untraceable.length > 0) {
+        facts.fail(
+          `${untraceable.length}/${renderedBodies.length} reseñas renderizadas no trazan a ninguna CanonicalReview actual`,
+          'validation-social-proof-failed',
+        );
+      }
     });
 
     await validateSteps.runAsync('validate:readiness', async (facts) => {
@@ -1178,7 +1323,7 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
       // reimplementation of its checks — `scripts/check-readiness.mjs` is the
       // one command that answers "is this output ready", and reading its own
       // `--json` is what keeps this from becoming a second opinion that drifts.
-      const readiness = await readReadiness(outDir);
+      const readiness = await checkReadiness(outDir);
       if (!readiness) {
         facts.warn('el chequeo de readiness no pudo ejecutarse sobre esta landing');
         return;
@@ -1187,12 +1332,43 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
       facts.count(readiness.total - failed.length, readiness.total, 'checks');
       facts.note(readiness.ready ? 'READY' : `${failed.length} sin cumplir`);
       for (const check of failed) facts.warn(`${check.name}: ${check.detail}`);
+      // THE HARD GATE — check-readiness.mjs's own verdict, passed through
+      // rather than re-decided. Its 15 checks stay wholly its own; this only
+      // asks the one question that authority already answered.
+      if (!readiness.ready) {
+        facts.fail(
+          `production readiness: ${failed.length}/${readiness.total} checks sin cumplir`,
+          'validation-readiness-failed',
+        );
+      }
     });
   } catch (err) {
+    // RESERVED FOR A GENUINE CRASH — a check that could not even run. Every
+    // hard gate above reports through `facts.fail()`, which never throws;
+    // reaching this branch means Validation's own machinery broke, not that
+    // it demonstrated a defect, so `skipRemaining()` (already run inside
+    // StepRecorder) is the right call here and nowhere else in this stage.
     return fail('validate', err instanceof Error ? err.message : 'the generated landing could not be validated');
   }
 
+  // THE AGGREGATE VERDICT. Six independent, read-only checks all ran to
+  // completion above regardless of one another's outcome — this is the one
+  // place their results are combined. ANY demonstrated failure makes the
+  // whole stage `failed`, never `succeeded with warnings`: Validation can
+  // find every real defect in one run, but it does not get to call a landing
+  // done while one of them stands.
+  const validateFailures = validateStage.steps.filter((s) => s.status === 'failed');
   const validateWarnings = validateStage.steps.filter((s) => s.status === 'warning').length;
+  if (validateFailures.length > 0) {
+    return fail(
+      'validate',
+      `Validation Agent: ${validateFailures.length} invariant(s) demostrablemente inválido(s) — ${validateFailures.map((s) => s.name).join(', ')}`,
+      {
+        headline: `${validateFailures.length} chequeo(s) de Validation fallaron`,
+        facts: validateFailures.map((s) => ({ label: s.name, value: s.code ?? 'sin código' })),
+      },
+    );
+  }
   pass('validate', validateWarnings === 0 ? 'artefact complete' : `artefact complete · ${validateWarnings} con avisos`);
 
   record.status = 'succeeded';

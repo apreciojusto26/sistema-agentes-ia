@@ -23,3 +23,15 @@ export declare function structuralFingerprint(
   grammar: unknown,
   slots: unknown,
 ): StructuralFingerprint;
+
+/** One region on the page that does not fit what the grammar declares for it. */
+export interface UncollapsedRegionFinding {
+  /** The grammar region's own id, e.g. "reviews/cards". */
+  id: string;
+  message: string;
+}
+
+export declare function collectUncollapsedRegions(
+  html: string,
+  grammar: unknown,
+): UncollapsedRegionFinding[];

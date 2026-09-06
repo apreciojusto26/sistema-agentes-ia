@@ -132,6 +132,15 @@ function fakeOutput(withEnv: boolean) {
 
 const okBuild = async () => ({ ok: true, message: null });
 
+// SEAM, LIKE okBuild. `fakeOutput` never produces a real astro build — no
+// dist/, an empty product.ts — so check-readiness.mjs's REAL "Build present"
+// (and most of its other 14 checks) would legitimately, correctly report NOT
+// READY against it. These tests are about stage sequencing, artefact
+// presence and commerce-mode wiring, not about a landing's real
+// built-and-ready state, so — exactly as okBuild stands in for a real astro
+// build — this stands in for a real check-readiness.mjs pass.
+const okReadiness = async () => ({ ready: true, total: 15, results: [] });
+
 describe('stage order and hand-off', () => {
   it('runs every stage, in the documented order, and succeeds', async () => {
     const out = fakeOutput(false);
@@ -140,7 +149,7 @@ describe('stage order and hand-off', () => {
     const seen: string[] = [];
     const rec = await runPipeline(
       { url: 'https://example.com/item/1', slug: 'zz-pipe' },
-      { registry, runBuild: okBuild, onUpdate: (r) => r.currentStage && seen.push(r.currentStage) },
+      { registry, runBuild: okBuild, readReadiness: okReadiness, onUpdate: (r) => r.currentStage && seen.push(r.currentStage) },
     );
 
     expect(rec.status).toBe('succeeded');
@@ -155,7 +164,7 @@ describe('stage order and hand-off', () => {
     const out = fakeOutput(false);
     const fake = fakeRegistry({ archive, outDir: out });
 
-    await runPipeline({ url: 'https://example.com/item/1', slug: 'zz-pipe' }, { registry: fake.registry, runBuild: okBuild });
+    await runPipeline({ url: 'https://example.com/item/1', slug: 'zz-pipe' }, { registry: fake.registry, runBuild: okBuild, readReadiness: okReadiness });
 
     const byKind = (k: string) => fake.created.find((c) => c.kind === k)!.params;
 
@@ -177,7 +186,7 @@ describe('stage order and hand-off', () => {
   it('no stage uses a fixture — every path points at the run\'s own artefacts', async () => {
     const archive = fakeArchive();
     const fake = fakeRegistry({ archive, outDir: fakeOutput(false) });
-    await runPipeline({ url: 'https://example.com/item/1', slug: 'zz-pipe' }, { registry: fake.registry, runBuild: okBuild });
+    await runPipeline({ url: 'https://example.com/item/1', slug: 'zz-pipe' }, { registry: fake.registry, runBuild: okBuild, readReadiness: okReadiness });
 
     for (const { params } of fake.created) {
       for (const value of Object.values(params)) {
@@ -197,7 +206,7 @@ describe('a failed stage stops the pipeline', () => {
     // `failed`, everything after it is `skipped`.
     const fake = fakeRegistry({ archive: fakeArchive(), outDir: fakeOutput(false), failKind: 'content' });
 
-    const rec = await runPipeline({ url: 'https://example.com/item/1', slug: 'zz-pipe' }, { registry: fake.registry, runBuild: okBuild });
+    const rec = await runPipeline({ url: 'https://example.com/item/1', slug: 'zz-pipe' }, { registry: fake.registry, runBuild: okBuild, readReadiness: okReadiness });
 
     expect(rec.status).toBe('failed');
     expect(rec.currentStage).toBe('content');
@@ -211,7 +220,7 @@ describe('a failed stage stops the pipeline', () => {
 
   it('does not run any later job after a failure', async () => {
     const fake = fakeRegistry({ archive: fakeArchive(), outDir: fakeOutput(false), failKind: 'content' });
-    await runPipeline({ url: 'https://example.com/item/1', slug: 'zz-pipe' }, { registry: fake.registry, runBuild: okBuild });
+    await runPipeline({ url: 'https://example.com/item/1', slug: 'zz-pipe' }, { registry: fake.registry, runBuild: okBuild, readReadiness: okReadiness });
     expect(fake.created.map((c) => c.kind)).toEqual(['scrape', 'content']);
   });
 
@@ -229,7 +238,7 @@ describe('a failed stage stops the pipeline', () => {
     const emptyArchive = mkdtempSync(path.join(tmpdir(), 'lg-empty-'));
     temps.push(emptyArchive);
     const fake = fakeRegistry({ archive: emptyArchive, outDir: fakeOutput(false) });
-    const rec = await runPipeline({ url: 'https://example.com/item/1', slug: 'zz-pipe' }, { registry: fake.registry, runBuild: okBuild });
+    const rec = await runPipeline({ url: 'https://example.com/item/1', slug: 'zz-pipe' }, { registry: fake.registry, runBuild: okBuild, readReadiness: okReadiness });
     expect(rec.currentStage).toBe('normalize');
     expect(rec.error).toContain('canonical-product.json');
   });
@@ -240,9 +249,17 @@ describe('final validation guards the artefact\'s guarantees', () => {
     const out = fakeOutput(false);
     rmSync(path.join(out, '.git'), { recursive: true, force: true });
     const fake = fakeRegistry({ archive: fakeArchive(), outDir: out });
-    const rec = await runPipeline({ url: 'https://example.com/item/1', slug: 'zz-pipe' }, { registry: fake.registry, runBuild: okBuild });
+    const rec = await runPipeline({ url: 'https://example.com/item/1', slug: 'zz-pipe' }, { registry: fake.registry, runBuild: okBuild, readReadiness: okReadiness });
     expect(rec.stages.find((s) => s.name === 'validate')!.status).toBe('failed');
-    expect(rec.error).toContain('.git');
+    // Pipeline final status is `failed`, never `succeeded with warnings`.
+    expect(rec.status).toBe('failed');
+    // The aggregate names WHICH check failed; the check's own step carries the
+    // actual reason — a hard gate reports through StepFacts.fail(), not a throw.
+    expect(rec.error).toContain('validate:artifact');
+    const artifact = rec.stages.find((s) => s.name === 'validate')!.steps.find((s) => s.name === 'validate:artifact')!;
+    expect(artifact.status).toBe('failed');
+    expect(artifact.code).toBe('validation-artifacts-failed');
+    expect(artifact.warnings.join(' ')).toContain('.git');
   });
 
   // WAS: 'fails when the DesignSpec did not reach the landing'. That assertion
@@ -256,15 +273,19 @@ describe('final validation guards the artefact\'s guarantees', () => {
     const out = fakeOutput(false);
     rmSync(path.join(out, 'src/data/product.ts'), { force: true });
     const fake = fakeRegistry({ archive: fakeArchive(), outDir: out });
-    const rec = await runPipeline({ url: 'https://example.com/item/1', slug: 'zz-pipe' }, { registry: fake.registry, runBuild: okBuild });
-    expect(rec.error).toContain('product.ts');
+    const rec = await runPipeline({ url: 'https://example.com/item/1', slug: 'zz-pipe' }, { registry: fake.registry, runBuild: okBuild, readReadiness: okReadiness });
+    expect(rec.status).toBe('failed');
+    expect(rec.error).toContain('validate:artifact');
+    const artifact = rec.stages.find((s) => s.name === 'validate')!.steps.find((s) => s.name === 'validate:artifact')!;
+    expect(artifact.code).toBe('validation-artifacts-failed');
+    expect(artifact.warnings.join(' ')).toContain('product.ts');
   });
 });
 
 describe('commerce modes are three distinct states', () => {
   it('no handle -> preview-only, and no handle reaches generate', async () => {
     const fake = fakeRegistry({ archive: fakeArchive(), outDir: fakeOutput(false) });
-    const rec = await runPipeline({ url: 'https://example.com/item/1', slug: 'zz-pipe' }, { registry: fake.registry, runBuild: okBuild });
+    const rec = await runPipeline({ url: 'https://example.com/item/1', slug: 'zz-pipe' }, { registry: fake.registry, runBuild: okBuild, readReadiness: okReadiness });
     expect(rec.commerceMode).toBe('preview-only');
     expect(fake.created.find((c) => c.kind === 'generate')!.params.shopifyHandle).toBeNull();
   });
@@ -273,7 +294,7 @@ describe('commerce modes are three distinct states', () => {
     const fake = fakeRegistry({ archive: fakeArchive(), outDir: fakeOutput(true) });
     const rec = await runPipeline(
       { url: 'https://example.com/item/1', slug: 'zz-pipe', shopifyHandle: 'selfie-vlog-monitor' },
-      { registry: fake.registry, runBuild: okBuild },
+      { registry: fake.registry, runBuild: okBuild, readReadiness: okReadiness },
     );
     expect(rec.commerceMode).toBe('commerce-configured');
     expect(fake.created.find((c) => c.kind === 'generate')!.params.shopifyHandle).toBe('selfie-vlog-monitor');
@@ -283,7 +304,7 @@ describe('commerce modes are three distinct states', () => {
     const fake = fakeRegistry({ archive: fakeArchive(), outDir: fakeOutput(true) });
     const rec = await runPipeline(
       { url: 'https://example.com/item/1', slug: 'zz-pipe', shopifyHandle: 'h' },
-      { registry: fake.registry, runBuild: okBuild },
+      { registry: fake.registry, runBuild: okBuild, readReadiness: okReadiness },
     );
     expect(rec.commerceMode).not.toBe('shopify-live-verified');
   });
@@ -292,9 +313,13 @@ describe('commerce modes are three distinct states', () => {
     const fake = fakeRegistry({ archive: fakeArchive(), outDir: fakeOutput(false) });
     const rec = await runPipeline(
       { url: 'https://example.com/item/1', slug: 'zz-pipe', shopifyHandle: 'h' },
-      { registry: fake.registry, runBuild: okBuild },
+      { registry: fake.registry, runBuild: okBuild, readReadiness: okReadiness },
     );
-    expect(rec.error).toContain('.env');
+    expect(rec.status).toBe('failed');
+    expect(rec.error).toContain('validate:artifact');
+    const artifact = rec.stages.find((s) => s.name === 'validate')!.steps.find((s) => s.name === 'validate:artifact')!;
+    expect(artifact.code).toBe('validation-artifacts-failed');
+    expect(artifact.warnings.join(' ')).toContain('.env');
   });
 });
 
@@ -328,7 +353,7 @@ describe('errors are sanitised', () => {
     fake.registry.get = (id: string) => (id === 'c' ? failing : baseGet(id));
     fake.registry.createContentJob = () => failing;
 
-    const rec = await runPipeline({ url: 'https://example.com/item/1', slug: 'zz-pipe' }, { registry: fake.registry, runBuild: okBuild });
+    const rec = await runPipeline({ url: 'https://example.com/item/1', slug: 'zz-pipe' }, { registry: fake.registry, runBuild: okBuild, readReadiness: okReadiness });
     expect(rec.error).not.toContain('super-secret-key-value');
   });
 });
