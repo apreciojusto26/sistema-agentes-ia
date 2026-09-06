@@ -234,11 +234,21 @@ export default function LandingDetail({ slug, onBack, onDeleted, onRegenerate }:
                     {stage.error && (
                       <p className="text-[12px] text-state-failed">{stage.errorDetail?.headline ?? stage.error}</p>
                     )}
+                    {/* THE HINT NO LONGER EXPLAINS WHY, because it cannot know.
+                        It used to read "esta etapa la ejecuta el propio Admin y
+                        no lanza un proceso con pasos propios", which was true
+                        of normalize, assets and validate and is not any more:
+                        all three report their own operations now. What is left
+                        with none is `build` — two commands through one helper,
+                        never instrumented — and any report saved before those
+                        operations were recorded. One sentence is true of both;
+                        a guess at which would be the component inventing a
+                        reason for something it did not observe. */}
                     <AgentSteps
                       steps={stage.steps}
                       emptyHint={
                         stage.status === 'pass' || stage.status === 'failed'
-                          ? 'Esta etapa la ejecuta el propio Admin y no lanza un proceso con pasos propios.'
+                          ? 'Esta etapa no registró operaciones propias.'
                           : undefined
                       }
                     />

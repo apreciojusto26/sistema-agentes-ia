@@ -31,11 +31,41 @@ export interface ProduceResult {
   rejected: string[];
 }
 
+/**
+ * The facts an operation reports about itself, handed to it as it runs.
+ *
+ * A SINK, NEVER A RETURN VALUE. The operation's return value is its data; what
+ * it measured about the work goes here, so a canonical product that happens to
+ * carry a `warnings` key can never be mistaken for an operation's warning.
+ */
+export interface AssetStepFacts {
+  /** A fraction the operation genuinely measured. */
+  count(done: number, total: number, label?: string): void;
+  /** A short fact it produced — a total, a verdict. Never a guess. */
+  note(text: string): void;
+  /** A real condition it reported. Never invented for the UI's benefit. */
+  warn(message: string): void;
+}
+
+/** Watches the producer's real internal boundaries. See FIXED_ASSET_OPERATIONS. */
+export interface AssetObserver {
+  step<T>(name: string, fn: (facts: AssetStepFacts) => T): T;
+}
+
+/**
+ * The operations produceFixedAssets performs, in the order it performs them.
+ * Exported so the Admin can DECLARE the sequence without keeping a copy of it
+ * that would drift the first time a boundary moves.
+ */
+export declare const FIXED_ASSET_OPERATIONS: readonly string[];
+
 export declare function produceFixedAssets(opts: {
   canonicalProduct: unknown;
   imagesDir: string;
   destDir?: string | null;
   stepCount?: number;
+  /** Absent = the producer behaves exactly as it always has. */
+  observer?: AssetObserver;
 }): ProduceResult;
 
 export declare function collectUnresolvedRefs(

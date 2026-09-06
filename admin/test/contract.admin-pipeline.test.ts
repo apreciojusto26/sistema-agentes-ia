@@ -376,12 +376,39 @@ describe('the admin does NOT reimplement any agent', () => {
     // is the rule; which jobs exist is the Fixed architecture, and the Design
     // Agent is not one of them.
     expect(src).not.toContain('registry.createDesignJob');
-    // ONE SPAWN CALL SITE. The build stage now issues three commands — the
-    // dependency install, `astro check` and `astro build` — but all three go
-    // through the single `runOnce` helper, so there is still exactly one place
-    // in this file that starts a process. A second `spawn(` would be a second
-    // runner, which is what this actually guards.
-    expect([...src.matchAll(/\bspawn\(/g)]).toHaveLength(1);
+    // TWO SPAWN CALL SITES, AND BOTH ARE NAMED HERE. What this guards is that
+    // no AGENT is run outside the registry — not that the file starts exactly
+    // one process — so the test states which processes exist rather than
+    // counting them and hoping.
+    //
+    //   runOnce           the build stage. It issues three commands — the
+    //                     dependency install, `astro check` and `astro build` —
+    //                     through this one helper, so a third would still be
+    //                     one call site.
+    //   readReadiness     the Validation Agent's readiness operation. It runs
+    //                     scripts/check-readiness.mjs, which by its own
+    //                     contract reads and never writes, builds, installs or
+    //                     touches a network. It is a SCAN, not an agent, and
+    //                     running it is what keeps this stage from growing a
+    //                     second opinion about readiness that drifts from the
+    //                     one command that answers the question.
+    //
+    // A third `spawn(` would be a second runner, which is the regression.
+    const spawns = [...src.matchAll(/\bspawn\(/g)];
+    expect(spawns).toHaveLength(2);
+    expect(src).toMatch(/function runOnce\(bin: string, args: string\[\], cwd: string\)/);
+    expect(src).toMatch(/scripts\/check-readiness\.mjs/);
+    // And neither of them is an agent. Asserted on STRING LITERALS rather than
+    // on the prose: the file's header documents which script each stage
+    // delegates to, and a scan that flagged the documentation would force the
+    // documentation to be deleted. A top-level script this file can actually
+    // execute has to be written down as a path, and there is exactly one.
+    const executable = [
+      ...src.matchAll(/'([^']*(?:scraper\/[\w.-]+\.js|scripts\/[\w.-]+\.mjs))'/g),
+    ].map((m) => m[1]);
+    expect(executable, 'the pipeline names an agent script it could run itself').toEqual([
+      'scripts/check-readiness.mjs',
+    ]);
   });
 
   // runner.ts still KNOWS how to spawn generate-design.mjs, and that is

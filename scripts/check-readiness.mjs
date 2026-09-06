@@ -49,7 +49,11 @@ const must = (condition, message) => {
   if (!condition) throw new Error(message);
 };
 
-const outDir = process.argv[2];
+// THE FIRST NON-FLAG ARGUMENT, not `argv[2]`. With `--json` in the mix a
+// positional read would take the flag for the landing and report "no such
+// landing: --json" for a perfectly valid invocation, purely because of the
+// order the caller happened to write.
+const outDir = process.argv.slice(2).find((arg) => !arg.startsWith('--'));
 if (!outDir) {
   console.error('usage: node scripts/check-readiness.mjs <outputs/slug>');
   process.exit(2);
@@ -476,6 +480,19 @@ check('Build present', () => {
 });
 
 // ─── report ────────────────────────────────────────────────────────────────
+
+// MACHINE-READABLE, ADDITIVE. The Admin's Validation Agent reports readiness
+// as one of its operations, and parsing a padded human table for that would
+// couple a UI to column widths. `--json` prints the same `results` the humans
+// see — same checks, same order, same details — and the default output is
+// byte-for-byte what it always was.
+if (process.argv.includes('--json')) {
+  const failedChecks = results.filter((r) => !r.ok);
+  process.stdout.write(
+    `${JSON.stringify({ ready: failedChecks.length === 0, total: results.length, results }, null, 2)}\n`,
+  );
+  process.exit(failedChecks.length === 0 ? 0 : 1);
+}
 
 const width = Math.max(...results.map((r) => r.name.length));
 for (const r of results) {

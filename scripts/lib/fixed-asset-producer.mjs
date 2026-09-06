@@ -44,6 +44,17 @@ const STRIP_RATIO = '9/16';
 const STEP_RATIO = '4/3';
 
 /**
+ * Rejection reasons that are this pipeline doing its job, not a problem.
+ *
+ * A duplicate is dropped because showing one photograph twice is fabricated
+ * cardinality, and an unsupported type is skipped because Astro's image
+ * pipeline would fail the build on it. Both are deterministic and intended, so
+ * they are COUNTED. Every other reason means the canonical product named a
+ * file the disk does not have, which is the source failing its own promise.
+ */
+const DELIBERATE_REJECTIONS = ['duplicate', 'unsupported-type'];
+
+/**
  * Reads intrinsic dimensions out of an image header.
  *
  * NO DEPENDENCY, deliberately: agents.MD forbids introducing packages during
@@ -109,6 +120,41 @@ const altFor = (productName, i) =>
   productName ? `${productName}, imagen ${i + 1}` : `Imagen ${i + 1} del producto`;
 
 /**
+ * The operations produceFixedAssets ACTUALLY performs, in the order it performs
+ * them.
+ *
+ * ─── WHY THIS LIST IS EXPORTED ─────────────────────────────────────────────
+ *
+ * The Admin declares the sequence of operations its asset stage is about to
+ * attempt, so that a failure at step three can leave four and five honestly
+ * marked `skipped` rather than dropping them. If the Admin kept its own copy
+ * of these names they would drift the first time a boundary here moved, and
+ * the operator would be told a stage skipped work that no longer exists.
+ *
+ * ONE AUTHORITY, therefore: the producer names its own operations, and
+ * contract.agent-reports.test.ts asserts it really calls exactly these, in
+ * exactly this order.
+ */
+export const FIXED_ASSET_OPERATIONS = [
+  'assets:plan',
+  'assets:gallery',
+  'assets:strip',
+  'assets:steps',
+  'assets:manifest',
+];
+
+/**
+ * The default observer: it calls the operation and gets out of the way.
+ *
+ * A producer that behaves differently when someone is watching is not a
+ * producer anyone can trust, so instrumentation is a WRAPPER and never a
+ * branch — with no observer supplied the call sequence, the return value and
+ * the bytes on disk are what they have always been.
+ */
+const NO_FACTS = { count() {}, note() {}, warn() {} };
+const PASS_THROUGH = { step: (_name, fn) => fn(NO_FACTS) };
+
+/**
  * Produces the FixedAssetOutput for one product.
  *
  * @param {object}   opts
@@ -116,46 +162,91 @@ const altFor = (productName, i) =>
  * @param {string}   opts.imagesDir         directory holding the scraped bytes
  * @param {string|null} [opts.destDir]      where to copy them; null = plan only
  * @param {number}   [opts.stepCount]       how many how-it-works steps the copy has
+ * @param {{step: Function}} [opts.observer]   watches the real boundaries below
  * @returns {{assetOutput: object, plan: object, manifest: object, rejected: string[]}}
  */
-export function produceFixedAssets({ canonicalProduct, imagesDir, destDir = null, stepCount = 0 }) {
+export function produceFixedAssets({
+  canonicalProduct,
+  imagesDir,
+  destDir = null,
+  stepCount = 0,
+  observer = PASS_THROUGH,
+}) {
   const media = canonicalProduct?.media?.images ?? [];
   const productName = canonicalProduct?.identity?.name ?? null;
 
   // planAssets already does the hard, deterministic part: canonical order,
   // rejection reporting, and sha256 dedupe. Reusing it rather than writing a
   // second selector is the whole reason it survived the F3 audit.
-  const plan = planAssets(media, imagesDir);
+  // ─── plan ───────────────────────────────────────────────────────────────
+  //
+  // ONE OPERATION, REPORTED AS ONE. planAssets walks the canonical media in a
+  // single pass: it resolves each reference against the bytes on disk, rejects
+  // what Astro cannot optimise, sha256s what survives and drops a file whose
+  // digest it has already seen. Reporting that as separate "hashes calculated"
+  // and "duplicates removed" lines would take two passes over the same bytes
+  // to make two lines true — a slower pipeline bought with a prettier list.
+  // The COUNTS are separable and real, so the counts are what get reported.
+  const plan = observer.step('assets:plan', (facts) => {
+    const planned = planAssets(media, imagesDir);
+    const duplicates = planned.rejected.filter((r) => r.reason === 'duplicate').length;
+    facts.count(planned.assets.length, planned.assets.length + planned.rejected.length, 'archivos aceptados');
+    // The RATIO above already carries "accepted of considered"; repeating it
+    // here would print the same number twice. What it does not carry is why
+    // the rest were not.
+    facts.note(`${planned.rejected.length} rechazados · ${duplicates} duplicados`);
 
-  if (plan.assets.length === 0) {
-    throw new FixedAssetError(
-      `no usable media for this product. Rejected: ${describeRejections(plan.rejected).join('; ') || 'nothing found'}`,
-      plan,
-    );
-  }
+    // A REJECTION IS NOT AUTOMATICALLY A WARNING, and the difference is which
+    // side failed. Deduping and skipping a format Astro cannot optimise are
+    // this pipeline working exactly as designed — they are counted. A file the
+    // canonical product NAMED and the disk does not have is the source failing
+    // its own promise, and that is the operator's business.
+    for (const rejection of planned.rejected) {
+      if (!DELIBERATE_REJECTIONS.includes(rejection.reason)) {
+        facts.warn(`imagen no materializada (${rejection.reason}): ${rejection.detail}`);
+      }
+    }
 
-  if (destDir) {
-    mkdirSync(destDir, { recursive: true });
-    materializeAssets(plan, destDir);
-  }
+    if (planned.assets.length === 0) {
+      throw new FixedAssetError(
+        `no usable media for this product. Rejected: ${describeRejections(planned.rejected).join('; ') || 'nothing found'}`,
+        planned,
+      );
+    }
+
+    if (destDir) {
+      mkdirSync(destDir, { recursive: true });
+      materializeAssets(planned, destDir);
+    }
+    return planned;
+  });
 
   // The canonical, position-derived key. Never the source filename: that comes
   // from whatever the provider called the file and is not stable across runs.
   const keyOf = (asset) => path.basename(asset.dest, path.extname(asset.dest));
 
   // ─── gallery: every unique asset, in canonical order ────────────────────
-  const gallery = plan.assets.map((asset, i) => ({
-    id: `g${i + 1}`,
-    asset: keyOf(asset),
-    alt: altFor(productName, i),
-    ratio: GALLERY_RATIO,
-  }));
+  const gallery = observer.step('assets:gallery', (facts) => {
+    const slots = plan.assets.map((asset, i) => ({
+      id: `g${i + 1}`,
+      asset: keyOf(asset),
+      alt: altFor(productName, i),
+      ratio: GALLERY_RATIO,
+    }));
+    facts.note(`${slots.length} slots`);
+    return slots;
+  });
 
   // ─── heroExtras: the product's OWN clips ───────────────────────────────
   //
   // Always empty today, and not for want of trying: the scraper extracts no
   // video. It is read rather than hardcoded so the day a source supplies one,
   // nothing here changes.
+  //
+  // AND NO OPERATION LINE OF ITS OWN, for the same reason. An operation that
+  // can only ever report zero is a line that sounds like work and describes
+  // none. The day a scraper supplies video, this gets its boundary along with
+  // the extraction that justifies it.
   const videos = Array.isArray(canonicalProduct?.media?.videos) ? canonicalProduct.media.videos : [];
   const heroExtras = videos
     .map((v, i) => {
@@ -176,11 +267,15 @@ export function produceFixedAssets({ canonicalProduct, imagesDir, destDir = null
   //
   // NOT UGC — see the header of fixed-asset-output.mjs. Every unique asset,
   // once. One asset means one item; nothing is repeated to reach a count.
-  const productMediaStrip = plan.assets.map((asset, i) => ({
-    asset: keyOf(asset),
-    alt: altFor(productName, i),
-    ratio: STRIP_RATIO,
-  }));
+  const productMediaStrip = observer.step('assets:strip', (facts) => {
+    const slots = plan.assets.map((asset, i) => ({
+      asset: keyOf(asset),
+      alt: altFor(productName, i),
+      ratio: STRIP_RATIO,
+    }));
+    facts.note(`${slots.length} slots`);
+    return slots;
+  });
 
   // ─── step media ────────────────────────────────────────────────────────
   //
@@ -191,43 +286,60 @@ export function produceFixedAssets({ canonicalProduct, imagesDir, destDir = null
   // the copy, not from the media, so a three-step narrative with two photos
   // must still fill three slots. Distinct while there is choice, then the last
   // asset repeats — deterministic, and recorded in the manifest.
-  const stepMedia = {};
-  for (let i = 0; i < stepCount; i++) {
-    const asset = plan.assets[Math.min(i, plan.assets.length - 1)];
-    stepMedia[`step-${i}`] = {
-      asset: keyOf(asset),
-      alt: productName ? `${productName}, paso ${i + 1}` : `Paso ${i + 1}`,
-      ratio: STEP_RATIO,
-    };
-  }
-
-  const manifest = {
-    schema: 1,
-    productId: canonicalProduct?.identity?.productId ?? null,
-    // PROVENANCE, at the level F4 actually needs: enough to prove no file was
-    // invented. Each entry ties a copied file back to the source reference the
-    // scrape recorded and to the bytes themselves.
-    assets: plan.assets.map((asset) => {
-      const size = destDir ? readImageSize(path.join(destDir, asset.dest)) : readImageSize(asset.srcPath);
-      return {
-        key: keyOf(asset),
-        file: asset.dest,
-        sourceRef: asset.ref,
-        sourceName: asset.src,
-        sha256: asset.sha256,
-        bytes: asset.bytes,
-        width: size?.width ?? null,
-        height: size?.height ?? null,
-        // Listing photography from the provider. NOT customer content — no
-        // source in this pipeline supplies that, and calling it `ugc` because
-        // it ends up in a scrolling band is how a false claim gets made.
-        kind: 'image',
-        provenance: 'product/promotional',
+  const stepMedia = observer.step('assets:steps', (facts) => {
+    const assigned = {};
+    for (let i = 0; i < stepCount; i++) {
+      const asset = plan.assets[Math.min(i, plan.assets.length - 1)];
+      assigned[`step-${i}`] = {
+        asset: keyOf(asset),
+        alt: productName ? `${productName}, paso ${i + 1}` : `Paso ${i + 1}`,
+        ratio: STEP_RATIO,
       };
-    }),
-    rejected: plan.rejected,
-    stepAssignments: Object.entries(stepMedia).map(([slot, m]) => ({ slot, asset: m.asset })),
-  };
+    }
+    // THE COPY DECIDES HOW MANY STEPS EXIST, the media decides how many
+    // DISTINCT photographs fill them. Reporting both is what makes the reuse
+    // above legible rather than surprising.
+    facts.count(Object.keys(assigned).length, stepCount, 'pasos');
+    const distinct = new Set(Object.values(assigned).map((m) => m.asset)).size;
+    if (stepCount > 0 && distinct < stepCount) {
+      facts.note(`${distinct} imagen(es) distintas para ${stepCount} pasos — la última se repite`);
+    }
+    return assigned;
+  });
+
+  const manifest = observer.step('assets:manifest', (facts) => {
+    const built = {
+      schema: 1,
+      productId: canonicalProduct?.identity?.productId ?? null,
+      // PROVENANCE, at the level F4 actually needs: enough to prove no file was
+      // invented. Each entry ties a copied file back to the source reference the
+      // scrape recorded and to the bytes themselves.
+      assets: plan.assets.map((asset) => {
+        const size = destDir ? readImageSize(path.join(destDir, asset.dest)) : readImageSize(asset.srcPath);
+        return {
+          key: keyOf(asset),
+          file: asset.dest,
+          sourceRef: asset.ref,
+          sourceName: asset.src,
+          sha256: asset.sha256,
+          bytes: asset.bytes,
+          width: size?.width ?? null,
+          height: size?.height ?? null,
+          // Listing photography from the provider. NOT customer content — no
+          // source in this pipeline supplies that, and calling it `ugc` because
+          // it ends up in a scrolling band is how a false claim gets made.
+          kind: 'image',
+          provenance: 'product/promotional',
+        };
+      }),
+      rejected: plan.rejected,
+      stepAssignments: Object.entries(stepMedia).map(([slot, m]) => ({ slot, asset: m.asset })),
+    };
+    facts.note(
+      `${built.assets.length} entradas · gallery ${gallery.length} · strip ${productMediaStrip.length} · pasos ${built.stepAssignments.length}`,
+    );
+    return built;
+  });
 
   return {
     assetOutput: { gallery, heroExtras, productMediaStrip, stepMedia },

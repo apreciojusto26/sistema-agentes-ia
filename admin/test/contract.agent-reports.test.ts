@@ -22,6 +22,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { STEP_LABEL, stepLabel, formatMs } from '../src/client/components/step-labels';
+import { ADMIN_OPERATIONS } from '../src/server/pipeline';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
@@ -50,10 +51,31 @@ describe('every step the UI can label is a real operation', () => {
     expect(declaredStages(relative)).toEqual([...expected]);
   });
 
-  test('every label maps to a stage some script actually declares', () => {
-    const real = new Set(Object.keys(SCRIPTS).flatMap((s) => declaredStages(s)));
+  test('every label maps to an operation something actually performs', () => {
+    // TWO SOURCES OF REAL WORK, and a label must come from one of them.
+    //
+    //   the CHILD SCRIPTS' `withStage` blocks, announced over NDJSON; and
+    //   the ADMIN'S OWN operations, for the three stages that delegate to no
+    //   child at all — each one a real call StepRecorder wraps and times.
+    //
+    // Neither is a wish list. contract.admin-operations.test.ts proves every
+    // name in ADMIN_OPERATIONS has a function behind it in the pipeline, so
+    // widening this set does not weaken the rule it enforces.
+    const real = new Set([
+      ...Object.keys(SCRIPTS).flatMap((s) => declaredStages(s)),
+      ...ADMIN_OPERATIONS,
+    ]);
     const orphans = Object.keys(STEP_LABEL).filter((name) => !real.has(name));
     expect(orphans, 'these labels name operations nothing performs').toEqual([]);
+  });
+
+  test('every Admin operation HAS a label — none renders as a raw id', () => {
+    // The other direction. An unmapped step degrades to its own id rather than
+    // vanishing, which is the right failure mode for a child script that grows
+    // a stage; but an Admin operation is declared in this repo, so shipping one
+    // with no name is just an omission.
+    const unnamed = ADMIN_OPERATIONS.filter((name) => STEP_LABEL[name] === undefined);
+    expect(unnamed, 'these operations would render as raw ids').toEqual([]);
   });
 
   test('an UNMAPPED step renders as itself rather than disappearing', () => {
@@ -106,11 +128,23 @@ describe('the pipeline mirrors the child\'s stages without interpreting them', (
     expect([...src.matchAll(/awaitJob\(registry, [^,]+, \(steps\) => \{/g)]).toHaveLength(3);
   });
 
-  test('a stage that delegates to no child simply has none', () => {
-    // `normalize` and `validate` run inside the Admin. Inventing steps for
-    // them so every card looked equally busy is exactly the fake progress this
-    // system refuses.
+  test('a stage begins with no steps and earns each one', () => {
+    // Every stage starts empty — `freshStages()` gives it `steps: []` — and a
+    // step is appended only when an operation actually starts. Nothing is
+    // pre-populated so a card can look busy before it is.
     expect(src).toMatch(/steps: \[\],/);
+  });
+
+  test('the Admin-run stages report operations, and each wraps a real call', () => {
+    // normalize, assets and validate delegate to no child, so there is no
+    // NDJSON to mirror and their agents used to show a single stage-level tick.
+    // They now report their OWN operations — through the same PipelineStep, the
+    // same record and the same file as the child-reported ones.
+    expect(src).toMatch(/class StepRecorder/);
+    expect(src).toMatch(/run<T>\(name: string, fn: \(facts: StepFacts\) => T\): T/);
+    // The status is the call's outcome, never a decision made before it ran.
+    expect(src).toMatch(/ctx\.step\.status = ctx\.step\.warnings\.length > 0 \? 'warning' : 'passed'/);
+    expect(src, 'a timer stands in for an operation').not.toMatch(/setInterval\(/);
   });
 });
 

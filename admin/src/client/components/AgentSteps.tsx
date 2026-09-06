@@ -17,8 +17,20 @@ import { stepLabel, formatMs } from './step-labels';
 
 /** A step's mark, matching StageMark's language without importing its statuses. */
 function StepMark({ status }: { status: PipelineStep['status'] }) {
+  // `—` IS NOT A DASH FOR DECORATION. A skipped operation was declared and
+  // never reached, and it is drawn in the faintest tone precisely so it cannot
+  // be misread as a quiet success: a stage that died at step three must show
+  // four and five as unreached, or a partial run looks like a complete one.
   const glyph =
-    status === 'passed' ? '✓' : status === 'failed' ? '×' : status === 'warning' ? '!' : '';
+    status === 'passed'
+      ? '✓'
+      : status === 'failed'
+        ? '×'
+        : status === 'warning'
+          ? '!'
+          : status === 'skipped'
+            ? '—'
+            : '';
   const tone =
     status === 'passed'
       ? 'text-state-done'
@@ -51,6 +63,7 @@ const STATUS_WORD: Record<PipelineStep['status'], string> = {
   passed: 'completado',
   failed: 'falló',
   warning: 'completado con avisos',
+  skipped: 'no se ejecutó',
 };
 
 export type AgentStepsProps = {
@@ -67,7 +80,10 @@ export default function AgentSteps({ steps, emptyHint }: AgentStepsProps) {
   // Summed from what was measured. A step the child could not time is left out
   // of the total rather than counted as zero.
   const timed = steps.filter((s) => typeof s.ms === 'number');
-  const done = steps.filter((s) => s.status !== 'running').length;
+  // NEITHER RUNNING NOR SKIPPED COUNTS AS DONE. A skipped operation never
+  // happened, and counting it would make "5 de 5 operaciones" the summary of a
+  // stage that failed at two.
+  const done = steps.filter((s) => s.status !== 'running' && s.status !== 'skipped').length;
   const total = timed.reduce((sum, s) => sum + (s.ms ?? 0), 0);
 
   return (
@@ -95,6 +111,14 @@ export default function AgentSteps({ steps, emptyHint }: AgentStepsProps) {
                   {step.progress.done}/{step.progress.total}
                   {step.progress.label ? ` ${step.progress.label}` : ''}
                 </span>
+              )}
+
+              {/* One short fact the operation reported that is not a fraction:
+                  a grammar hash, "0 sin resolver", "READY". Printed as the
+                  backend wrote it — a second version computed here would be
+                  this component having an opinion about the run. */}
+              {step.note && (
+                <span className="ml-1.5 font-mono text-[10px] text-ink-faint">{step.note}</span>
               )}
 
               {step.warnings.map((w) => (

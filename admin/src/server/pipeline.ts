@@ -20,8 +20,19 @@
 // `failed`, because they never ran — reporting them as failures would invent a
 // verdict about work that was never attempted.
 import { spawn } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { produceFixedAssets } from '../../../scripts/lib/fixed-asset-producer.mjs';
+import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import {
+  produceFixedAssets,
+  collectUnresolvedRefs,
+  FIXED_ASSET_OPERATIONS,
+} from '../../../scripts/lib/fixed-asset-producer.mjs';
+import { structuralFingerprint } from '../../../scripts/lib/fingerprint.mjs';
+import {
+  FIXED_GRAMMAR_V3,
+  FIXED_OPTIONAL_SLOTS_V3,
+} from '../../../scripts/lib/fixed-grammar-v3.mjs';
+import { projectFixedSocialProof } from '../../../scripts/lib/fixed-social-proof.mjs';
+import { deriveDisplayName } from '../../../scripts/lib/display-name.mjs';
 import { collectAssetOutputIssues } from '../../../scripts/lib/fixed-asset-output.mjs';
 import { resolveFixedFavicon, paletteFromCss } from '../../../scripts/lib/fixed-favicon.mjs';
 import { FIXED_TEMPLATE_RELATIVE } from '../../../scripts/lib/fixed-template.mjs';
@@ -96,12 +107,29 @@ export type PipelineStageErrorDetail = {
 export type PipelineStep = {
   /** The child's own stage id, e.g. 'structured-data'. Labelled in the client. */
   name: string;
-  status: 'running' | 'passed' | 'failed' | 'warning';
+  /**
+   * `skipped` means DECLARED AND NOT RUN — the operation was next in the
+   * sequence and an earlier one failed. It is not an outcome and never a
+   * quiet pass: a stage that dies at step three must show steps four and five
+   * as unreached rather than dropping them, which would make a partial run
+   * look like a complete one.
+   */
+  status: 'running' | 'passed' | 'failed' | 'warning' | 'skipped';
   startedAt: string;
   endedAt: string | null;
   ms: number | null;
   /** Real counters the child emitted, e.g. images 7/8. Never synthesised. */
   progress: { done: number; total: number; label?: string } | null;
+  /**
+   * ONE SHORT FACT the operation produced that is not a fraction: a grammar
+   * hash, "0 unresolved", "15 checks".
+   *
+   * Separate from `progress` because forcing a verdict into a done/total pair
+   * is how "PASS" becomes "1/1". Null for every step that measured no such
+   * fact — and absent entirely on reports written before this field existed,
+   * which the client reads as null rather than as an empty string.
+   */
+  note: string | null;
   warnings: string[];
 };
 
@@ -138,6 +166,244 @@ export type PipelineStage = {
   steps: PipelineStep[];
 };
 
+/**
+ * The facts an operation reports about itself while it runs.
+ *
+ * A SINK, NEVER A RETURN VALUE. An earlier draft read `progress` and
+ * `warnings` off whatever the operation returned, which meant a canonical
+ * product that happened to carry a `warnings` key would have had it rendered
+ * as an operation's warning. Data comes back as data; facts go here.
+ */
+export type StepFacts = {
+  /**
+   * A RATIO, and only ever a ratio: 2 of 4 files accepted, 30 of 30 reviews
+   * renderable, 15 of 15 checks met.
+   *
+   * A plain total is not one. Reporting "8 images" as `8/8` puts a fraction on
+   * screen whose denominator means nothing, and once some of those are real
+   * ratios an operator can no longer tell which is which — so a count goes to
+   * `note` and every `x/y` in the panel is a proportion worth reading.
+   */
+  count(done: number, total: number, label?: string): void;
+  /** A short fact it produced — a total, a hash, a verdict. Never a guess. */
+  note(text: string): void;
+  /** A real condition it reported. Never invented for the UI's benefit. */
+  warn(message: string): void;
+};
+
+/**
+ * Records the operations a stage the ADMIN runs itself performs.
+ *
+ * ─── WHY THIS EXISTS ───────────────────────────────────────────────────────
+ *
+ * Three stages delegate to no child process — normalize, assets and validate —
+ * so there is no NDJSON to mirror, and their agents showed a single
+ * stage-level tick. An operator could click them and find nothing to read.
+ *
+ * ─── AND WHY IT IS NOT FAKE PROGRESS ───────────────────────────────────────
+ *
+ * `run` WRAPS A REAL CALL. The step's status is that call's actual outcome and
+ * its duration is measured across it: no timer, no estimate, and no step that
+ * exists without a function behind it.
+ *
+ * The ORDER is declared, and only the order. Knowing what a stage is about to
+ * attempt is not a prediction of results — it is the literal sequence of calls
+ * below, which is what lets a failure at step three leave four and five
+ * honestly marked `skipped` instead of vanishing and making a partial run look
+ * complete.
+ *
+ * The declaration is CHECKED rather than trusted: running an operation out of
+ * the declared order throws, because a plan that has drifted from the code
+ * would put the wrong names under `skipped` — a confident-and-wrong report,
+ * which is worse than none.
+ *
+ * ─── IT REPORTS, IT DOES NOT GATE ──────────────────────────────────────────
+ *
+ * Instrumenting a stage must not change which runs succeed. A step's job is to
+ * say what happened; only the checks a stage ALREADY enforced may throw. An
+ * absent fact — no brand, no reviews, no video — is a real state of the world
+ * and comes out as a `warning`, never as a new reason to fail a generation
+ * that used to pass.
+ *
+ * Same shape, same record, same file as the child-reported steps. No parallel
+ * store — a report is a report.
+ */
+class StepRecorder {
+  readonly #stage: PipelineStage;
+  readonly #emit: () => void;
+  readonly #planned: readonly string[];
+  #index = 0;
+
+  constructor(stage: PipelineStage, emit: () => void, planned: readonly string[]) {
+    this.#stage = stage;
+    this.#emit = emit;
+    this.#planned = planned;
+  }
+
+  /** Runs one real operation, timing it and recording what actually happened. */
+  run<T>(name: string, fn: (facts: StepFacts) => T): T {
+    const ctx = this.#begin(name);
+    try {
+      const value = fn(ctx.facts);
+      this.#settle(ctx);
+      return value;
+    } catch (err) {
+      this.#breakOff(ctx, err);
+      throw err;
+    }
+  }
+
+  /** The same, for an operation that genuinely awaits something. */
+  async runAsync<T>(name: string, fn: (facts: StepFacts) => Promise<T>): Promise<T> {
+    const ctx = this.#begin(name);
+    try {
+      const value = await fn(ctx.facts);
+      this.#settle(ctx);
+      return value;
+    } catch (err) {
+      this.#breakOff(ctx, err);
+      throw err;
+    }
+  }
+
+  /** Marks every declared operation this stage did not reach. */
+  skipRemaining(): void {
+    for (const name of this.#planned.slice(this.#index)) {
+      this.#stage.steps.push({
+        name,
+        status: 'skipped',
+        // The moment it became known this would not run. There is no start and
+        // no duration, because there was no work.
+        startedAt: nowIso(),
+        endedAt: null,
+        ms: null,
+        progress: null,
+        note: null,
+        warnings: [],
+      });
+    }
+    this.#index = this.#planned.length;
+  }
+
+  #begin(name: string): { step: PipelineStep; facts: StepFacts; began: number } {
+    const expected = this.#planned[this.#index];
+    if (name !== expected) {
+      throw new Error(
+        `StepRecorder: operation ${this.#index} is declared "${expected ?? 'nothing'}" but "${name}" ran — ` +
+          'the declared plan and the code have drifted, and `skipped` would name the wrong work',
+      );
+    }
+    const step: PipelineStep = {
+      name,
+      status: 'running',
+      startedAt: nowIso(),
+      endedAt: null,
+      ms: null,
+      progress: null,
+      note: null,
+      warnings: [],
+    };
+    this.#stage.steps.push(step);
+    this.#index += 1;
+    this.#emit();
+
+    const facts: StepFacts = {
+      count: (done, total, label) => {
+        step.progress = label === undefined ? { done, total } : { done, total, label };
+      },
+      note: (text) => {
+        step.note = text;
+      },
+      warn: (message) => {
+        step.warnings.push(message);
+      },
+    };
+    return { step, facts, began: Date.now() };
+  }
+
+  #settle(ctx: { step: PipelineStep; began: number }): void {
+    ctx.step.endedAt = nowIso();
+    ctx.step.ms = Date.now() - ctx.began;
+    // A FINISHED OPERATION THAT REPORTED A PROBLEM IS NOT A CLEAN PASS. Same
+    // rule projectSteps applies to the children: flattening it to a green tick
+    // hides the one thing worth reading.
+    ctx.step.status = ctx.step.warnings.length > 0 ? 'warning' : 'passed';
+    this.#emit();
+  }
+
+  #breakOff(ctx: { step: PipelineStep; began: number }, err: unknown): void {
+    ctx.step.endedAt = nowIso();
+    ctx.step.ms = Date.now() - ctx.began;
+    ctx.step.status = 'failed';
+    ctx.step.warnings.push(err instanceof Error ? err.message : String(err));
+    this.skipRemaining();
+    this.#emit();
+  }
+}
+
+/**
+ * WHAT EACH ADMIN-RUN STAGE IS ABOUT TO ATTEMPT, in the order it attempts it.
+ *
+ * These are DECLARATIONS OF SEQUENCE, not of outcome. Every name below has a
+ * function behind it a few hundred lines down; none of them is ticked off
+ * because a list said so. Declaring the order is what buys the one thing an
+ * outcome-only record cannot express: when an operation fails, the ones after
+ * it are reported `skipped` — never run — instead of disappearing and leaving
+ * a partial stage looking like a complete one.
+ *
+ * The ids are NAMESPACED, and that is load-bearing. A child script already
+ * declares stages called `validate`, `gallery`, `images` and `write`; an
+ * Admin operation sharing one of those names would inherit the child's label
+ * and describe the wrong work in the panel.
+ *
+ * StepRecorder CHECKS these against the calls rather than trusting them — a
+ * plan that has drifted from the code would put the wrong names under
+ * `skipped`, which is a confident wrong answer and worse than no answer.
+ */
+export const NORMALIZE_OPERATIONS = [
+  'normalize:extraction',
+  'normalize:canonical',
+  'normalize:identity',
+  'normalize:variants',
+  'normalize:media',
+  'normalize:social-proof',
+] as const;
+
+/**
+ * The producer names its own five operations and exports them, so the middle
+ * of this list cannot drift away from the boundaries it describes.
+ */
+export const ASSET_OPERATIONS = [
+  'assets:inputs',
+  ...FIXED_ASSET_OPERATIONS,
+  'assets:refs',
+  'assets:persist',
+  'assets:favicon',
+] as const;
+
+export const VALIDATE_OPERATIONS = [
+  'validate:artifact',
+  'validate:grammar',
+  'validate:asset-refs',
+  'validate:ownership',
+  'validate:social-proof',
+  'validate:readiness',
+] as const;
+
+/**
+ * Every operation the Admin performs in-process, across the three stages that
+ * delegate to no child.
+ *
+ * The client's label table is checked against this list, so a name here with no
+ * label — or a label naming nothing here — is a test failure rather than a
+ * panel that quietly shows a raw id or, worse, a label for work nothing does.
+ */
+export const ADMIN_OPERATIONS = [
+  ...NORMALIZE_OPERATIONS,
+  ...ASSET_OPERATIONS,
+  ...VALIDATE_OPERATIONS,
+] as const;
+
 /** JobRecord.stages -> PipelineStep[]. A projection, never an interpretation. */
 function projectSteps(job: JobRecord | null): PipelineStep[] {
   if (!job) return [];
@@ -152,6 +418,10 @@ function projectSteps(job: JobRecord | null): PipelineStep[] {
     endedAt: s.endedAt,
     ms: s.ms,
     progress: s.progress,
+    // A CHILD REPORTS NO NOTE. The NDJSON protocol carries progress counters
+    // and warnings and nothing shaped like one, so inventing a summary line
+    // here would be the projection interpreting instead of projecting.
+    note: null,
     warnings: s.warnings,
   }));
 }
@@ -417,22 +687,137 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
   // as part of the scrape lifecycle. This stage REPORTS that real artefact
   // rather than re-running it — re-normalising would be the second
   // implementation this module exists to avoid.
-  begin('normalize');
+  //
+  // ─── ONE OPERATION PER SECTION THE NORMALIZER ACTUALLY PRODUCES ──────────
+  //
+  // normalizeProduct() builds a CanonicalProduct out of six closed sections,
+  // and the ones below are the ones with a real projector behind them:
+  // identity, commerceFacts via projectVariantOption, media via projectImages,
+  // socialProof via projectReview. `specifications` is a literal `[]` in the
+  // normalizer — DECISION-3, no structured source exists — so there is no
+  // operation for it here. A line for work nothing performs is exactly the
+  // fake progress this system keeps removing from its landings.
+  //
+  // ─── AND THEY REPORT, THEY DO NOT GATE ──────────────────────────────────
+  //
+  // The stage has exactly one failure condition and it is the one it has
+  // always had: no canonical-product.json. Everything after it describes what
+  // the artefact contains. A product with no brand, no variants or no reviews
+  // is a real product from a real listing that published none, and failing it
+  // here would break generations that work — instrumentation must not change
+  // which runs succeed.
+  const normalizeStage = begin('normalize');
   const scrapeJob = registry.get(scrapeJobId)!;
   const canonicalPath = scrapeJob.archivePath
     ? path.join(scrapeJob.archivePath, 'canonical-product.json')
     : null;
-  if (!canonicalPath || !existsSync(canonicalPath)) {
-    return fail('normalize', 'the scrape produced no canonical-product.json — the normalizer did not run or failed');
+
+  type CanonicalProduct = {
+    identity?: { productId?: string; name?: string; brand?: string | null; sourceUrl?: string };
+    commerceFacts?: { variantOptions?: unknown[] };
+    media?: { images?: unknown[]; videos?: unknown[] };
+    socialProof?: { rating?: number | null; reviewCount?: number | null; reviews?: unknown[] };
+  };
+
+  let canonicalProduct: CanonicalProduct;
+  const normalizeSteps = new StepRecorder(normalizeStage, emit, NORMALIZE_OPERATIONS);
+  try {
+    normalizeSteps.run('normalize:extraction', (facts) => {
+      // THE NORMALIZER'S INPUT. It reads product.json out of the archive and
+      // treats an absent or unparseable one as a no-op rather than a failure,
+      // so its absence explains a missing canonical product below instead of
+      // being a separate verdict here.
+      const productJson = scrapeJob.archivePath
+        ? path.join(scrapeJob.archivePath, 'product.json')
+        : null;
+      if (!productJson || !existsSync(productJson)) {
+        facts.warn('el scrape no archivó product.json — el normalizador no tuvo entrada que leer');
+        return;
+      }
+      facts.note(`${(statSync(productJson).size / 1024).toFixed(0)} kB extraídos`);
+    });
+
+    canonicalProduct = normalizeSteps.run('normalize:canonical', (facts) => {
+      // THE ONE GATE, unchanged: without this artefact there is nothing for
+      // any later stage to be about.
+      if (!canonicalPath || !existsSync(canonicalPath)) {
+        throw new Error(
+          'the scrape produced no canonical-product.json — the normalizer did not run or failed',
+        );
+      }
+      const parsed = JSON.parse(readFileSync(canonicalPath, 'utf-8')) as CanonicalProduct;
+      facts.note('canonical-product.json');
+      return parsed;
+    });
+
+    normalizeSteps.run('normalize:identity', (facts) => {
+      const identity = canonicalProduct.identity ?? {};
+      record.productId = (scrapeJob.params as { productId?: string }).productId ?? null;
+      // THE SYSTEM'S OWN NARROWING, not a truncation invented here. A source
+      // title runs to 150 characters and the generator already writes the
+      // short form into .generation.json as `productDisplayName`; deriving it
+      // from the same function is what keeps the report and the landing
+      // calling this product the same thing.
+      facts.note(deriveDisplayName(identity.name) || 'sin nombre en la fuente');
+      if (!identity.name) facts.warn('la fuente no publicó título — identity.name queda vacío');
+      // BRAND IS NULLABLE AND THAT IS A RESULT, not a problem: a listing that
+      // published no maker has none, and the normalizer ships an empty string
+      // rather than letting anything invent one.
+      if (!identity.brand) facts.warn('la fuente no publicó marca — brand queda vacía');
+    });
+
+    normalizeSteps.run('normalize:variants', (facts) => {
+      const options = canonicalProduct.commerceFacts?.variantOptions ?? [];
+      facts.note(`${options.length} opciones de variante`);
+    });
+
+    normalizeSteps.run('normalize:media', (facts) => {
+      const images = canonicalProduct.media?.images ?? [];
+      const videos = canonicalProduct.media?.videos ?? [];
+      facts.note(`${images.length} imágenes`);
+      // NO VIDEO IS A FACT ABOUT THE SCRAPER, not about this product: nothing
+      // in the pipeline extracts one, so the field is a literal empty list.
+      // It is read rather than asserted, so the day that changes this reports
+      // the change instead of hiding it.
+      if (videos.length > 0) facts.note(`${images.length} imágenes · ${videos.length} vídeo(s)`);
+      if (images.length === 0) facts.warn('la fuente no publicó imágenes — la landing no tendrá media propia');
+    });
+
+    normalizeSteps.run('normalize:social-proof', (facts) => {
+      const proof = canonicalProduct.socialProof ?? {};
+      const reviews = proof.reviews ?? [];
+      facts.note(
+        typeof proof.rating === 'number'
+          ? `${reviews.length} reseñas · ${proof.rating} ★ de ${proof.reviewCount ?? 0} en origen`
+          : `${reviews.length} reseñas`,
+      );
+      // NO REVIEWS IS A REAL STATE, not a failure. Social proof is projected
+      // from the scrape, so a provider that published none gives none — and
+      // the landing renders no reviews section at all.
+      if (reviews.length === 0) {
+        facts.warn('la fuente no publicó reseñas — la landing no mostrará ninguna');
+      }
+    });
+  } catch (err) {
+    return fail('normalize', err instanceof Error ? err.message : 'normalisation could not be verified');
   }
-  record.productId = (scrapeJob.params as { productId?: string }).productId ?? null;
-  pass('normalize', 'canonical-product.json ready');
+
+  pass(
+    'normalize',
+    `${canonicalProduct.media?.images?.length ?? 0} imágenes · ${canonicalProduct.socialProof?.reviews?.length ?? 0} reseñas`,
+  );
+
+  // PROVEN BY `normalize:canonical`, which threw when this was absent and took
+  // the whole pipeline down with it. Naming it once is what lets every later
+  // stage read the artefact without re-asking a question this stage already
+  // answered — and already failed on.
+  const canonicalFile = canonicalPath!;
 
   // ---- 3. Content Agent --------------------------------------------------
   const contentStage = begin('content');
   const contentJob = registry.createContentJob({
     scrapeJobId,
-    scrapeProductPath: canonicalPath,
+    scrapeProductPath: canonicalFile,
     instructionsPath: null,
     model: GEMINI_MODEL,
     productId: record.productId ?? undefined,
@@ -473,29 +858,69 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
   // archive, and passes the path down. Persisting it is the point — the asset
   // decisions become an inspectable artefact rather than something recomputed
   // and forgotten inside a child process.
+  //
+  // ─── AND IT REPORTS THE PRODUCER'S OWN BOUNDARIES ───────────────────────
+  //
+  // produceFixedAssets is one call, so a stage that timed only the call could
+  // say "assets: 3.2 s" and nothing else. It takes an OBSERVER instead, and
+  // wraps its real internal boundaries with it: the plan, then each fixed
+  // region it fills, then the manifest. The producer with no observer behaves
+  // exactly as it always has — instrumentation is a wrapper, never a branch —
+  // and it names its own operations so this stage cannot describe boundaries
+  // that have moved.
   let assetsPath: string | null = null;
   let faviconPath: string | null = null;
+  let assetOutput: unknown = null;
+  const assetSteps = new StepRecorder(assetStage, emit, ASSET_OPERATIONS);
   try {
-    const canonicalProduct = JSON.parse(readFileSync(canonicalPath, 'utf-8'));
-    const stagedContent = JSON.parse(readFileSync(contentPath, 'utf-8'));
-    const stepCount = Array.isArray(stagedContent?.product?.steps) ? stagedContent.product.steps.length : 0;
+    const inputs = assetSteps.run('assets:inputs', (facts) => {
+      const stagedContent = JSON.parse(readFileSync(contentPath, 'utf-8'));
+      const steps = Array.isArray(stagedContent?.product?.steps) ? stagedContent.product.steps.length : 0;
+      // HOW MANY STEP PHOTOGRAPHS ARE NEEDED IS THE COPY'S ANSWER, not the
+      // media's — which is why it is read here and reported as an input.
+      facts.note(`${steps} paso(s) en el copy`);
+      return { canonical: JSON.parse(readFileSync(canonicalFile, 'utf-8')), stepCount: steps };
+    });
 
-    const produced = produceFixedAssets({ canonicalProduct, imagesDir, destDir: null, stepCount });
+    const produced = produceFixedAssets({
+      canonicalProduct: inputs.canonical,
+      imagesDir,
+      destDir: null,
+      stepCount: inputs.stepCount,
+      observer: { step: (name, fn) => assetSteps.run(name, fn) },
+    });
+    assetOutput = produced.assetOutput;
 
-    // FAIL HERE, NOT IN ASTRO. A malformed media ref reaches the renderer as an
-    // empty placeholder and a blank frame, with a green build and no error
-    // anywhere — so the shape is checked while there is still a stage to blame.
-    const issues = collectAssetOutputIssues(produced.assetOutput);
-    if (issues.length) {
-      return fail('assets', `the produced media is not renderable: ${issues.map((i) => i.message).join(' | ')}`);
-    }
+    assetSteps.run('assets:refs', (facts) => {
+      // FAIL HERE, NOT IN ASTRO. A malformed media ref reaches the renderer as
+      // an empty placeholder and a blank frame, with a green build and no error
+      // anywhere — so the shape is checked while there is still a stage to
+      // blame. This has always been a gate and it stays one.
+      const issues = collectAssetOutputIssues(produced.assetOutput);
+      if (issues.length) {
+        throw new Error(`the produced media is not renderable: ${issues.map((i) => i.message).join(' | ')}`);
+      }
+      // AND THE REFS RESOLVE. Every slot filled above must name a file the plan
+      // actually copied; a key nothing can resolve is the defect that put blank
+      // frames behind a green build once already.
+      const unresolved = collectUnresolvedRefs(
+        produced.assetOutput,
+        produced.manifest.assets.map((a) => a.key),
+      );
+      facts.note(`${unresolved.length} referencias sin resolver`);
+      for (const issue of unresolved) facts.warn(issue.message);
+    });
 
-    assetsPath = path.join(scrapeJob.archivePath!, 'fixed-assets.json');
-    writeFileSync(assetsPath, `${JSON.stringify(produced.assetOutput, null, 2)}\n`);
-    writeFileSync(
-      path.join(scrapeJob.archivePath!, 'fixed-assets.manifest.json'),
-      `${JSON.stringify(produced.manifest, null, 2)}\n`,
-    );
+    assetSteps.run('assets:persist', (facts) => {
+      assetsPath = path.join(scrapeJob.archivePath!, 'fixed-assets.json');
+      writeFileSync(assetsPath, `${JSON.stringify(produced.assetOutput, null, 2)}\n`);
+      writeFileSync(
+        path.join(scrapeJob.archivePath!, 'fixed-assets.manifest.json'),
+        `${JSON.stringify(produced.manifest, null, 2)}\n`,
+      );
+      facts.note('fixed-assets.json · fixed-assets.manifest.json');
+    });
+
     assetStage.detail = `${produced.manifest.assets.length} asset(s), ${produced.rejected.length} rejected`;
 
     // THE BRAND MARK, resolved by the stage that already owns visual files.
@@ -506,33 +931,39 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
     // the mark is resolved once, persisted and reused while its fingerprint
     // holds. The palette it is drawn from is the one this landing will ship:
     // the operator's overrides on top of the template's canonical tokens.
-    const templateCss = readFileSync(
-      path.join(REPO_ROOT, FIXED_TEMPLATE_RELATIVE, 'src/styles/global.css'),
-      'utf-8',
-    );
-    const palette = paletteFromCss(templateCss);
-    if (input.themePath && existsSync(input.themePath)) {
-      Object.assign(palette, JSON.parse(readFileSync(input.themePath, 'utf-8')));
-    }
+    faviconPath = await assetSteps.runAsync('assets:favicon', async (facts) => {
+      const templateCss = readFileSync(
+        path.join(REPO_ROOT, FIXED_TEMPLATE_RELATIVE, 'src/styles/global.css'),
+        'utf-8',
+      );
+      const palette = paletteFromCss(templateCss);
+      if (input.themePath && existsSync(input.themePath)) {
+        Object.assign(palette, JSON.parse(readFileSync(input.themePath, 'utf-8')));
+      }
 
-    const priorPath = path.join(scrapeJob.archivePath!, 'fixed-favicon.json');
-    const prior = existsSync(priorPath) ? JSON.parse(readFileSync(priorPath, 'utf-8')) : null;
+      const priorPath = path.join(scrapeJob.archivePath!, 'fixed-favicon.json');
+      const prior = existsSync(priorPath) ? JSON.parse(readFileSync(priorPath, 'utf-8')) : null;
 
-    const mark = await resolveFixedFavicon({
-      operatorPath: input.faviconPath ?? null,
-      previous: prior,
-      generate: deps.generateFavicon ?? null,
-      brand: canonicalProduct?.identity?.brand ?? null,
-      productName: canonicalProduct?.identity?.name ?? null,
-      palette,
+      const mark = await resolveFixedFavicon({
+        operatorPath: input.faviconPath ?? null,
+        previous: prior,
+        generate: deps.generateFavicon ?? null,
+        brand: inputs.canonical?.identity?.brand ?? null,
+        productName: inputs.canonical?.identity?.name ?? null,
+        palette,
+      });
+
+      writeFileSync(priorPath, `${JSON.stringify(mark.manifest, null, 2)}\n`);
+      // WHICH OF THE THREE SOURCES ANSWERED — operator file, generated mark, or
+      // the canonical monogram. It is the difference between a brand the
+      // operator supplied and one the system drew, and it belongs in the report.
+      facts.note(String(mark.manifest.source ?? 'sin marca'));
+      const png = mark.files.find((f: { name: string }) => f.name === 'favicon.png');
+      if (!png) return null;
+      const written = path.join(scrapeJob.archivePath!, 'favicon.png');
+      writeFileSync(written, png.contents as Buffer);
+      return written;
     });
-
-    writeFileSync(priorPath, `${JSON.stringify(mark.manifest, null, 2)}\n`);
-    const png = mark.files.find((f: { name: string }) => f.name === 'favicon.png');
-    if (png) {
-      faviconPath = path.join(scrapeJob.archivePath!, 'favicon.png');
-      writeFileSync(faviconPath, png.contents as Buffer);
-    }
   } catch (err) {
     return fail('assets', err instanceof Error ? err.message : 'asset production failed');
   }
@@ -549,7 +980,7 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
     productId: record.productId ?? undefined,
     // No design anything: buildGenerateSpec no longer knows how to append the
     // flag, so there is nothing here to omit.
-    productJsonPath: canonicalPath,
+    productJsonPath: canonicalFile,
     merchantPath: input.merchantPath ?? null,
     siteUrl: input.siteUrl ?? null,
     // The stage's own output takes precedence; an explicit input is the escape hatch.
@@ -623,26 +1054,200 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
   // template does not ship one, so keeping the check would have failed every
   // Fixed generation for missing an artefact the architecture no longer has.
   //
-  // Deliberately NOT replaced with the full F3 validator. What stays is what
-  // Fixed can honestly assert TODAY about the thing on disk: it is its own
-  // repository, it carries its generated data and asset map, it records its
-  // own provenance, and a commerce run wrote its handle.
-  begin('validate');
-  const missing: string[] = [];
-  if (!existsSync(path.join(outDir, '.git'))) missing.push('.git (landing is not its own repository)');
-  if (!existsSync(path.join(outDir, '.gitignore'))) missing.push('.gitignore');
-  if (!existsSync(path.join(outDir, 'src/data/product.ts'))) missing.push('src/data/product.ts (product data)');
-  if (!existsSync(path.join(outDir, 'src/data/images.ts'))) missing.push('src/data/images.ts (asset map)');
-  if (!existsSync(path.join(outDir, '.generation.json'))) missing.push('.generation.json');
-  if (input.shopifyHandle && !existsSync(path.join(outDir, '.env'))) missing.push('.env (commerce mode handle)');
-  if (missing.length > 0) return fail('validate', `the generated landing is missing: ${missing.join(', ')}`);
-  pass('validate', 'artefact complete');
+  // ─── ONE GATE, FIVE REPORTS ─────────────────────────────────────────────
+  //
+  // `validate:artifact` is the stage's gate and it is the gate it has always
+  // been: the landing must be its own repository, carry its generated data and
+  // asset map, record its provenance, and hold the handle a commerce run wrote.
+  // A missing file still fails the pipeline, and the five checks after it are
+  // reported `skipped` — never run — rather than dropped.
+  //
+  // The five that follow it MEASURE. Each runs a real authority already in this
+  // repo against the artefact on disk, and none of them can fail a generation
+  // that would have passed before: a defect they find surfaces as a `warning`
+  // naming it. That boundary is deliberate. Turning any of them into a gate is
+  // a change to what the pipeline promises, which is a decision for the
+  // operator to make on the evidence — and the evidence is what this stage did
+  // not have until now.
+  const validateStage = begin('validate');
+  const validateSteps = new StepRecorder(validateStage, emit, VALIDATE_OPERATIONS);
+  try {
+    validateSteps.run('validate:artifact', (facts) => {
+      const missing: string[] = [];
+      if (!existsSync(path.join(outDir, '.git'))) missing.push('.git (landing is not its own repository)');
+      if (!existsSync(path.join(outDir, '.gitignore'))) missing.push('.gitignore');
+      if (!existsSync(path.join(outDir, 'src/data/product.ts'))) missing.push('src/data/product.ts (product data)');
+      if (!existsSync(path.join(outDir, 'src/data/images.ts'))) missing.push('src/data/images.ts (asset map)');
+      if (!existsSync(path.join(outDir, '.generation.json'))) missing.push('.generation.json');
+      if (input.shopifyHandle && !existsSync(path.join(outDir, '.env'))) missing.push('.env (commerce mode handle)');
+      if (missing.length > 0) throw new Error(`the generated landing is missing: ${missing.join(', ')}`);
+      facts.note(`${input.shopifyHandle ? 6 : 5} artefactos presentes`);
+    });
+
+    validateSteps.run('validate:grammar', (facts) => {
+      // THE SEALED STRUCTURE, MEASURED ON WHAT WAS ACTUALLY BUILT. V3 is the
+      // current profile: V2 could not represent a comparison table whose
+      // closing row pairs a tick with a value, which is what the first real
+      // landing produced.
+      const built = path.join(outDir, 'dist/client/index.html');
+      if (!existsSync(built)) {
+        // NOT `skipped`: the check ran and found nothing to measure, which is
+        // a different fact from never having been attempted.
+        facts.warn('la landing no tiene dist/client/index.html — no hay HTML construido que medir');
+        return;
+      }
+      const fp = structuralFingerprint(
+        readFileSync(built, 'utf-8'),
+        FIXED_GRAMMAR_V3,
+        FIXED_OPTIONAL_SLOTS_V3,
+      );
+      facts.note(`${fp.hash.slice(0, 12)}… · ${fp.elements} elementos`);
+    });
+
+    validateSteps.run('validate:asset-refs', (facts) => {
+      // EVERY MEDIA REF THE PAGE CARRIES MUST RESOLVE TO A FILE THE GENERATOR
+      // COPIED. resolveMedia() answers an unknown key with an empty placeholder,
+      // so an unresolved ref is a blank frame behind a green build — the exact
+      // silent degradation that produced `video-02` on a page that had no video.
+      const imagesModule = path.join(outDir, 'src/data/images.ts');
+      const source = existsSync(imagesModule) ? readFileSync(imagesModule, 'utf-8') : '';
+      const keys = [...source.matchAll(/^\s*'((?:[^'\\]|\\.)*)':/gm)].map((m) => m[1]!.replace(/\\'/g, "'"));
+      if (assetOutput === null || keys.length === 0) {
+        facts.warn('no hay mapa de assets generado que contrastar con la salida del productor');
+        return;
+      }
+      const unresolved = collectUnresolvedRefs(assetOutput, keys);
+      // THE RATIO IS REFS OVER REFS, not refs over keys. Those are different
+      // populations — a landing offers more keys than the page references, and
+      // dividing one by the other would print a fraction that moves for
+      // reasons unrelated to anything being wrong.
+      const output = assetOutput as {
+        gallery?: unknown[];
+        heroExtras?: unknown[];
+        productMediaStrip?: unknown[];
+        stepMedia?: Record<string, unknown>;
+      };
+      const refs =
+        (output.gallery?.length ?? 0) +
+        (output.heroExtras?.length ?? 0) +
+        (output.productMediaStrip?.length ?? 0) +
+        Object.keys(output.stepMedia ?? {}).length;
+      facts.count(refs - unresolved.length, refs, 'referencias resueltas');
+      facts.note(`${keys.length} claves en images.ts`);
+      for (const issue of unresolved) facts.warn(issue.message);
+    });
+
+    validateSteps.run('validate:ownership', (facts) => {
+      // THE LANDING SAYS WHOSE IT IS, and this run says whose it is. They must
+      // be the same answer — a folder that belongs to another product is the
+      // contamination the whole isolation rule exists to prevent, and
+      // `.generation.json` is where the generator recorded it first-hand.
+      const manifest = readGenerationManifest(outDir);
+      if (!manifest) {
+        facts.warn('la landing no registra .generation.json legible — no puede probar de quién es');
+        return;
+      }
+      const shipped = manifest.productId ?? null;
+      if (shipped && record.productId && shipped !== record.productId) {
+        facts.warn(`la carpeta declara ${shipped} y esta ejecución es ${record.productId}`);
+      }
+      const identity = manifest.source
+        ? formatSourceIdentity(manifest.source)
+        : formatSourceIdentity(resolveSourceIdentity(manifest.sourceUrl ?? null));
+      facts.note(identity);
+    });
+
+    validateSteps.run('validate:social-proof', (facts) => {
+      // WHAT THE SOURCE SUPPORTS, and nothing beyond it. The projection is the
+      // authority for which canonical reviews are renderable; the audit it
+      // already produces is the provenance record. A review that is not
+      // displayable is REPORTED here rather than quietly missing from the page.
+      const proof = projectFixedSocialProof(canonicalProduct);
+      facts.count(proof.audit.displayable, proof.audit.found, 'factuales');
+      if (proof.audit.found === 0) {
+        facts.warn('la fuente no publicó reseñas — la landing no muestra prueba social');
+        return;
+      }
+      for (const rejection of proof.audit.rejected) {
+        facts.warn(`reseña descartada: ${rejection.reason}`);
+      }
+    });
+
+    await validateSteps.runAsync('validate:readiness', async (facts) => {
+      // THE READINESS AUTHORITY ITSELF, run against the landing on disk. Not a
+      // reimplementation of its checks — `scripts/check-readiness.mjs` is the
+      // one command that answers "is this output ready", and reading its own
+      // `--json` is what keeps this from becoming a second opinion that drifts.
+      const readiness = await readReadiness(outDir);
+      if (!readiness) {
+        facts.warn('el chequeo de readiness no pudo ejecutarse sobre esta landing');
+        return;
+      }
+      const failed = readiness.results.filter((r) => !r.ok);
+      facts.count(readiness.total - failed.length, readiness.total, 'checks');
+      facts.note(readiness.ready ? 'READY' : `${failed.length} sin cumplir`);
+      for (const check of failed) facts.warn(`${check.name}: ${check.detail}`);
+    });
+  } catch (err) {
+    return fail('validate', err instanceof Error ? err.message : 'the generated landing could not be validated');
+  }
+
+  const validateWarnings = validateStage.steps.filter((s) => s.status === 'warning').length;
+  pass('validate', validateWarnings === 0 ? 'artefact complete' : `artefact complete · ${validateWarnings} con avisos`);
 
   record.status = 'succeeded';
   record.currentStage = null;
   record.finishedAt = nowIso();
   emit();
   return record;
+}
+
+export type ReadinessReport = {
+  ready: boolean;
+  total: number;
+  results: { name: string; ok: boolean; detail: string }[];
+};
+
+/**
+ * Runs the readiness authority against a landing and reads its verdict.
+ *
+ * NOT A SECOND OPINION. `scripts/check-readiness.mjs` is the one command that
+ * answers "is this output ready", and every check in it is a guarantee some
+ * phase established. Reimplementing even two of them here would create a pair
+ * of answers that drift apart, so the script is invoked and its own
+ * `--json` output — the same results, same order, same details a human sees —
+ * is what gets reported.
+ *
+ * It reads. It never writes, never builds, never installs and never touches a
+ * network, so running it inside the pipeline is safe by the script's own
+ * contract.
+ *
+ * `null` means the scan could not run at all, which is a different fact from
+ * a landing that is not ready, and is reported as one.
+ */
+export function readReadiness(outDir: string): Promise<ReadinessReport | null> {
+  return new Promise((resolve) => {
+    const child = spawn(
+      process.execPath,
+      [path.join(REPO_ROOT, 'scripts/check-readiness.mjs'), outDir, '--json'],
+      { cwd: REPO_ROOT, stdio: ['ignore', 'pipe', 'ignore'] },
+    );
+    let out = '';
+    child.stdout.on('data', (c) => {
+      out += String(c);
+    });
+    child.on('error', () => resolve(null));
+    child.on('close', () => {
+      // EXIT CODE IS NOT THE ANSWER — 0 is ready and 1 is not ready, and both
+      // carry the full report. Only unparseable output means no answer at all.
+      try {
+        const parsed = JSON.parse(out) as ReadinessReport;
+        resolve(Array.isArray(parsed?.results) ? parsed : null);
+      } catch {
+        resolve(null);
+      }
+    });
+  });
 }
 
 /**

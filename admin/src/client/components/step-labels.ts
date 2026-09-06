@@ -22,6 +22,22 @@
 //   generate-content  prepare generate save
 //   generate-landing  args validate preflight copy-template write-data
 //                     patch-theme write-favicon copy-images write-manifest todos
+//
+// ─── AND THE ONES THE ADMIN RUNS ITSELF ────────────────────────────────────
+//
+// Three stages delegate to no child, so there is no NDJSON to mirror: the
+// Admin performs their operations in-process and records them through
+// StepRecorder, which wraps a REAL call and times it. Same rule, same file: a
+// key here names an operation that runs, or it does not belong here.
+//
+// Their ids are NAMESPACED because the flat table below is shared. A child
+// already declares `validate`, `gallery` and `images`; an Admin operation
+// reusing one of those names would inherit the child's label and describe the
+// wrong work in the panel.
+//
+//   normalize  extraction canonical identity variants media social-proof
+//   assets     inputs plan gallery strip steps manifest refs persist favicon
+//   validate   artifact grammar asset-refs ownership social-proof readiness
 export const STEP_LABEL: Record<string, string> = {
   // ── Product Agent · scrape.js ────────────────────────────────────────────
   launch: 'Navegador iniciado',
@@ -51,6 +67,38 @@ export const STEP_LABEL: Record<string, string> = {
   'copy-images': 'Media copiada',
   'write-manifest': 'Manifiesto escrito',
   todos: 'Pendientes recopilados',
+
+  // ── Product Agent · el normalizador, dentro de archiveScrape ─────────────
+  // One per section normalizeProduct actually projects. `specifications` has
+  // no entry because the normalizer writes a literal `[]` for it — there is no
+  // structured source, so there is no operation to name.
+  'normalize:extraction': 'Extracción recibida',
+  'normalize:canonical': 'Producto normalizado',
+  'normalize:identity': 'Identidad canónica resuelta',
+  'normalize:variants': 'Variantes normalizadas',
+  'normalize:media': 'Media normalizada',
+  'normalize:social-proof': 'Social proof normalizado',
+
+  // ── Asset Agent · produceFixedAssets + el propio stage ───────────────────
+  // The middle five are the producer's own boundaries, which it names and
+  // exports so this table cannot describe a boundary that has moved.
+  'assets:inputs': 'Entradas del producto leídas',
+  'assets:plan': 'Media localizada y deduplicada',
+  'assets:gallery': 'Gallery asignada',
+  'assets:strip': 'ProductMediaStrip asignada',
+  'assets:steps': 'Media de los pasos asignada',
+  'assets:manifest': 'Manifiesto de procedencia generado',
+  'assets:refs': 'Referencias verificadas',
+  'assets:persist': 'Decisiones de media persistidas',
+  'assets:favicon': 'Favicon resuelto',
+
+  // ── Validation Agent · un chequeo real por línea ─────────────────────────
+  'validate:artifact': 'Artefactos de la landing',
+  'validate:grammar': 'Structural Grammar V3',
+  'validate:asset-refs': 'Referencias de assets',
+  'validate:ownership': 'Propiedad del producto',
+  'validate:social-proof': 'Procedencia de la prueba social',
+  'validate:readiness': 'Production readiness',
 };
 
 /** The step's human name, or its own id when nobody has named it yet. */
