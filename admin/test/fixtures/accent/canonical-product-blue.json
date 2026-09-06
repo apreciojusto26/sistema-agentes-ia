@@ -1,0 +1,6 @@
+{
+  "identity": { "productId": "prd_test-accent-blue", "name": "Test product blue", "brand": null },
+  "media": { "images": [{ "url": "https://fixture.invalid/blue.png", "localPath": "images/blue.png", "order": 0 }], "videos": [] },
+  "socialProof": { "rating": null, "reviewCount": null, "reviews": [] },
+  "commerceFacts": { "variantOptions": [] }
+}

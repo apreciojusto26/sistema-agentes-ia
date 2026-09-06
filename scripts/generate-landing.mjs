@@ -12,7 +12,7 @@ import { existsSync, mkdirSync, cpSync, readFileSync, writeFileSync, readdirSync
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
-import { execSync } from 'node:child_process';
+import { execSync, spawnSync } from 'node:child_process';
 import { DEFAULT_ERRORS, ContentContractError, validateContent } from './lib/content-contract.mjs';
 import { isProductId } from './lib/product-id.cjs';
 import {
@@ -26,6 +26,7 @@ import { assembleFixedProductData, FixedAssemblyError } from './lib/fixed-produc
 import { projectFixedContent } from './lib/fixed-content-output.mjs';
 import { produceFixedAssets, collectUnresolvedRefs, FixedAssetError } from './lib/fixed-asset-producer.mjs';
 import { readCanonicalPalette, resolveFixedTheme, applyPalette, FixedThemeError } from './lib/fixed-theme.mjs';
+import { deriveProductAccent, resolvePrimaryGalleryImage, ACCENT_TOKENS } from './lib/fixed-accent.mjs';
 import { isShopifyHandle } from './lib/shopify-handle.mjs';
 import { FIXED_TEMPLATE_RELATIVE } from './lib/fixed-template.mjs';
 import { writeLandingGitignore, initLandingRepo } from './lib/landing-scaffold.mjs';
@@ -45,6 +46,11 @@ const ROOT = path.resolve(__dirname, '..');
 // cannot disagree.
 const TEMPLATE_DIR = path.join(ROOT, FIXED_TEMPLATE_RELATIVE);
 const OUTPUTS_DIR = path.join(ROOT, 'outputs');
+// LIVES INSIDE THE TEMPLATE, not beside this file — see its own header. Only
+// a script that lives in content/landing-astravibe can resolve the `sharp`
+// dependency that reads a pixel; the path is computed once, from the same
+// TEMPLATE_DIR every other template reach-in already uses.
+const ACCENT_EXTRACTOR_PATH = path.join(TEMPLATE_DIR, 'scripts/extract-accent.mjs');
 
 // --- structured progress protocol (spec R5, design §4) --------------------
 // Additive, opt-in: with LG_EVENTS unset, `emit` is a no-op and nothing
@@ -649,6 +655,11 @@ function copyTemplate(dest) {
       // operator never wrote.
       if (/\.test\.(ts|tsx|mjs|js)$/.test(base)) return false;
       if (base === 'test-fixtures' && statSync(src).isDirectory()) return false;
+      // GENERATION-TIME TOOLING, same category as test-fixtures. extract-
+      // accent.mjs is spawned by THIS file, during generation, to read the
+      // `sharp` dependency that lives in this template's node_modules — a
+      // shipped landing never runs it and has no reason to carry it.
+      if (base === 'scripts' && statSync(src).isDirectory()) return false;
       return true;
     },
   });
@@ -1162,14 +1173,57 @@ async function main() {
     // operator, falling back to the template's own canonical colours.
     const cssPath = path.join(outDir, 'src/styles/global.css');
     const css = readFileSync(cssPath, 'utf-8');
+    const canonicalPalette = readCanonicalPalette(css);
     try {
+      // AUTO ACCENT — the derived source, resolved here rather than
+      // threaded in from write-data: it is a PRESENTATION decision (which
+      // colour to try), not a data one, and belongs beside the theme
+      // resolution it feeds. `--product`'s real validation gate still runs
+      // in copy-images; a document too broken to parse here yields no
+      // accent rather than a second, earlier failure mode for the same file.
+      let media = null;
+      if (args.productJson && existsSync(args.productJson)) {
+        try {
+          media = JSON.parse(readFileSync(args.productJson, 'utf-8'))?.media?.images ?? null;
+        } catch {
+          media = null;
+        }
+      }
+      const primaryImage = args.images ? resolvePrimaryGalleryImage(planAssets, media, args.images) : null;
+      const accent = deriveProductAccent({
+        imagePath: primaryImage,
+        spawnSync,
+        extractorPath: ACCENT_EXTRACTOR_PATH,
+        existsSync,
+        neutralTheme: canonicalPalette,
+      });
+
       const { theme, manifest } = resolveFixedTheme({
         override: themeOverride,
-        // No derived palette yet: nothing in any runtime can read a pixel —
-        // see the note on --theme parsing below.
-        derived: null,
-        canonical: readCanonicalPalette(css),
+        // PRECEDENCE, per token: operator override, then this derived
+        // accent, then canonical — resolveFixedTheme() has enforced exactly
+        // that order since F5. `accent.palette` is null on any fallback
+        // (no source asset, unreadable image, all-neutral frame, no
+        // contrast-safe variant within the search bound), which resolves
+        // every accent token to canonical here, precisely as if no `derived`
+        // had ever been supplied.
+        derived: accent.palette,
+        canonical: canonicalPalette,
       });
+      // ONLY WHAT ANSWERS THE QUESTION. Not the sampled buckets, not the
+      // retry trace beyond its outcome — the source, the asset it came from,
+      // the one number extraction decided (hue) alongside what it measured
+      // it by, the colour actually applied, and which tokens needed a
+      // contrast nudge, if any.
+      const operatorSetAccent = Boolean(themeOverride) && ACCENT_TOKENS.some((t) => themeOverride[t] !== undefined);
+      manifest.accent = {
+        source: operatorSetAccent ? 'operator' : accent.provenance.source,
+        reason: accent.provenance.reason,
+        sourceAsset: accent.provenance.sourceAsset ? path.relative(ROOT, accent.provenance.sourceAsset) : null,
+        extracted: accent.provenance.extracted,
+        appliedGrape: theme.grape,
+        adjustments: accent.provenance.adjustments,
+      };
       writeFileSync(cssPath, applyPalette(css, theme));
       writeFileSync(path.join(outDir, '.theme.json'), `${JSON.stringify(manifest, null, 2)}\n`);
     } catch (err) {

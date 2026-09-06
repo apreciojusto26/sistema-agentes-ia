@@ -1,0 +1,6 @@
+{
+  "identity": { "productId": "prd_test-accent-orange", "name": "Test product orange", "brand": null },
+  "media": { "images": [{ "url": "https://fixture.invalid/orange.png", "localPath": "images/orange.png", "order": 0 }], "videos": [] },
+  "socialProof": { "rating": null, "reviewCount": null, "reviews": [] },
+  "commerceFacts": { "variantOptions": [] }
+}

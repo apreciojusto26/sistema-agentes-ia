@@ -1,0 +1,6 @@
+{
+  "identity": { "productId": "prd_test-accent-neutral", "name": "Test product neutral", "brand": null },
+  "media": { "images": [{ "url": "https://fixture.invalid/neutral.png", "localPath": "images/neutral.png", "order": 0 }], "videos": [] },
+  "socialProof": { "rating": null, "reviewCount": null, "reviews": [] },
+  "commerceFacts": { "variantOptions": [] }
+}
