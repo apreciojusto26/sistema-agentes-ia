@@ -94,7 +94,7 @@ export const STEP_LABEL: Record<string, string> = {
 
   // ── Validation Agent · un chequeo real por línea ─────────────────────────
   'validate:artifact': 'Artefactos de la landing',
-  'validate:grammar': 'Structural Grammar V3',
+  'validate:grammar': 'Structural Grammar V4',
   'validate:asset-refs': 'Referencias de assets',
   'validate:ownership': 'Propiedad del producto',
   'validate:social-proof': 'Procedencia de la prueba social',

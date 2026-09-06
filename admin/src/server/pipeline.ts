@@ -28,9 +28,9 @@ import {
 } from '../../../scripts/lib/fixed-asset-producer.mjs';
 import { structuralFingerprint, collectUncollapsedRegions } from '../../../scripts/lib/fingerprint.mjs';
 import {
-  FIXED_GRAMMAR_V3,
-  FIXED_OPTIONAL_SLOTS_V3,
-} from '../../../scripts/lib/fixed-grammar-v3.mjs';
+  FIXED_GRAMMAR_V4,
+  FIXED_OPTIONAL_SLOTS_V4,
+} from '../../../scripts/lib/fixed-grammar-v4.mjs';
 import { projectFixedSocialProof } from '../../../scripts/lib/fixed-social-proof.mjs';
 import { deriveDisplayName } from '../../../scripts/lib/display-name.mjs';
 import { collectAssetOutputIssues } from '../../../scripts/lib/fixed-asset-output.mjs';
@@ -1216,10 +1216,13 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
     });
 
     validateSteps.run('validate:grammar', (facts) => {
-      // THE SEALED STRUCTURE, MEASURED ON WHAT WAS ACTUALLY BUILT. V3 is the
-      // current profile: V2 could not represent a comparison table whose
-      // closing row pairs a tick with a value, which is what the first real
-      // landing produced.
+      // THE SEALED STRUCTURE, MEASURED ON WHAT WAS ACTUALLY BUILT. V4 is the
+      // current profile: V3 fixed the comparison table's reachable states; V4
+      // adds exactly one optional slot in <head> — OPTIONAL<OgImageMeta> — so
+      // a landing built with SITE_URL + a real photograph and one built
+      // without either hash ALIKE, the same way ReviewsSection already lets
+      // zero-reviews and thirty-reviews hash alike. V1/V2/V3 stay exactly as
+      // sealed; nothing about them changed to make this possible.
       const built = path.join(outDir, 'dist/client/index.html');
       if (!existsSync(built)) {
         // NOT `skipped`: the check ran and found nothing to measure, which is
@@ -1228,19 +1231,43 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
         return;
       }
       const html = readFileSync(built, 'utf-8');
-      const fp = structuralFingerprint(html, FIXED_GRAMMAR_V3, FIXED_OPTIONAL_SLOTS_V3);
+      const fp = structuralFingerprint(html, FIXED_GRAMMAR_V4, FIXED_OPTIONAL_SLOTS_V4);
       facts.note(`${fp.hash.slice(0, 12)}… · ${fp.elements} elementos`);
 
       // THE HARD GATE. A hash alone has nothing to compare itself against —
       // this asks WHICH region, if any, is on the page but does not fit any
-      // shape V3 declares for it, or is below its declared minimum. Never
+      // shape V4 declares for it, or is below its declared minimum. Never
       // reported as a warning, and never fixed by editing the sealed grammar:
-      // V1/V2/V3 stay exactly as sealed.
-      const findings = collectUncollapsedRegions(html, FIXED_GRAMMAR_V3);
+      // V1/V2/V3/V4 stay exactly as sealed.
+      const findings = collectUncollapsedRegions(html, FIXED_GRAMMAR_V4);
       for (const finding of findings) facts.warn(finding.message);
       if (findings.length > 0) {
         facts.fail(
-          `${findings.length} región(es) de la Structural Grammar V3 sin colapsar o por debajo del mínimo declarado`,
+          `${findings.length} región(es) de la Structural Grammar V4 sin colapsar o por debajo del mínimo declarado`,
+          'validation-grammar-failed',
+        );
+      }
+
+      // THE CAPABILITY CROSS-CHECK. OPTIONAL<OgImageMeta> only asks "if this
+      // is here, is it well-formed" — it cannot see whether SITE_URL was
+      // configured or whether this product has a real photograph, since
+      // those facts never enter the HTML that structuralFingerprint reads. A
+      // page that carries the tag DESPITE neither fact holding, or that omits
+      // it DESPITE both holding, would still collapse cleanly above; this is
+      // the check that actually compares the rendered page against the two
+      // facts that are supposed to have produced it — never a boolean stored
+      // on its own that could quietly disagree with them.
+      const ogModule = path.join(outDir, 'src/data/og.ts');
+      const ogDeclared = existsSync(ogModule)
+        ? /ogImageFile: string \| null = (?:'([^']+)'|null)/.exec(readFileSync(ogModule, 'utf-8'))?.[1] ?? null
+        : null;
+      const expectsOgImage = Boolean(input.siteUrl) && ogDeclared !== null;
+      const rendersOgImage = /<meta[^>]*\bproperty="og:image"/.test(html);
+      if (expectsOgImage !== rendersOgImage) {
+        facts.fail(
+          expectsOgImage
+            ? 'og:image ausente en el HTML pero SITE_URL y la foto factual del producto dicen que debería estar'
+            : 'og:image presente en el HTML pero falta SITE_URL o la foto factual del producto',
           'validation-grammar-failed',
         );
       }

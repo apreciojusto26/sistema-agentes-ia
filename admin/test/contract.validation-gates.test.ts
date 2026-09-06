@@ -212,12 +212,12 @@ describe('the golden fixture passes clean', () => {
 });
 
 describe('VALIDATION GATES — a demonstrated defect fails the run', () => {
-  it('1. Structural Grammar V3: an uncollapsed region fails, never a warning', async () => {
+  it('1. Structural Grammar V4: an uncollapsed region fails, never a warning', async () => {
     const outDir = goldenOutput();
     // No astro build runs in this suite (runBuild is faked), so this test
     // supplies dist/client/index.html itself — a REAL, currently-verified
     // landing's REAL built page, read-only, with ONE review card's class list
-    // mutated so its markup matches no shape FIXED_GRAMMAR_V3 declares for
+    // mutated so its markup matches no shape FIXED_GRAMMAR_V4 declares for
     // reviews/cards — the exact technique used to design and verify
     // collectUncollapsedRegions() in the first place. The file on disk under
     // outputs/ is never written to.
@@ -236,6 +236,85 @@ describe('VALIDATION GATES — a demonstrated defect fails the run', () => {
     const grammar = validateStep(record, 'validate:grammar');
     expect(grammar.status).toBe('failed');
     expect(grammar.code).toBe('validation-grammar-failed');
+  });
+
+  // ── V4's og:image CAPABILITY — the two failure modes named explicitly ────
+  //
+  // OPTIONAL<OgImageMeta> only asks "if here, is it well-formed" — it cannot
+  // see whether SITE_URL or a factual photograph exist, since those facts
+  // never enter the HTML the grammar reads. These two tests exercise the
+  // SEPARATE cross-check inside validate:grammar that compares the rendered
+  // page against those two facts directly. Both use the same real Case-B
+  // page test #1 already trusts (SITE_URL + a real photograph), unmodified
+  // except for exactly the one fact under test.
+  const REAL_LANDING = path.resolve(__dirname, '../../outputs/1005007345199501/dist/client/index.html');
+  const OG_LINE = '<meta property="og:image" content="https://tubo-rgb.bamzuk.com/og-cover.webp">';
+
+  it('1a. capability=false + og:image present fails — a stray tag with no SITE_URL to justify it', async () => {
+    const outDir = goldenOutput();
+    const html = readFileSync(REAL_LANDING, 'utf-8');
+    expect(html).toContain(OG_LINE);
+    mkdirSync(path.join(outDir, 'dist/client'), { recursive: true });
+    writeFileSync(path.join(outDir, 'dist/client/index.html'), html);
+    // No src/data/og.ts written at all — no factual photograph declared,
+    // and no SITE_URL passed to runGolden() below. Neither fact holds, so
+    // the tag this page renders has nothing behind it.
+
+    const { record } = await runGolden({ outDir, siteUrl: null });
+    expect(record.status).toBe('failed');
+    const grammar = validateStep(record, 'validate:grammar');
+    expect(grammar.status).toBe('failed');
+    expect(grammar.code).toBe('validation-grammar-failed');
+    expect(grammar.warnings.join(' ')).toMatch(/og:image presente.*falta SITE_URL/);
+  });
+
+  it('1b. capability=true + og:image absent fails — the tag the facts promised never rendered', async () => {
+    const outDir = goldenOutput();
+    const html = readFileSync(REAL_LANDING, 'utf-8').replace(OG_LINE, '');
+    expect(html).not.toContain('og:image');
+    mkdirSync(path.join(outDir, 'dist/client'), { recursive: true });
+    writeFileSync(path.join(outDir, 'dist/client/index.html'), html);
+    // A factual photograph IS declared, and SITE_URL IS passed — both facts
+    // hold, so this page owes a tag it does not render.
+    writeFileSync(
+      path.join(outDir, 'src/data/og.ts'),
+      "export const ogImageFile: string | null = 'og-cover.webp';\n",
+    );
+
+    const { record } = await runGolden({ outDir, siteUrl: 'https://tubo-rgb.bamzuk.com' });
+    expect(record.status).toBe('failed');
+    const grammar = validateStep(record, 'validate:grammar');
+    expect(grammar.status).toBe('failed');
+    expect(grammar.code).toBe('validation-grammar-failed');
+    expect(grammar.warnings.join(' ')).toMatch(/og:image ausente.*debería estar/);
+  });
+
+  it('1c. capability=true + og:image present passes — SITE_URL + factual OG, Grammar V4 PASS', async () => {
+    const outDir = goldenOutput();
+    const html = readFileSync(REAL_LANDING, 'utf-8');
+    mkdirSync(path.join(outDir, 'dist/client'), { recursive: true });
+    writeFileSync(path.join(outDir, 'dist/client/index.html'), html);
+    writeFileSync(
+      path.join(outDir, 'src/data/og.ts'),
+      "export const ogImageFile: string | null = 'og-cover.webp';\n",
+    );
+
+    const { record } = await runGolden({ outDir, siteUrl: 'https://tubo-rgb.bamzuk.com' });
+    expect(record.status, record.error ?? 'unexpected failure').toBe('succeeded');
+    expect(validateStep(record, 'validate:grammar').status).not.toBe('failed');
+  });
+
+  it('1d. capability=false + og:image absent passes — Preview with no SITE_URL, Grammar V4 PASS', async () => {
+    const outDir = goldenOutput();
+    const html = readFileSync(REAL_LANDING, 'utf-8').replace(OG_LINE, '');
+    mkdirSync(path.join(outDir, 'dist/client'), { recursive: true });
+    writeFileSync(path.join(outDir, 'dist/client/index.html'), html);
+    // No og.ts at all — matches a real Preview generation, which never
+    // writes one with a non-null file when there is no origin to serve it.
+
+    const { record } = await runGolden({ outDir, siteUrl: null });
+    expect(record.status, record.error ?? 'unexpected failure').toBe('succeeded');
+    expect(validateStep(record, 'validate:grammar').status).not.toBe('failed');
   });
 
   it('2. Asset references: unresolved refs > 0 fails — a broken image cannot stay green', async () => {

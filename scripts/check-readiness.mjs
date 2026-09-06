@@ -23,6 +23,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const GRAMMAR_V1 = 'a2fc51ddf61b7dfa6a145eee7e25497a12e10669a7dfd714f07600aa586d77cd';
 const GRAMMAR_V2 = '82e3913a2cb7268da0b9f75f72f058fb3e248ba20aee8cf120866d0de80c9f24';
 const GRAMMAR_V3 = 'af765fce5c7d66630f660b64fba1eeab6901a0c0f8342c8c0e2d24083e46acff';
+const GRAMMAR_V4 = 'ef688830cb98d8e1cebe782db85c1f0ce89a30725d49d559b18a1dda2a90bd5c';
 
 /**
  * The template's own domain — the one host a generated landing may never claim.
@@ -71,11 +72,12 @@ const json = (rel) => JSON.parse(read(rel));
 // ─── the seal ──────────────────────────────────────────────────────────────
 
 check('Structural Grammar sealed', () => {
-  // ALL THREE seals. V1 and V2 are the historical record and V3 is the current
-  // profile for generated output; a landing is only trustworthy if none has
-  // moved. An older seal is never dropped when a newer one arrives — a version
-  // that stops being checked is a version that can be quietly rewritten.
-  const seals = [['V1', GRAMMAR_V1], ['V2', GRAMMAR_V2], ['V3', GRAMMAR_V3]];
+  // ALL FOUR seals. V1, V2 and V3 are the historical record and V4 is the
+  // current profile for generated output; a landing is only trustworthy if
+  // none has moved. An older seal is never dropped when a newer one arrives —
+  // a version that stops being checked is a version that can be quietly
+  // rewritten.
+  const seals = [['V1', GRAMMAR_V1], ['V2', GRAMMAR_V2], ['V3', GRAMMAR_V3], ['V4', GRAMMAR_V4]];
   for (const [name, expected] of seals) {
     const artifact = readFileSync(path.join(ROOT, `scripts/lib/ASTRAVIBE_FIXED_STRUCTURAL_GRAMMAR_${name}.txt`));
     const hash = createHash('sha256').update(artifact).digest('hex');
