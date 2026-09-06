@@ -9,7 +9,30 @@
 // A ROW IS AN OUTPUT. Regenerating a page does not add a row.
 import { useEffect, useMemo, useState } from 'react';
 import type { LandingSummary } from '../http/landings';
-import { listLandings } from '../http/landings';
+import { listLandings, deleteLanding } from '../http/landings';
+
+/** Feather-style trash icon, matching this app's stroke-based SVG convention
+ *  (see StageMark.tsx) rather than pulling in an icon library for one glyph. */
+function TrashIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4 7h16" />
+      <path d="M9 7V4.5A1.5 1.5 0 0 1 10.5 3h3A1.5 1.5 0 0 1 15 4.5V7" />
+      <path d="M6 7l1 13.5A1.5 1.5 0 0 0 8.5 22h7a1.5 1.5 0 0 0 1.5-1.5L18 7" />
+      <path d="M10 11v6M14 11v6" />
+    </svg>
+  );
+}
 
 /** "Hoy 18:42", "Ayer 09:03", "4 sept 18:42" — a date an operator reads at a glance. */
 export function relativeDate(iso: string | null): string {
@@ -64,6 +87,11 @@ export type LandingsLibraryProps = {
 export default function LandingsLibrary({ onOpen, onCreateFirst, refreshKey = 0 }: LandingsLibraryProps) {
   const [landings, setLandings] = useState<LandingSummary[] | null>(null);
   const [query, setQuery] = useState('');
+  /** The slug asking to be deleted, or null. One at a time — deleting is
+   *  destructive enough that two rows confirming at once would be confusing
+   *  about which "Eliminar" belongs to which product. */
+  const [confirmingSlug, setConfirmingSlug] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -72,6 +100,21 @@ export default function LandingsLibrary({ onOpen, onCreateFirst, refreshKey = 0 
       alive = false;
     };
   }, [refreshKey]);
+
+  const handleDelete = (slug: string) => {
+    setDeleteError(null);
+    void deleteLanding(slug).then((r) => {
+      if (r.ok) {
+        setConfirmingSlug(null);
+        // RE-READ outputs/, the same source of truth the initial load used —
+        // this component owns its own list, so a local filter would drift the
+        // moment two tabs or refreshKey disagree about what still exists.
+        void listLandings().then(setLandings);
+      } else {
+        setDeleteError(r.message);
+      }
+    });
+  };
 
   const shown = useMemo(() => (landings ?? []).filter((l) => matches(l, query)), [landings, query]);
 
@@ -137,6 +180,51 @@ export default function LandingsLibrary({ onOpen, onCreateFirst, refreshKey = 0 
             <tbody>
               {shown.map((l) => {
                 const state = stateLabel(l);
+
+                // CONFIRMING REPLACES THE ROW, spanning every column. A row is
+                // too narrow to hold the same warning LandingDetail gives
+                // before deleting — that Shopify's product is NOT touched — so
+                // rather than shrink the wording until it fits, the row widens
+                // to fit the wording. Same copy in both places on purpose: one
+                // warning, not a second version that could drift from it.
+                if (confirmingSlug === l.slug) {
+                  return (
+                    <tr key={l.slug} className="border-b border-hairline-soft last:border-0">
+                      <td colSpan={6} className="bg-state-failed-tint px-3 py-3">
+                        <div role="alertdialog" aria-label="Confirmar eliminación" className="flex flex-wrap items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-[13px] font-semibold text-ink">¿Eliminar “{l.displayName}”?</p>
+                            <p className="mt-0.5 text-[12px] text-ink-soft">
+                              Se eliminarán los archivos generados. El producto vinculado en Shopify{' '}
+                              <strong className="font-semibold text-ink">NO</strong> será eliminado, ni la tienda ni su configuración.
+                            </p>
+                            {deleteError && <p className="mt-1 text-[12px] text-state-failed">{deleteError}</p>}
+                          </div>
+                          <div className="flex shrink-0 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(l.slug)}
+                              className="rounded-lg bg-state-failed px-3 py-1.5 text-[12.5px] font-semibold text-white"
+                            >
+                              Eliminar landing
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setConfirmingSlug(null);
+                                setDeleteError(null);
+                              }}
+                              className="rounded-lg border border-hairline px-3 py-1.5 text-[12.5px] text-ink"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                }
+
                 return (
                   <tr key={l.slug} className="border-b border-hairline-soft last:border-0 hover:bg-panel-soft">
                     <td className="px-3 py-2.5">
@@ -159,13 +247,27 @@ export default function LandingsLibrary({ onOpen, onCreateFirst, refreshKey = 0 
                     <td className={`px-3 py-2.5 text-[12.5px] ${state.tone}`}>{state.text}</td>
                     <td className="px-3 py-2.5 text-[12.5px] text-ink-soft">{relativeDate(l.generatedAt)}</td>
                     <td className="px-3 py-2.5 text-right">
-                      <button
-                        type="button"
-                        onClick={() => onOpen(l.slug)}
-                        className="rounded-lg border border-hairline px-2.5 py-1 text-[12px] text-ink transition hover:border-brand"
-                      >
-                        Ver
-                      </button>
+                      <div className="flex justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => onOpen(l.slug)}
+                          className="rounded-lg border border-hairline px-2.5 py-1 text-[12px] text-ink transition hover:border-brand"
+                        >
+                          Ver
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDeleteError(null);
+                            setConfirmingSlug(l.slug);
+                          }}
+                          aria-label={`Eliminar “${l.displayName}”`}
+                          title="Eliminar landing"
+                          className="rounded-lg border border-hairline p-1.5 text-ink-faint transition hover:border-state-failed hover:text-state-failed"
+                        >
+                          <TrashIcon />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

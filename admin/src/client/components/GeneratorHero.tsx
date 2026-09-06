@@ -44,7 +44,7 @@ export default function GeneratorHero({ onRun, running, submitError }: Generator
         <button
           type="submit"
           disabled={running || url.trim().length === 0}
-          className="shrink-0 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white disabled:opacity-40 cursor-pointer"
+          className="shrink-0 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
         >
           Buscar producto
         </button>

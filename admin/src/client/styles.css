@@ -261,6 +261,22 @@
     font-family: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
   }
+
+  /* ONE RULE, not a `cursor-pointer` sprinkled per button. The CSS spec's
+     default for `<button>` is `cursor: default` — the browser does not give
+     this away — and every clickable control in this Admin is a real
+     `<button>`, never an `<a>` or a div wearing an onClick. Two different
+     components had already hand-patched a single button each (GeneratorHero,
+     PipelineColumn) because the absence was noticed locally instead of fixed
+     once. This sits in `base`, so a component's own `cursor-*` utility (e.g.
+     PipelineColumn's conditional `cursor-default`) still wins — Tailwind's
+     utility layer is ordered after `base` regardless of selector specificity. */
+  button:not(:disabled) {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
 }
 
 @utility cap {
