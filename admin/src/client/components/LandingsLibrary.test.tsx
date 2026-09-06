@@ -18,7 +18,10 @@ const summary = (over: Partial<LandingSummary> = {}): LandingSummary => ({
   built: true,
   assetCount: 8,
   mode: 'preview',
+  shopifyHandle: null,
+  siteUrl: null,
   generatedAt: '2026-09-05T18:42:00.000Z',
+  productId: 'prd_mtest01-abcdef01',
   source: { provider: 'aliexpress', externalProductId: '1005007345199501', canonicalUrl: 'https://es.aliexpress.com/item/1005007345199501.html' },
   ...over,
 });
@@ -118,6 +121,51 @@ describe('a trash-icon button deletes a generated landing', () => {
     // A GET follows the DELETE — the list is RE-READ, not filtered locally,
     // so it can never drift from what the server actually still has.
     expect(calls.filter((c) => c.method === 'GET').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('while the request is in flight, the button says so and both buttons are disabled', async () => {
+    // A DEFERRED fetch, so the in-flight moment can actually be observed
+    // rather than assumed. No `no-fake-spinner.test.ts` component is
+    // involved — this is a label change plus `disabled`, honest for exactly
+    // as long as this real promise stays unsettled.
+    let resolveDelete!: () => void;
+    const calls: { url: string; method: string }[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        calls.push({ url, method: init?.method ?? 'GET' });
+        if (init?.method === 'DELETE') {
+          return new Promise<Response>((resolve) => {
+            resolveDelete = () => resolve({ ok: true } as Response);
+          });
+        }
+        return { ok: true, json: async () => ({ landings: [summary()] }) } as Response;
+      }),
+    );
+    root = createRoot(container);
+    await act(async () => {
+      root.render(<LandingsLibrary onOpen={() => {}} onCreateFirst={() => {}} />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const trash = container.querySelector('button[aria-label*="Tubo de luz RGB"]') as HTMLButtonElement;
+    act(() => trash.click());
+    const confirm = [...container.querySelectorAll('button')].find((b) => b.textContent === 'Eliminar landing')!;
+    act(() => confirm.click());
+
+    const buttons = [...container.querySelectorAll('[role="alertdialog"] button')] as HTMLButtonElement[];
+    expect(buttons.map((b) => b.textContent)).toContain('Eliminando…');
+    expect(buttons.every((b) => b.disabled)).toBe(true);
+
+    // Settling it clears the label — nothing was left mid-flight forever.
+    await act(async () => {
+      resolveDelete();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(container.querySelector('[role="alertdialog"]')).toBeNull();
   });
 
   it('a failed delete keeps the confirmation open and shows the server\'s message', async () => {

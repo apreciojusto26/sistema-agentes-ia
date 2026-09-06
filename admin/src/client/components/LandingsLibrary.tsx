@@ -92,6 +92,14 @@ export default function LandingsLibrary({ onOpen, onCreateFirst, refreshKey = 0 
    *  about which "Eliminar" belongs to which product. */
   const [confirmingSlug, setConfirmingSlug] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  /** The slug the DELETE request is actually in flight for, or null.
+   *  A LABEL CHANGE + a disabled button, not a spinner — `no-fake-spinner
+   *  .test.ts` allows exactly one animating component in this whole client,
+   *  and it isn't this one. This is the same "Generando…" pattern already
+   *  used by PipelinePanel and GenerateSlugForm: honest because the button is
+   *  genuinely disabled for exactly as long as the real fetch takes, never a
+   *  timer standing in for one. */
+  const [deletingSlug, setDeletingSlug] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -103,15 +111,20 @@ export default function LandingsLibrary({ onOpen, onCreateFirst, refreshKey = 0 
 
   const handleDelete = (slug: string) => {
     setDeleteError(null);
+    setDeletingSlug(slug);
     void deleteLanding(slug).then((r) => {
       if (r.ok) {
         setConfirmingSlug(null);
         // RE-READ outputs/, the same source of truth the initial load used —
         // this component owns its own list, so a local filter would drift the
         // moment two tabs or refreshKey disagree about what still exists.
-        void listLandings().then(setLandings);
+        void listLandings().then((l) => {
+          setLandings(l);
+          setDeletingSlug(null);
+        });
       } else {
         setDeleteError(r.message);
+        setDeletingSlug(null);
       }
     });
   };
@@ -204,9 +217,10 @@ export default function LandingsLibrary({ onOpen, onCreateFirst, refreshKey = 0 
                             <button
                               type="button"
                               onClick={() => handleDelete(l.slug)}
-                              className="rounded-lg bg-state-failed px-3 py-1.5 text-[12.5px] font-semibold text-white"
+                              disabled={deletingSlug === l.slug}
+                              className="rounded-lg bg-state-failed px-3 py-1.5 text-[12.5px] font-semibold text-white disabled:opacity-60"
                             >
-                              Eliminar landing
+                              {deletingSlug === l.slug ? 'Eliminando…' : 'Eliminar landing'}
                             </button>
                             <button
                               type="button"
@@ -214,7 +228,8 @@ export default function LandingsLibrary({ onOpen, onCreateFirst, refreshKey = 0 
                                 setConfirmingSlug(null);
                                 setDeleteError(null);
                               }}
-                              className="rounded-lg border border-hairline px-3 py-1.5 text-[12.5px] text-ink"
+                              disabled={deletingSlug === l.slug}
+                              className="rounded-lg border border-hairline px-3 py-1.5 text-[12.5px] text-ink disabled:opacity-60"
                             >
                               Cancelar
                             </button>
