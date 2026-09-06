@@ -378,7 +378,16 @@ export function collectFixedContentIssues(input) {
     });
   }
 
-  const missing = REQUIRED.filter((f) => !(f in input));
+  // ABSENT MEANS NEITHER THE KEY NOR A REAL VALUE. `!(f in input)` alone let a
+  // Content Agent output carrying `variantGroupLabel: null` pass this check —
+  // the key was there, the copy was not — and the actual failure surfaced
+  // three stages later as `astro check`'s "Type 'null' is not assignable to
+  // type 'string'" on a generated src/data/product.ts, with nothing in the
+  // message pointing back at the Content Agent. `null` and `undefined` are
+  // the exact shape a REQUIRED field has no honest default for, whatever its
+  // real type — an object or array field failing loud on `null` here is the
+  // right outcome too, not a false positive to work around.
+  const missing = REQUIRED.filter((f) => !(f in input) || input[f] === null || input[f] === undefined);
   if (missing.length) {
     issues.push({
       code: 'fixed-content-missing-fields',

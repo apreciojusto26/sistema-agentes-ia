@@ -175,3 +175,38 @@ describe('the item rules run as part of the Fixed content contract', () => {
     expect(issues).toEqual([]);
   });
 });
+
+describe('REQUIRED copy: a present KEY with no real value still fails', () => {
+  // Found for real: the Content Agent wrote `variantGroupLabel: null` and
+  // `!(f in input)` let it through — the key was there, the copy was not.
+  // The actual failure only surfaced three stages later, as astro check's
+  // "Type 'null' is not assignable to type 'string'" on the generated
+  // src/data/product.ts, with nothing in that message pointing back here.
+  const base = {
+    name: 'Producto',
+    tagline: 't',
+    subtagline: 's',
+    cta: {},
+    variantGroupLabel: 'v',
+    trustTicker: ['x'],
+  };
+
+  test.each(['name', 'tagline', 'subtagline', 'variantGroupLabel'] as const)(
+    '%s: null is rejected exactly like an absent key',
+    (field) => {
+      const issues = collectFixedContentIssues({ ...base, [field]: null });
+      expect(issues.map((i) => i.code)).toContain('fixed-content-missing-fields');
+      const fields = issues.find((i) => i.code === 'fixed-content-missing-fields')!.fields;
+      expect(fields).toContain(field);
+    },
+  );
+
+  test('undefined is rejected the same way', () => {
+    const issues = collectFixedContentIssues({ ...base, variantGroupLabel: undefined });
+    expect(issues.map((i) => i.code)).toContain('fixed-content-missing-fields');
+  });
+
+  test('a real string still passes — this did not become stricter than the type itself', () => {
+    expect(collectFixedContentIssues({ ...base, variantGroupLabel: 'Elegí tu color' })).toEqual([]);
+  });
+});
