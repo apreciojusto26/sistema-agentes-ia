@@ -10,6 +10,12 @@ import type { Product } from '@/types/content';
 export const product = {
   brand: 'Nordika',
   name: 'Nordika — Difusor de aromas cerámico',
+  // Derived exactly as a real generation would (scripts/lib/display-name
+  // .mjs's deriveDisplayName): every word of it appears in `name`, in order.
+  // Added when the buy box started reading `displayName` instead of `name`
+  // for its heading — this fixture predated that field and was rendering an
+  // empty <h2> in preview mode until it was.
+  displayName: 'Nordika — Difusor de aromas cerámico',
   tagline: 'El aroma de un bosque, en tu salón.',
   subtagline: 'Difusor ultrasónico de cerámica con temporizador y luz cálida regulable.',
 

@@ -52,7 +52,17 @@ const countLabel = count === null ? null : new Intl.NumberFormat('es-ES').format
 {
   rating !== null && (
     <section class="bg-white pb-4 pt-12 md:pb-6 md:pt-16">
-      <Container>
+      {/*
+        CENTRED, matching 12-guarantee.astro's own convention — the other
+        section that states a fact rather than tells a story. Left-aligning a
+        wide container under a huge heading was the actual source of "queda
+        floja": on desktop the heading spanned edge-to-edge while the rating
+        and the disclosure sat narrow and adrift beneath it, three different
+        widths with three different rhythms. Centring is not a redesign; it is
+        the alignment 12-guarantee.astro already uses for the same kind of
+        content, applied here for the same reason.
+      */}
+      <Container class="text-center">
         {/* Was "Resultados reales" — a claim about outcomes this section has
             no data for. It summarises ratings, so it says so. */}
         <p class="text-eyebrow font-bold uppercase text-grape">Valoraciones</p>
@@ -61,22 +71,30 @@ const countLabel = count === null ? null : new Intl.NumberFormat('es-ES').format
         <h2 class="mt-1 text-display md:text-4xl lg:text-5xl">
           Lo que dicen de<br />{product.brand ?? product.displayName}
         </h2>
-        <div class="mt-2 flex items-center gap-2">
-          {/* `rating`, not `product.ratingAverage`: the guard above narrows the
-              local, and astro check does NOT typecheck expressions inside a
-              conditional block — so passing the nullable field directly would
-              have compiled while handing Stars a null at runtime. */}
-          <Stars rating={rating} />
-          <span class="text-sm font-semibold text-graphite">{ratingLabel}/5</span>
+
+        {/*
+          THE RATING, MADE THE ANCHOR — no bars, no invented breakdown, the
+          same two facts as before (average, count), given the visual weight
+          a number this good deserves. `starClass` is Stars.astro's own,
+          already-existing sizing prop; nothing new was added to render it
+          larger. The tinted pill is `bg-grape-tint`, the same trust-tint
+          token 10-reviews-reel.astro already carries — not a new colour.
+        */}
+        <div class="mx-auto mt-5 inline-flex flex-wrap items-center justify-center gap-3 rounded-pill bg-grape-tint px-5 py-3">
+          <Stars rating={rating} starClass="size-6" />
+          <span class="text-2xl font-black leading-none text-graphite">
+            {ratingLabel}<span class="text-base font-semibold text-graphite/60">/5</span>
+          </span>
         </div>
 
-        {/* The histogram's container, kept exactly — same width, same centring,
-            same top rhythm — holding a factual line instead of five bars. */}
-        <div class="mx-auto mt-6 max-w-xl space-y-2">
+        {/* Same fact as before, resolved as a real sentence rather than a
+            thin caption: this is the section's provenance disclosure, and it
+            deserves to be read, not skimmed past. */}
+        <div class="mx-auto mt-5 max-w-xl space-y-2">
           {countLabel !== null && (
-            <p class="text-sm text-graphite/70">
-              Media de {countLabel} valoraciones de compradores de este producto, recopiladas de plataformas de venta
-              online. No son opiniones dejadas en esta tienda.
+            <p class="text-base leading-relaxed text-graphite/70">
+              Media de <strong class="font-semibold text-graphite">{countLabel} valoraciones</strong> de compradores
+              de este producto, recopiladas de plataformas de venta online. No son opiniones dejadas en esta tienda.
             </p>
           )}
         </div>

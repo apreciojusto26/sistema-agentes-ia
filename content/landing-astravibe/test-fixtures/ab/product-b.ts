@@ -10,6 +10,12 @@ import type { Product } from '@/types/content';
 export const product = {
   brand: 'Roble & Sal',
   name: 'Roble & Sal — Tabla de corte de roble macizo',
+  // Derived exactly as a real generation would (scripts/lib/display-name
+  // .mjs's deriveDisplayName) — narrowed to the brand, same as A's is not,
+  // because A's source title happens to already fit. Added for the same
+  // reason as A's: the buy box reads `displayName` now, and this fixture
+  // predated the field.
+  displayName: 'Roble & Sal',
   tagline: 'Una tabla que dura más que la cocina.',
   subtagline: 'Roble macizo con canal perimetral y pies antideslizantes, tratada con aceite alimentario.',
 

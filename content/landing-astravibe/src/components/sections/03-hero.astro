@@ -21,7 +21,16 @@ const resolvedImages = [...catalogueImages, ...extras];
 <section class="min-w-0 bg-white pb-6 pt-0">
   <Container>
     <div class="-mx-5 md:mx-auto md:max-w-[42rem] xl:max-w-[40rem]">
-      <HeroCarousel client:visible images={resolvedImages} />
+      {/*
+        `client:load`, not `client:visible`. This is the hero — it is ALWAYS
+        in the initial viewport, so an IntersectionObserver-gated hydration
+        buys nothing here and only adds the observer's own setup-and-first-
+        callback latency before the arrows and dots start responding. Astro's
+        own guidance reserves `client:visible` for islands genuinely below the
+        fold; a carousel that is the first thing on the page is the case
+        `client:load` exists for.
+      */}
+      <HeroCarousel client:load images={resolvedImages} />
 
       <div class="mt-5 px-5 text-center md:px-0">
         {/*

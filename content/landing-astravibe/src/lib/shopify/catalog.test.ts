@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { parseProjectionCount, toCustomerTitle } from '@/lib/shopify/catalog';
+import { parseProjectionCount, previewCommerce, toCustomerTitle } from '@/lib/shopify/catalog';
+import { product as generatedProduct } from '@/data/product';
 
 describe('parseProjectionCount', () => {
   it('reads the count from the supplier titles this product actually ships', () => {
@@ -30,5 +31,22 @@ describe('toCustomerTitle', () => {
 
   it('falls back to the original title when there is no count to speak of', () => {
     expect(toCustomerTitle('Nightlight', null)).toBe('Nightlight');
+  });
+});
+
+describe('previewCommerce', () => {
+  it('titles the buy box with the DISPLAY name, never the raw source title', () => {
+    // The template's own fixture keeps the two deliberately different
+    // ("AstraVibe — Proyector de estrellas USB" vs "AstraVibe"), so this
+    // assertion is meaningful rather than trivially true either way.
+    expect(generatedProduct.name).not.toBe(generatedProduct.displayName);
+    expect(previewCommerce().title).toBe(generatedProduct.displayName);
+    expect(previewCommerce().title).not.toBe(generatedProduct.name);
+  });
+
+  it('states no price — an empty variant list, never a fabricated 0', () => {
+    const commerce = previewCommerce();
+    expect(commerce.variants).toEqual([]);
+    expect(commerce.anyAvailable).toBe(false);
   });
 });

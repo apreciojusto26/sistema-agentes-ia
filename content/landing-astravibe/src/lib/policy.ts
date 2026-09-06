@@ -88,6 +88,16 @@ export function shippingLine(p: PolicyFacts): string {
 }
 
 /**
+ * Who ships it. A logistics fact, not a promise — used as the guarantee
+ * section's THIRD cell when no commercial guarantee is configured, so that
+ * section always has three real things to say without ever inventing a
+ * guarantee nobody configured.
+ */
+export function carrierLine(p: PolicyFacts): string {
+  return `El envío lo gestiona ${p.shipping.carrierName}.`;
+}
+
+/**
  * The policy half of the trust ticker and of any policy badge row. Product
  * copy still comes from the Content Agent; these do not, which is why the two
  * are concatenated at the call site instead of being one array the model can

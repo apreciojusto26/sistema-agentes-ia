@@ -31,6 +31,37 @@
 // Same id, same surface, same rhythm, same seal, same centred container, same
 // three-column grid of icon-over-text cells. Only the sentences changed, and
 // the cells are now built from facts instead of a copy array.
+//
+// ─── ALWAYS THREE CELLS, NEVER A FOURTH FACT INVENTED TO GET THERE ────────
+//
+// This used to be `[returnShippingLine, shippingLine, ...(guaranteeLine ? [x] : [])]`
+// — two cells for most merchants, since a commercial guarantee is optional and
+// most have not configured one. A `sm:grid-cols-3` grid with two children is
+// not a design choice, it is a hole. The third slot is the delivery ETA when
+// there is no additional guarantee to state, and the guarantee headline when
+// there is one — both are real, configured facts, so the slot is always
+// filled and never by something nobody configured.
+//
+// ─── THE ICON STAYS THE SEALED SHIELD — DISTINCT ICONS ARE OUT OF SCOPE HERE
+//
+// This was going to give each cell an icon matching its own meaning: `check`
+// for the returns promise, `truck` for who ships it, `shield` kept for the
+// guarantee. It does not, and the reason is load-bearing rather than
+// cosmetic: ASTRAVIBE_FIXED_STRUCTURAL_GRAMMAR_V1 declares exactly ONE shape
+// for this repeatable region (id `guarantee/cells`), and that declared shape
+// is the shield SVG's own `d` path, verbatim, as part of what "this region"
+// structurally IS. `contract.fixed-grammar-seal.test.ts`'s "every declared
+// region normalized" caught it immediately: a second icon shape makes the
+// region render as raw, unrecognised markup instead of collapsing into the
+// sealed token, which is precisely the defect a seal exists to surface.
+//
+// Varying icon SHAPE per cell is therefore a GRAMMAR change, not a template
+// one — a new version (V4) would need to declare `guarantee/cells` as a set
+// of named shapes the way V3 already does for `comparison/rows`, get its own
+// artifact and its own reviewed seal, and that is a deliberate step for
+// whoever owns the grammar to take on purpose, not something to fold into an
+// unrelated presentation fix. What this fix DOES keep: three real cells,
+// always — see below — with the one icon the seal actually recognises.
 import Container from '@/components/ui/Container.astro';
 import { ICONS } from '@/lib/icons';
 import {
@@ -39,21 +70,17 @@ import {
   returnShippingLine,
   commercialGuaranteeHeadline,
   shippingLine,
+  carrierLine,
 } from '@/lib/policy';
 
-const shield = ICONS.shield;
 const facts = policy;
 
 // Derived once so the section cannot disagree with itself.
 const headline = facts ? returnsHeadline(facts) : null;
 const guaranteeLine = facts ? commercialGuaranteeHeadline(facts) : null;
 
-// The three cells that replaced `guarantee.points`. Each is a configured fact
-// rendered as a sentence — who pays the return leg, how long delivery takes,
-// and the additional guarantee IF one exists. The list is built, not written,
-// so it can never grow a claim nobody configured.
 const cells = facts
-  ? [returnShippingLine(facts), shippingLine(facts), ...(guaranteeLine ? [guaranteeLine] : [])]
+  ? [returnShippingLine(facts), carrierLine(facts), guaranteeLine ?? shippingLine(facts)]
   : [];
 ---
 
@@ -61,17 +88,31 @@ const cells = facts
   facts && headline && (
     <section id="garantia" class="scroll-mt-4 bg-gold-tint py-12 md:py-16">
       <Container class="text-center">
-        {/* alt describes the seal, not a day count it would otherwise have to
-            invent when no commercial guarantee is configured. */}
-        <img
-          src="/sello-garantia.webp"
-          width="112"
-          height="112"
-          alt="Sello de garantía"
-          class="mx-auto size-28"
-          loading="lazy"
-          decoding="async"
-        />
+        {/*
+          THE SEAL, WITH A FALLBACK THAT CANNOT 404. `onerror` swaps a broken
+          image for the same shield glyph already used elsewhere on this page
+          — inline markup, not a second network request, so there is nothing
+          left for the fallback ITSELF to fail to load. alt describes the
+          seal, not a day count it would otherwise have to invent when no
+          commercial guarantee is configured.
+        */}
+        <span class="relative mx-auto flex size-28 items-center justify-center">
+          <img
+            src="/sello-garantia.webp"
+            width="112"
+            height="112"
+            alt="Sello de garantía"
+            class="size-28"
+            loading="lazy"
+            decoding="async"
+            onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
+          />
+          <span class="hidden size-28 items-center justify-center rounded-full bg-gold/15" style="display:none">
+            <svg viewBox={ICONS.shield.viewBox} class="size-16 text-gold" aria-hidden="true">
+              <path fill="currentColor" d={ICONS.shield.path} />
+            </svg>
+          </span>
+        </span>
 
         <h2 class="mt-4 text-display md:text-4xl">{headline}</h2>
         <p class="mx-auto mt-2 max-w-md text-sm text-steel">{returnShippingLine(facts)}</p>
@@ -79,8 +120,8 @@ const cells = facts
         <div class="mx-auto mt-8 grid max-w-lg grid-cols-1 gap-3 sm:grid-cols-3">
           {cells.map((cell) => (
             <div class="flex flex-col items-center gap-2 text-xs text-graphite">
-              <svg viewBox={shield.viewBox} class="size-6 text-gold" aria-hidden="true">
-                <path fill="currentColor" d={shield.path} />
+              <svg viewBox={ICONS.shield.viewBox} class="size-6 text-gold" aria-hidden="true">
+                <path fill="currentColor" d={ICONS.shield.path} />
               </svg>
               <span>{cell}</span>
             </div>

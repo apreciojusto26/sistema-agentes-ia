@@ -116,16 +116,24 @@ export function resolveCommerceMode(
 /**
  * The commerce shape for a landing generated WITHOUT commerce.
  *
- * Carries the product's real name and nothing else. `variants` is empty on
- * purpose: there is no trustworthy price for a product never linked to
- * Shopify, and emitting a 0 would render "0,00 €" — a fabricated price. An
- * empty variant list makes every purchase control resolve to its unavailable
- * state instead, which is the truth.
+ * Carries the product's DISPLAY name, never the raw source title. `title`
+ * here feeds a visible `<h2>` (05-buy-box.astro) — `generatedProduct.name` is
+ * the factual listing title verbatim, up to 150+ characters of marketplace
+ * SEO keywords, and rendering it as a heading is not a styling problem to
+ * paper over with CSS truncation, it is the wrong field. `displayName` is the
+ * same identity, narrowed deterministically by scripts/lib/display-name.mjs —
+ * every word of it still appears in `name`, in order, so this is not a
+ * second, competing product name; it is the one already meant for UI.
+ *
+ * `variants` is empty on purpose: there is no trustworthy price for a product
+ * never linked to Shopify, and emitting a 0 would render "0,00 €" — a
+ * fabricated price. An empty variant list makes every purchase control
+ * resolve to its unavailable state instead, which is the truth.
  */
-function previewCommerce(): ProductCommerce {
+export function previewCommerce(): ProductCommerce {
   return {
     handle: '',
-    title: generatedProduct.name,
+    title: generatedProduct.displayName,
     currencyCode: 'EUR',
     optionName: generatedProduct.variantGroupLabel ?? '',
     variants: [],

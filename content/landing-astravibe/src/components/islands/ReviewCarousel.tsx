@@ -32,6 +32,21 @@ export function ReviewCarousel({ reviews }: ReviewCarouselProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const rafRef = useRef<number | null>(null);
 
+  /**
+   * How many cards are actually visible at once — 1 on mobile, up to 3 at
+   * `xl`. NOT read off a Tailwind breakpoint: the cards are 86%/48%/31% of
+   * the track, fractions chosen for a peeking-next-card effect rather than an
+   * exact 1/2/3 split, so the real count is MEASURED off the DOM instead of
+   * guessed from the same breakpoint numbers that produced those fractions.
+   *
+   * THIS IS THE WHOLE FIX. The dots below used to render one per REVIEW,
+   * which is the raw count of things in the data — not the number of
+   * scroll-snap pages a viewer can actually land on. A visitor scanning three
+   * cards at a time on desktop saw ten times more dots than pages, most of
+   * them dead weight after the third click.
+   */
+  const [visibleCount, setVisibleCount] = useState(1);
+
   const scrollToIndex = (index: number) => {
     const track = trackRef.current;
     const card = track?.children[index] as HTMLElement | undefined;
@@ -64,6 +79,36 @@ export function ReviewCarousel({ reviews }: ReviewCarouselProps) {
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
     };
   }, [reviews.length]);
+
+  // RE-MEASURED ON RESIZE, not just on mount — a viewer who resizes the
+  // window (or rotates a tablet) is looking at a different number of visible
+  // cards a moment later, and a dot count frozen at first paint would then be
+  // wrong for the rest of the session. ResizeObserver on the TRACK itself
+  // rather than a window `resize` listener: it fires on the box that actually
+  // determines cardsPerView, including layout changes a viewport-width
+  // listener would miss (a sidebar opening, a font finishing its swap).
+  useEffect(() => {
+    const track = trackRef.current;
+    if (!track) return;
+
+    const measure = () => {
+      const firstCard = track.children[0] as HTMLElement | undefined;
+      if (!firstCard || firstCard.offsetWidth === 0) return;
+      const cardWidth = firstCard.offsetWidth + GAP_PX;
+      setVisibleCount(Math.max(1, Math.round(track.clientWidth / cardWidth)));
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(track);
+    return () => observer.disconnect();
+  }, [reviews.length]);
+
+  // ONE DOT PER PAGE, never per review. A page is however many cards fit in
+  // one view; the last page may hold fewer if the count doesn't divide evenly,
+  // and that is still one dot, not a fractional one.
+  const pageCount = Math.max(1, Math.ceil(reviews.length / visibleCount));
+  const activePage = Math.min(pageCount - 1, Math.floor(activeIndex / visibleCount));
 
   return (
     <div role="region" aria-roledescription="carousel" aria-label="Reseñas de clientes">
@@ -115,16 +160,16 @@ export function ReviewCarousel({ reviews }: ReviewCarouselProps) {
         ))}
       </div>
 
-      <div className="mt-3 flex justify-center gap-1.5" role="tablist" aria-label="Seleccionar reseña">
-        {reviews.map((review, i) => (
+      <div className="mt-3 flex justify-center gap-1.5" role="tablist" aria-label="Seleccionar página de reseñas">
+        {Array.from({ length: pageCount }, (_, page) => (
           <button
-            key={review.id}
+            key={page}
             type="button"
             role="tab"
-            aria-selected={i === activeIndex}
-            aria-label={`Ir a la reseña ${i + 1}`}
-            onClick={() => scrollToIndex(i)}
-            className={`size-1.5 rounded-full transition-colors ${i === activeIndex ? 'bg-grape' : 'bg-grape/25'}`}
+            aria-selected={page === activePage}
+            aria-label={`Ir a la página ${page + 1} de ${pageCount}`}
+            onClick={() => scrollToIndex(page * visibleCount)}
+            className={`size-1.5 rounded-full transition-colors ${page === activePage ? 'bg-grape' : 'bg-grape/25'}`}
           />
         ))}
       </div>

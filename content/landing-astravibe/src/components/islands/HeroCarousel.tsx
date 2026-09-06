@@ -69,41 +69,53 @@ export function HeroCarousel({ images }: HeroCarouselProps) {
           )}
         </button>
 
-        <button
-          type="button"
-          onClick={goPrev}
-          aria-label="Imagen anterior"
-          className="absolute left-3 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-full bg-white/40 text-graphite shadow-card ring-1 ring-graphite/15 backdrop-blur-sm motion-safe:transition hover:bg-white/60 active:scale-95"
-        >
-          <svg viewBox="0 0 20 20" className="size-5 rotate-90" aria-hidden="true">
-            <path fill="currentColor" d={chevronPath} />
-          </svg>
-        </button>
-
-        <button
-          type="button"
-          onClick={goNext}
-          aria-label="Imagen siguiente"
-          className="absolute right-3 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-full bg-white/40 text-graphite shadow-card ring-1 ring-graphite/15 backdrop-blur-sm motion-safe:transition hover:bg-white/60 active:scale-95"
-        >
-          <svg viewBox="0 0 20 20" className="size-5 -rotate-90" aria-hidden="true">
-            <path fill="currentColor" d={chevronPath} />
-          </svg>
-        </button>
-
-        <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-2" role="tablist" aria-label="Seleccionar imagen">
-          {images.map((img, i) => (
+        {/*
+          NO CONTROL THAT DOES NOTHING. With one image, `goPrev`/`goNext`
+          would loop back to the SAME index — a click that visibly changes
+          nothing, which is indistinguishable from a broken carousel. A single
+          photo is a real, legitimate state (a scrape that recovered exactly
+          one usable image), so it renders as a plain photo instead of a
+          carousel wearing dead arrows.
+        */}
+        {count > 1 && (
+          <>
             <button
-              key={img.id}
               type="button"
-              role="tab"
-              aria-selected={i === activeIndex}
-              aria-label={`Ir a la imagen ${i + 1}`}
-              onClick={() => setActiveIndex(i)}
-              className={`size-2 rounded-full transition-colors ${i === activeIndex ? 'bg-white' : 'bg-white/40'}`}
-            />
-          ))}
-        </div>
+              onClick={goPrev}
+              aria-label="Imagen anterior"
+              className="absolute left-3 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-full bg-white/40 text-graphite shadow-card ring-1 ring-graphite/15 backdrop-blur-sm motion-safe:transition hover:bg-white/60 active:scale-95"
+            >
+              <svg viewBox="0 0 20 20" className="size-5 rotate-90" aria-hidden="true">
+                <path fill="currentColor" d={chevronPath} />
+              </svg>
+            </button>
+
+            <button
+              type="button"
+              onClick={goNext}
+              aria-label="Imagen siguiente"
+              className="absolute right-3 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-full bg-white/40 text-graphite shadow-card ring-1 ring-graphite/15 backdrop-blur-sm motion-safe:transition hover:bg-white/60 active:scale-95"
+            >
+              <svg viewBox="0 0 20 20" className="size-5 -rotate-90" aria-hidden="true">
+                <path fill="currentColor" d={chevronPath} />
+              </svg>
+            </button>
+
+            <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-2" role="tablist" aria-label="Seleccionar imagen">
+              {images.map((img, i) => (
+                <button
+                  key={img.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={i === activeIndex}
+                  aria-label={`Ir a la imagen ${i + 1}`}
+                  onClick={() => setActiveIndex(i)}
+                  className={`size-2 rounded-full transition-colors ${i === activeIndex ? 'bg-white' : 'bg-white/40'}`}
+                />
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       {isLightboxOpen && lightboxIndex !== null && (

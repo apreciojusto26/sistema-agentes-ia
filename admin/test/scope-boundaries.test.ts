@@ -556,6 +556,202 @@ describe('scope-boundaries (Batch G — machine-checkable, spec R14)', () => {
         }
       });
     });
+
+    // ─── THE APPROVED DISPLAY & PRESENTATION EXCEPTIONS ──────────────────
+    //
+    // Four concrete presentation defects, reported against real generated
+    // landings and reproduced (or, in one case, disproved) against a real
+    // build before anything here was touched:
+    //
+    //   1. the buy box's `<h2>` printed the 150+-character SOURCE TITLE —
+    //      `catalog.ts`'s preview commerce shape read `generatedProduct.name`
+    //      where `.displayName` (already deterministic, already narrowed,
+    //      already used everywhere else — cart, sticky bar, checkout) was the
+    //      field meant for a heading.
+    //   2. the ratings summary was left-aligned under a full-width heading
+    //      while its own facts sat narrow and centred beneath it — three
+    //      widths, three rhythms, no invented breakdown chart.
+    //   3. the guarantee section always drew the SAME shield icon for every
+    //      cell and rendered only two of its three columns whenever the
+    //      merchant had configured no additional guarantee — an unbalanced
+    //      grid, not a design choice.
+    //   4. the review carousel's dot navigation rendered one dot per REVIEW
+    //      rather than one per scroll-snap PAGE — a visitor seeing three cards
+    //      at once saw ten times more dots than pages.
+    //
+    // A fifth report — the hero carousel's arrows and dots not responding —
+    // did NOT reproduce: a real preview server, clicked for real (arrows,
+    // then a direct dot jump, on both a desktop and a mobile viewport),
+    // navigated correctly every time, with a clean console. `HeroCarousel.tsx`
+    // and `03-hero.astro` still carry two narrow, independently-justified
+    // hardening changes — hiding dead controls on a single-image product, and
+    // an `client:load` correction for the one island that is always the
+    // first thing on the page — pinned below for the same reason every other
+    // line in this file is: not because the directory is any less protected,
+    // but because a change that lands here must be found here.
+    //
+    // THE DIRECTORY IS STILL NOT UNLOCKED. Unlike FIX PACK 1's pure text
+    // substitutions, three of these ARE structural (a new wrapper element,
+    // conditional controls) — closer to the F7 precedent, which is exactly
+    // why each one is pinned by its actual before/after shape rather than by
+    // a single reassuring regex.
+    describe('the approved DISPLAY & PRESENTATION FIXES exceptions', () => {
+      const T = 'content/landing-astravibe/src';
+      const readRaw = (rel: string) => readFileSync(path.join(REPO_ROOT, T, rel), 'utf-8');
+      // Comments stripped — same convention as contract.social-proof
+      // -integrity.test.ts and contract.content-provenance.test.ts. These
+      // files DOCUMENT the defect they fix in prose right above the fix, so a
+      // scanner reading raw source would trip on its own explanation (e.g.
+      // this section's header names `product.ratingBreakdown`, the exact
+      // thing a later assertion here checks is gone from the CODE).
+      const read = (rel: string) =>
+        readRaw(rel)
+          .replace(/\/\*[\s\S]*?\*\//g, '')
+          .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+          .split('\n')
+          .filter((l) => !/^\s*(\/\/|\*)/.test(l))
+          .join('\n');
+
+      describe('1. buy box title: displayName, never the raw source title', () => {
+        const CATALOG = 'lib/shopify/catalog.ts';
+
+        it('previewCommerce() reads displayName', () => {
+          expect(read(CATALOG)).toMatch(/title: generatedProduct\.displayName,/);
+        });
+
+        it('and no longer reads the raw name for that field', () => {
+          expect(read(CATALOG)).not.toMatch(/title: generatedProduct\.name,/);
+        });
+
+        it('the live-Shopify branch is untouched — Shopify stays the sole title authority once linked', () => {
+          expect(read(CATALOG)).toMatch(/title: product\.title,/);
+        });
+
+        it('the type comment describing this field was corrected, not left stale', () => {
+          // RAW, not comment-stripped — this IS the comment under test.
+          expect(readRaw('lib/shopify/types.ts')).toMatch(/generatedProduct\.displayName, never the raw source title/);
+        });
+      });
+
+      describe('2. ratings summary: centred, with the average given real visual weight', () => {
+        const REAL_RESULTS = 'components/sections/13-real-results.astro';
+
+        it('the section is now centred, matching 12-guarantee.astro\'s own convention', () => {
+          expect(read(REAL_RESULTS)).toMatch(/<Container class="text-center">/);
+        });
+
+        it('the rating is still the two facts it always was — no third number invented', () => {
+          const text = read(REAL_RESULTS);
+          expect(text).toMatch(/\{ratingLabel\}/);
+          expect(text).toMatch(/\{countLabel\}/);
+          // Still no bars, no breakdown — the thing this section explicitly
+          // rejected before and still rejects now.
+          expect(text, 'a histogram crept back in').not.toMatch(/ratingBreakdown/);
+        });
+
+        it('heading and disclosure copy are unchanged — only presentation moved', () => {
+          const text = read(REAL_RESULTS);
+          expect(text).toMatch(/Lo que dicen de<br \/>\{product\.brand \?\? product\.displayName\}/);
+          expect(text).toMatch(/Media de <strong[^>]*>\{countLabel\} valoraciones<\/strong> de compradores/);
+        });
+      });
+
+      describe('3. guarantee cells: always three — icon diversity deferred to a grammar version', () => {
+        const GUARANTEE = 'components/sections/12-guarantee.astro';
+
+        it('the cell list is built from three entries, not two-plus-conditional', () => {
+          const text = read(GUARANTEE);
+          expect(text).toMatch(
+            /const cells = facts\s*\n\s*\? \[returnShippingLine\(facts\), carrierLine\(facts\), guaranteeLine \?\? shippingLine\(facts\)\]/,
+          );
+        });
+
+        it('no commercial fact was invented — the fallback cell is a real shipping fact', () => {
+          // carrierLine and the ETA fallback both come from lib/policy.ts,
+          // which this test suite does not protect (it carries no core
+          // commerce logic) — but the CALL SITE here must never read a
+          // guarantee day count that commercialGuaranteeHeadline() did not
+          // itself produce.
+          expect(read(GUARANTEE)).not.toMatch(/días.*: 30|30.*días.*Garantía/);
+        });
+
+        it('the icon stays the ONE shape the seal actually declares', () => {
+          // Distinct per-cell icons were the original ask and they were tried
+          // — contract.fixed-grammar-seal.test.ts's "every declared region
+          // normalized" caught it in one run: ASTRAVIBE_FIXED_STRUCTURAL_
+          // GRAMMAR_V1 declares exactly one shape for `guarantee/cells`, and
+          // that shape IS the shield SVG's `d` path, verbatim. A second icon
+          // shape is a grammar change (a V4, declaring the region as a set of
+          // named shapes the way V3 already does for comparison/rows), not a
+          // template one, and it is not this fix's place to make that call
+          // unilaterally. Every cell keeps the sealed shield.
+          const text = read(GUARANTEE);
+          // Two occurrences: the seal's own fallback glyph, and the cells'
+          // loop — both shield, never a second shape.
+          expect([...text.matchAll(/viewBox=\{ICONS\.(\w+)\.viewBox\}/g)].map((m) => m[1])).toEqual([
+            'shield',
+            'shield',
+          ]);
+        });
+
+        it('the seal has a fallback that cannot itself fail to load', () => {
+          const text = read(GUARANTEE);
+          expect(text).toMatch(/onerror="this\.style\.display='none';this\.nextElementSibling\.style\.display='flex'"/);
+          // Inline markup, not a second network request.
+          expect(text).not.toMatch(/onerror="[^"]*\.(png|webp|jpg|svg)/);
+        });
+
+        it('the section is still omitted whole with no merchant — no policy, no decoration', () => {
+          expect(read(GUARANTEE)).toMatch(/\{\s*facts && headline &&/);
+        });
+      });
+
+      describe('4. review carousel dots: one per page, never one per review', () => {
+        const REVIEW_CAROUSEL = 'components/islands/ReviewCarousel.tsx';
+
+        it('dots are built from a page count, not from reviews.map', () => {
+          const text = read(REVIEW_CAROUSEL);
+          expect(text).toMatch(/const pageCount = Math\.max\(1, Math\.ceil\(reviews\.length \/ visibleCount\)\);/);
+          expect(text).toMatch(/Array\.from\(\{ length: pageCount \}, \(_, page\) =>/);
+        });
+
+        it('visibleCount is MEASURED off the real DOM, not guessed from a breakpoint', () => {
+          expect(read(REVIEW_CAROUSEL)).toMatch(/new ResizeObserver\(measure\)/);
+        });
+
+        it('the cards themselves are untouched — one per review, exactly as before', () => {
+          // The bug was in the DOTS. The card track's own reviews.map(...) is
+          // the same iteration it always was.
+          expect(read(REVIEW_CAROUSEL)).toMatch(/\{reviews\.map\(\(review, i\) => \(/);
+        });
+
+        it('no reviewer-identity or provenance field was touched', () => {
+          const text = read(REVIEW_CAROUSEL);
+          expect(text).not.toMatch(/review\.location/);
+          expect(text).not.toMatch(/\*{2,}/);
+        });
+      });
+
+      describe('5. hero carousel: reported broken, found working — two narrow hardenings kept', () => {
+        const HERO_CAROUSEL = 'components/islands/HeroCarousel.tsx';
+        const HERO_SECTION = 'components/sections/03-hero.astro';
+
+        it('a single image now hides the controls instead of shipping dead ones', () => {
+          expect(read(HERO_CAROUSEL)).toMatch(/\{count > 1 && \(/);
+        });
+
+        it('navigation logic itself is untouched — same goPrev/goNext, same modulo', () => {
+          const text = read(HERO_CAROUSEL);
+          expect(text).toMatch(/const goPrev = \(\) => setActiveIndex\(\(index\) => \(index - 1 \+ count\) % count\);/);
+          expect(text).toMatch(/const goNext = \(\) => setActiveIndex\(\(index\) => \(index \+ 1\) % count\);/);
+        });
+
+        it('the hero island hydrates on load, not on visibility — it is always in the initial viewport', () => {
+          expect(read(HERO_SECTION)).toMatch(/<HeroCarousel client:load images=\{resolvedImages\} \/>/);
+          expect(read(HERO_SECTION)).not.toMatch(/client:visible/);
+        });
+      });
+    });
   });
 
   describe('boundary: no authentication/authorization surface added to admin/', () => {
