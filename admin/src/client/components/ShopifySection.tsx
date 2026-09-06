@@ -44,17 +44,24 @@ export type ShopifySectionProps = {
 };
 
 /**
- * FOUR CONDITIONS, NAMED SEPARATELY — because "Shopify conectado" is not
- * "Commerce listo", and a status pill that let those read as the same thing
- * would be the most expensive kind of lie this UI could tell.
+ * SEVEN CONDITIONS, NAMED SEPARATELY AND GROUPED BY CAPABILITY — because
+ * "Shopify conectado" is not "Commerce listo", and a status pill that let
+ * those read as the same thing would be the most expensive kind of lie this
+ * UI could tell.
  *
- *   Shop connected      credentials exist to QUERY the storefront. Nothing more.
- *   Product linked      this landing sells a specific product.
- *   Site URL configured it has an origin, so callbacks and the social card work.
- *   Merchant valid      there is a seller, so the legal pages are publishable.
+ *   COMMERCE — everything catalog.ts and cart.ts actually read at runtime:
+ *     Shop ID / Storefront ID    the operator's one-time identity config.
+ *     Storefront API connected  credentials exist to QUERY the storefront.
+ *     Product / Product GID     this landing sells a specific product.
+ *     Merchant valid            there is a seller, so legal pages publish.
  *
- * They correspond to the three levels plus the operator's own configuration,
- * and none of them substitutes for another.
+ *   PUBLISH — a SEPARATE capability, never a Commerce blocker:
+ *     Domain configured   SITE_URL, for the social card and payment
+ *                          callbacks. astro.config.mjs treats its absence as
+ *                          legitimate in Commerce exactly as in Preview —
+ *                          catalog.ts and cart.ts never read it at all.
+ *
+ * None of the seven substitutes for another.
  */
 function ReadinessRow({ label, ok, detail }: { label: string; ok: boolean; detail?: string }) {
   return (
@@ -198,10 +205,19 @@ export default function ShopifySection({ handle, productGid, onChange, siteUrl, 
 
       {/* ── what Commerce still needs ─────────────────────────────────────
           A shop connection means the Admin can ASK the storefront questions.
-          It does not mean this landing can sell: that needs a product, an
-          origin and a seller, and each is listed on its own so none of them
-          hides behind the others. */}
-      <ul className="mt-2 space-y-0.5 border-t border-hairline-soft pt-2">
+          It does not mean this landing can sell: that needs a product and a
+          seller, and each is listed on its own so none of them hides behind
+          the others.
+          COMMERCE AND PUBLISH ARE TWO SEPARATE CAPABILITIES, split into two
+          groups rather than one flat list. catalog.ts and cart.ts — the
+          runtime that actually prices, sells and carts a product — read
+          PUBLIC_SHOPIFY_PRODUCT_HANDLE and never SITE_URL; astro.config.mjs's
+          own `site` resolution is explicitly "absent means absent", true in
+          Commerce exactly as it is in Preview. A missing domain is real and
+          worth surfacing, but it blocks PUBLISHING a public, shareable social
+          card — never selling — so it never reads as a Commerce gap. */}
+      <p className="mt-2 cap text-ink-faint">Commerce</p>
+      <ul className="space-y-0.5 border-t border-hairline-soft pt-2">
         <ReadinessRow
           label="Shop ID configurado"
           ok={connection?.commerceIdentity?.shopIdConfigured === true}
@@ -218,14 +234,17 @@ export default function ShopifySection({ handle, productGid, onChange, siteUrl, 
           detail={handle === null ? 'preview' : productGid === null ? 'sólo handle' : undefined}
         />
         <ReadinessRow
-          label="Dominio configurado"
-          ok={siteUrl.trim() !== ''}
-          detail={siteUrl.trim() || 'sin dominio'}
-        />
-        <ReadinessRow
           label="Vendedor configurado"
           ok={merchantConfigured === true}
           detail={merchantConfigured === false ? 'falta admin/merchant.json' : undefined}
+        />
+      </ul>
+      <p className="mt-2 cap text-ink-faint">Publish</p>
+      <ul className="space-y-0.5 border-t border-hairline-soft pt-2">
+        <ReadinessRow
+          label="Dominio configurado"
+          ok={siteUrl.trim() !== ''}
+          detail={siteUrl.trim() || 'necesario antes de publicar'}
         />
       </ul>
 

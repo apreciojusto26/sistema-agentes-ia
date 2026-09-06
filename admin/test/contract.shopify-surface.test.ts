@@ -318,4 +318,29 @@ describe('the picked product reaches the landing, and only as a PRODUCT', () => 
     const rendered = section.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
     expect(rendered, 'the UI claims commerce is ready').not.toContain('Commerce listo');
   });
+
+  test('SITE_URL is a PUBLISH capability, never a Commerce one — Commerce and Preview both tolerate its absence', () => {
+    // astro.config.mjs's own configuredSite() already says "absent means
+    // absent" without checking commerce mode; catalog.ts and cart.ts never
+    // read SITE_URL at all. The UI must not contradict that by grouping the
+    // domain row with the things Commerce actually depends on, or by wording
+    // its absence as if selling were blocked.
+    const section = read('admin/src/client/components/ShopifySection.tsx');
+    expect(section).toMatch(/>Commerce</);
+    expect(section).toMatch(/>Publish</);
+    expect(section).toContain('necesario antes de publicar');
+    const rendered = section.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    expect(rendered, 'a missing domain reads as blocking a sale').not.toMatch(/sin dominio.*vender|no puede vender/i);
+
+    // And the START BUTTON itself must not gate on it either.
+    const panel = read('admin/src/client/components/PipelinePanel.tsx');
+    const canStart = /const canStart = ([^;]+);/.exec(panel)?.[1] ?? '';
+    expect(canStart, 'canStart references siteUrl').not.toMatch(/siteUrl/);
+
+    // catalog.ts and cart.ts are the actual Commerce runtime — neither reads
+    // SITE_URL, confirmed on the source rather than assumed.
+    for (const rel of ['content/landing-astravibe/src/lib/shopify/catalog.ts', 'content/landing-astravibe/src/lib/shopify/cart.ts']) {
+      expect(read(rel), `${rel} reads SITE_URL`).not.toContain('SITE_URL');
+    }
+  });
 });
