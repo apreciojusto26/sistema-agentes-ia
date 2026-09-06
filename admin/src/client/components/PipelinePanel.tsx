@@ -72,6 +72,11 @@ export default function PipelinePanel({
    */
   const [handle, setHandle] = useState<string | null>(null);
   /**
+   * The linked product's Shopify GID, when the picker resolved one. Mirrors
+   * `handle` — see ShopifySection's own prop for why it stays nullable.
+   */
+  const [productGid, setProductGid] = useState<string | null>(null);
+  /**
    * THIS LANDING'S PUBLIC ORIGIN, when the operator has one.
    *
    * Optional and it stays optional: a preview has no domain and must not be
@@ -98,6 +103,9 @@ export default function PipelinePanel({
     setSlug(prefill.slug);
     setSiteUrl(prefill.siteUrl ?? '');
     setHandle(prefill.shopifyHandle);
+    // A regeneration prefill predates this field or never resolved a GID —
+    // either way there is nothing honest to carry forward but null.
+    setProductGid(null);
     setAdvanced(true);
   }, [prefill]);
 
@@ -154,6 +162,7 @@ export default function PipelinePanel({
       scrapeJobId: scrapeJobId.trim() || undefined,
       slug: effectiveSlug,
       shopifyHandle: handle,
+      shopifyProductGid: productGid,
       siteUrl: siteUrl.trim() || null,
       force: true,
     });
@@ -217,7 +226,16 @@ export default function PipelinePanel({
           {effectiveSlug && <span className="rounded-full bg-panel-muted px-1.5 py-0.5 text-ink-soft">/{effectiveSlug}</span>}
         </p>
 
-        <ShopifySection handle={handle} onChange={setHandle} siteUrl={siteUrl} disabled={running} />
+        <ShopifySection
+          handle={handle}
+          productGid={productGid}
+          onChange={(selection) => {
+            setHandle(selection?.handle ?? null);
+            setProductGid(selection?.gid ?? null);
+          }}
+          siteUrl={siteUrl}
+          disabled={running}
+        />
 
         <button
           type="button"

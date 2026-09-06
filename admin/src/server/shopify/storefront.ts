@@ -33,6 +33,16 @@ export type ShopifyConnection = {
   /** The myshopify domain, for display. Never the token. */
   domain: string | null;
   apiVersion: string | null;
+  /**
+   * Commerce identity — SHOPIFY_SHOP_ID / SHOPIFY_STOREFRONT_ID, presence
+   * only, never the values. Separate from `configured`: a shop can be
+   * connected (the Storefront API answers) without either being set, and
+   * Commerce readiness needs to say which of the two is still missing.
+   */
+  commerceIdentity: {
+    shopIdConfigured: boolean;
+    storefrontIdConfigured: boolean;
+  };
   /** Which capabilities really exist today — the UI renders from this, not from hope. */
   capabilities: {
     /** Storefront read access: list and search products. */
@@ -44,6 +54,9 @@ export type ShopifyConnection = {
 
 export type ShopifyProductSummary = {
   handle: string;
+  /** Shopify's own global id (gid://shopify/Product/...) — carried forward so
+   *  a full ShopifyProductLink can be built without a second lookup. */
+  gid: string;
   title: string;
   imageUrl: string | null;
   /** Formatted for display, e.g. "12,90 €". Null when the product has no price. */
@@ -60,7 +73,10 @@ const DEFAULT_API_VERSION = '2025-01';
 /** Storefront lookups are a UI convenience — a slow shop must not hang a page. */
 const SEARCH_TIMEOUT_MS = Math.min(15_000, GEMINI_REQUEST_TIMEOUT_MS);
 
-function credentials(): { domain: string; token: string; version: string } | null {
+/** Exported for commerce-config.ts, which needs the SAME domain/token/version
+ *  this module already resolves for search — never a second reading of the
+ *  three env vars. */
+export function credentials(): { domain: string; token: string; version: string } | null {
   const domain = (process.env.PUBLIC_SHOPIFY_STORE_DOMAIN ?? '').trim();
   const token = (process.env.PUBLIC_SHOPIFY_STOREFRONT_TOKEN ?? '').trim();
   if (!domain || !token) return null;
@@ -81,6 +97,10 @@ export function connection(): ShopifyConnection {
     configured: creds !== null,
     domain: creds?.domain ?? null,
     apiVersion: creds?.version ?? null,
+    commerceIdentity: {
+      shopIdConfigured: (process.env.SHOPIFY_SHOP_ID ?? '').trim() !== '',
+      storefrontIdConfigured: (process.env.SHOPIFY_STOREFRONT_ID ?? '').trim() !== '',
+    },
     capabilities: {
       searchProducts: creds !== null,
       // NOT A ROADMAP ENTRY — a fact. Creating a product needs the Admin API,
@@ -96,6 +116,7 @@ const SEARCH_QUERY = `
     products(first: $first, query: $query) {
       edges {
         node {
+          id
           handle
           title
           featuredImage { url altText }
@@ -108,6 +129,7 @@ const SEARCH_QUERY = `
 `;
 
 type GraphQlProduct = {
+  id: string;
   handle: string;
   title: string;
   featuredImage: { url: string | null } | null;
@@ -184,6 +206,7 @@ export async function searchProducts(query: string, first = 20): Promise<Product
       ok: true,
       products: edges.map(({ node }) => ({
         handle: node.handle,
+        gid: node.id,
         title: node.title,
         imageUrl: node.featuredImage?.url ?? null,
         price: formatPrice(node.variants?.edges?.[0]?.node?.price),

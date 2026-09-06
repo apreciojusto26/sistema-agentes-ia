@@ -69,6 +69,7 @@ import { JOBS_DIR, OUTPUTS_DIR, REPO_ROOT, GEMINI_MODEL } from './config';
  */
 export { PIPELINE_STAGES, type PipelineStageName } from '../shared/pipeline-stages';
 import { readGenerationManifest } from './generation-manifest';
+import { resolveShopifyProductLink, buildCommerceEnv } from './shopify/commerce-config';
 import { resolveSourceIdentity, formatSourceIdentity } from '../../../scripts/lib/source-identity.mjs';
 import type { SourceProductIdentity } from '../../../scripts/lib/source-identity.mjs';
 import { PIPELINE_STAGES } from '../shared/pipeline-stages';
@@ -495,6 +496,8 @@ export type PipelineRecord = {
   sourceUrl: string | null;
   productId: string | null;
   shopifyHandle: string | null;
+  /** The GID this run's ShopifyProductLink carried, or null (preview, or a handle with no resolved GID). */
+  shopifyProductGid: string | null;
   commerceMode: CommerceMode;
   status: 'running' | 'succeeded' | 'failed';
   currentStage: PipelineStageName | null;
@@ -572,6 +575,13 @@ export type PipelineInput = {
   slug: string;
   /** Operator-supplied. Its PRESENCE selects commerce mode (Fase 5). */
   shopifyHandle?: string | null;
+  /**
+   * The product's Shopify GID, when the picker resolved one (Fase "First
+   * Commerce"). `null` for a regeneration prefilled from a run that predates
+   * this field, or for a handle typed some other way — `ShopifyProductLink
+   * .productGid` stays nullable for exactly this reason.
+   */
+  shopifyProductGid?: string | null;
   /** F3: the operator's commercial configuration — identity, policy and packs. */
   merchantPath?: string | null;
   /**
@@ -593,7 +603,7 @@ export type PipelineInput = {
 export type PipelineDeps = {
   registry: JobRegistry;
   /** Seam for tests: replaces the real `astro build` spawn. */
-  runBuild?: (outDir: string) => Promise<{ ok: boolean; message: string | null }>;
+  runBuild?: (outDir: string, extraEnv?: Record<string, string>) => Promise<{ ok: boolean; message: string | null }>;
   /**
    * Seam for tests: replaces the real `check-readiness.mjs` subprocess.
    *
@@ -625,12 +635,23 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
   const runBuild = deps.runBuild ?? defaultRunBuild;
   const checkReadiness = deps.readReadiness ?? readReadiness;
 
+  // COMMERCE IDENTITY, RESOLVED ONCE, HERE. `shopify/commerce-config.ts` is
+  // the one place a ShopifyProductLink is built — never in React, never from
+  // Content, never defaulted inside FixedProductData. Reused below for the
+  // record, for what the generate job is told to sell (the SAME authority,
+  // never a second one that could name a different product) and for what the
+  // build stage's Astro child receives.
+  const productLinkResolution = resolveShopifyProductLink(
+    input.shopifyHandle ? { handle: input.shopifyHandle, productGid: input.shopifyProductGid ?? null } : null,
+  );
+
   const record: PipelineRecord = {
     pipelineId: `pl_${Date.now().toString(36)}`,
     slug: input.slug,
     sourceUrl: input.url ?? null,
     productId: null,
     shopifyHandle: input.shopifyHandle ?? null,
+    shopifyProductGid: productLinkResolution.status === 'complete' ? productLinkResolution.link.productGid : null,
     // Fase 5's three states. `shopify-live-verified` is NEVER set here: only a
     // real run of scripts/verify-shopify-live.mjs against valid credentials
     // can justify it, and this pipeline never talks to Shopify.
@@ -694,6 +715,23 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
 
   const jobFailure = (job: JobRecord) =>
     job.error?.message ?? `${job.kind} job ended as ${job.status} (exit ${job.exitCode ?? 'n/a'})`;
+
+  // ---- 0. commerce readiness, fail closed --------------------------------
+  //
+  // BEFORE ANY REAL WORK. A shop connection and a picked product both existing
+  // does not mean Commerce can proceed — shopId/storefrontId are the operator's
+  // own one-time config (commerce-config.ts), and an operator who requested
+  // Commerce but has not set them yet must be told THAT, in one sentence, not
+  // watch a full scrape-through-generate run die inside `astro build` with a
+  // stack trace. Preview never reaches this branch: `productLinkResolution` is
+  // `{ status: 'preview' }` whenever no handle was given at all.
+  if (productLinkResolution.status === 'incomplete') {
+    begin('scrape');
+    return fail('scrape', 'Commerce no está completamente configurado', {
+      headline: 'Commerce no está completamente configurado',
+      facts: productLinkResolution.missing.map((m) => ({ label: m, value: 'falta' })),
+    });
+  }
 
   // ---- 1. scrape ---------------------------------------------------------
   /** WHICH PRODUCT this run is about. Null when no provider can identify the URL. */
@@ -1056,7 +1094,12 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
     themePath: input.themePath ?? null,
     // The stage's resolution wins; an explicit input is the escape hatch.
     faviconPath: faviconPath ?? input.faviconPath ?? null,
-    shopifyHandle: input.shopifyHandle ?? null,
+    // DERIVED FROM THE RESOLVED LINK, never straight from input.shopifyHandle.
+    // ProductLink is what Commerce readiness above just verified complete
+    // (or, for preview, the absence that resolution itself represents) — the
+    // single authority a product is named through, so a ProductLink naming
+    // product A and this argv naming product B is not a representable state.
+    shopifyHandle: productLinkResolution.status === 'complete' ? productLinkResolution.link.productHandle : null,
   });
   generateStage.jobId = generateJob.jobId;
   emit();
@@ -1108,7 +1151,20 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps): Pro
   // build does ("does this landing actually compile?"), and a separate stage
   // would change the observable event sequence every existing generation emits.
   begin('build');
-  const build = await runBuild(outDir);
+  // THE PUBLIC STOREFRONT CONFIG THIS ONE BUILD NEEDS — injected into the
+  // `astro check` / `astro build` child processes below, NEVER written to
+  // outputs/<slug>/.env. Preview gets none of it: `{}` changes nothing about
+  // what that child inherits.
+  const commerceEnvResult = productLinkResolution.status === 'complete'
+    ? buildCommerceEnv(productLinkResolution.link, input.siteUrl ?? null)
+    : ({ ok: true, env: {} } as const);
+  if (!commerceEnvResult.ok) {
+    return fail('build', 'Commerce no está completamente configurado', {
+      headline: 'Commerce no está completamente configurado',
+      facts: commerceEnvResult.missing.map((m) => ({ label: m, value: 'falta' })),
+    });
+  }
+  const build = await runBuild(outDir, commerceEnvResult.env);
   if (!build.ok) return fail('build', build.message ?? 'astro build failed');
   pass('build', build.message ?? 'prerendered');
 
@@ -1446,7 +1502,10 @@ export function readReadiness(outDir: string): Promise<ReadinessReport | null> {
  * Uses the landing's OWN node_modules when present; otherwise installs them,
  * because a generated landing ships none on purpose.
  */
-export async function defaultRunBuild(outDir: string): Promise<{ ok: boolean; message: string | null }> {
+export async function defaultRunBuild(
+  outDir: string,
+  extraEnv: Record<string, string> = {},
+): Promise<{ ok: boolean; message: string | null }> {
   const local = path.join(outDir, 'node_modules/.bin/astro');
 
   // A generated landing ships no node_modules on purpose (portability), so
@@ -1480,12 +1539,17 @@ export async function defaultRunBuild(outDir: string): Promise<{ ok: boolean; me
     };
   }
 
-  const checked = await runOnce(local, ['check'], outDir);
+  // BOTH COMMANDS GET THE COMMERCE ENV, NOT ONLY THE BUILD. `astro check`
+  // resolves the same `import.meta.env` catalog.ts reads (assertEnv() throws
+  // without it) — a Commerce landing that reached `check` before `build` did
+  // would fail there first, with the same missing-credential message, on a
+  // command the Admin thought was env-agnostic.
+  const checked = await runOnce(local, ['check'], outDir, extraEnv);
   if (!checked.ok) {
     return { ok: false, message: `astro check failed — ${checked.message ?? 'unknown error'}` };
   }
 
-  const built = await runOnce(local, ['build'], outDir);
+  const built = await runOnce(local, ['build'], outDir, extraEnv);
   if (!built.ok) return built;
   return { ok: true, message: 'type-checked and prerendered' };
 }
@@ -1512,19 +1576,30 @@ export async function defaultRunBuild(outDir: string): Promise<{ ok: boolean; me
  */
 const VITE_ENV_KEYS = ['DEV', 'PROD', 'MODE', 'SSR', 'TEST', 'BASE_URL'];
 
-function productionEnv(): NodeJS.ProcessEnv {
+/**
+ * @param extraEnv Commerce config for THIS build only (buildCommerceEnv()) —
+ *   spread in AFTER the base production env, so it is never shadowed by
+ *   whatever this Admin process happens to be running under. Empty for
+ *   Preview and for every non-build spawn (`pnpm install`).
+ */
+function productionEnv(extraEnv: Record<string, string> = {}): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env, NODE_ENV: 'production' };
   for (const key of Object.keys(env)) {
     if (VITE_ENV_KEYS.includes(key) || key.startsWith('VITEST')) delete env[key];
   }
-  return env;
+  return { ...env, ...extraEnv };
 }
 
-function runOnce(bin: string, args: string[], cwd: string): Promise<{ ok: boolean; message: string | null }> {
+function runOnce(
+  bin: string,
+  args: string[],
+  cwd: string,
+  extraEnv: Record<string, string> = {},
+): Promise<{ ok: boolean; message: string | null }> {
   return new Promise((resolve) => {
     // stdin IGNORED. Nothing here is interactive, and a child that decides to
     // ask a question on a pipe nobody writes to does not fail — it waits.
-    const child = spawn(bin, args, { cwd, env: productionEnv(), stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(bin, args, { cwd, env: productionEnv(extraEnv), stdio: ['ignore', 'pipe', 'pipe'] });
     let stderr = '';
     child.stderr.on('data', (c) => {
       stderr += String(c);

@@ -19,6 +19,7 @@ export type StartPipelineBody = {
   scrapeJobId?: string;
   slug?: string;
   shopifyHandle?: string | null;
+  shopifyProductGid?: string | null;
   siteUrl?: string | null;
   force?: boolean;
 };
@@ -130,6 +131,7 @@ export function registerPipelineRoutes(app: FastifyInstance, registry: JobRegist
           scrapeJobId: body.scrapeJobId,
           slug: body.slug!,
           shopifyHandle: body.shopifyHandle?.trim() ? body.shopifyHandle.trim() : null,
+          shopifyProductGid: body.shopifyProductGid?.trim() ? body.shopifyProductGid.trim() : null,
           siteUrl: body.siteUrl?.trim() ? body.siteUrl.trim() : null,
           force: body.force ?? false,
         },

@@ -105,6 +105,7 @@ describe('the product lookup', () => {
           edges: [
             {
               node: {
+                id: 'gid://shopify/Product/1',
                 handle: 'tubo-rgb',
                 title: 'Tubo de luz RGB',
                 featuredImage: { url: 'https://cdn.shopify.com/a.jpg' },
@@ -124,6 +125,7 @@ describe('the product lookup', () => {
     expect(result.products).toEqual([
       {
         handle: 'tubo-rgb',
+        gid: 'gid://shopify/Product/1',
         title: 'Tubo de luz RGB',
         imageUrl: 'https://cdn.shopify.com/a.jpg',
         price: expect.stringContaining('12,90'),
@@ -226,11 +228,14 @@ describe('the Admin does not grow a second commerce implementation', () => {
 describe('the picked product reaches the landing, and only as a PRODUCT', () => {
   const read = (rel: string) => readFileSync(path.join(REPO_ROOT, rel), 'utf-8');
 
-  test('UI selection carries a handle, not a shop or a token', () => {
+  test('UI selection carries a handle and a GID, never a shop or a token', () => {
     const section = read('admin/src/client/components/ShopifySection.tsx');
-    // The picker writes the handle the operator CHOSE. It never types one.
-    expect(section).toMatch(/onChange\(p\.handle\)/);
+    // The picker writes the handle AND gid the operator CHOSE — both real
+    // Shopify product data. It never types either, and it never touches shop
+    // or storefront identity, which live in server-side config.
+    expect(section).toMatch(/onChange\(\{ handle: p\.handle, gid: p\.gid \}\)/);
     expect(section, 'the client handles a token').not.toMatch(/StorefrontAccessToken|storefrontToken/);
+    expect(section, 'the client handles shop/storefront identity').not.toMatch(/SHOPIFY_SHOP_ID|SHOPIFY_STOREFRONT_ID/);
   });
 
   test('the Admin server passes it through as shopifyHandle', () => {
@@ -258,13 +263,29 @@ describe('the picked product reaches the landing, and only as a PRODUCT', () => 
     }
   });
 
-  test('a full ShopifyProductLink is NOT constructed from a handle — and that is correct', () => {
-    // THE SEPARATION, ENFORCED RATHER THAN DESCRIBED. ShopifyProductLink needs
-    // shopId and storefrontId as well as the handle: SHOP and STOREFRONT are
-    // server-side configuration the generator does not hold, so it passes
-    // `null` — a preview — instead of assembling a link out of the one level
-    // it does know. Using the handle as a stand-in for shop identity is the
-    // exact conflation this test exists to prevent.
+  test('a full ShopifyProductLink IS now constructed — from Commerce config, never fabricated from the handle', () => {
+    // BEFORE (Fase "First Commerce" audit): shopId/storefrontId were nowhere
+    // the generator could reach, so it passed `shopifyProductLink: null` —
+    // always a preview from the generator's own point of view — and the
+    // template's `resolveProductHandle()` read `PUBLIC_SHOPIFY_PRODUCT_HANDLE`
+    // directly, a SECOND authority independent of any link.
+    //
+    // NOW: the Admin server holds shop/storefront identity as its own
+    // one-time config (SHOPIFY_SHOP_ID / SHOPIFY_STOREFRONT_ID —
+    // shopify/commerce-config.ts), one layer above the generator, and builds
+    // the link THERE. The separation this test used to pin — never derive
+    // shopId/storefrontId from something that identifies a different level —
+    // is enforced the same way, just one boundary further up: still never
+    // the domain, never the token, never the handle.
+    const config = read('admin/src/server/shopify/commerce-config.ts');
+    expect(config).toMatch(/SHOPIFY_SHOP_ID/);
+    expect(config).toMatch(/SHOPIFY_STOREFRONT_ID/);
+    expect(config, 'shopId derived from the domain').not.toMatch(/shopId:\s*creds\.domain/);
+    expect(config, 'storefrontId derived from the token').not.toMatch(/storefrontId:\s*creds\.token/);
+    expect(config, 'storefrontId derived from the handle').not.toMatch(/storefrontId:\s*(handle|selection\.handle)/);
+
+    // The generator itself still holds only a handle — construction happens
+    // one layer up, before it is ever invoked, so this literal is unchanged.
     const generator = read('scripts/generate-landing.mjs');
     expect(generator).toMatch(/shopifyProductLink: null,/);
     const types = read('content/landing-astravibe/src/types/fixed-product-data.ts');
@@ -281,8 +302,11 @@ describe('the picked product reaches the landing, and only as a PRODUCT', () => 
     // Four conditions are listed separately so none hides behind another.
     const section = read('admin/src/client/components/ShopifySection.tsx');
     for (const label of [
-      'Tienda conectada',
-      'Producto vinculado',
+      'Shop ID configurado',
+      'Storefront ID configurado',
+      'Storefront API conectada',
+      'Producto seleccionado',
+      'Product GID disponible',
       'Dominio configurado',
       'Vendedor configurado',
     ]) {

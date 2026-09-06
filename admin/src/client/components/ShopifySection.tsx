@@ -29,7 +29,15 @@ import type { ShopifyConnection, ShopifyProductSummary } from '../../server/shop
 export type ShopifySectionProps = {
   /** The chosen product's handle, or null for Preview. Owned by the parent. */
   handle: string | null;
-  onChange: (handle: string | null) => void;
+  /**
+   * The chosen product's Shopify GID, when the picker resolved one. Owned by
+   * the parent, mirroring `handle` — `null` for Preview, and also legitimately
+   * null for a handle carried forward from before this field existed (a
+   * regeneration prefill). ShopifyProductLink.productGid is nullable for the
+   * same reason.
+   */
+  productGid: string | null;
+  onChange: (selection: { handle: string; gid: string | null } | null) => void;
   /** The landing's public origin, for the readiness summary. Owned by the parent. */
   siteUrl: string;
   disabled: boolean;
@@ -66,7 +74,7 @@ type Picker =
   | { state: 'error'; message: string }
   | { state: 'ready'; products: ShopifyProductSummary[] };
 
-export default function ShopifySection({ handle, onChange, siteUrl, disabled }: ShopifySectionProps) {
+export default function ShopifySection({ handle, productGid, onChange, siteUrl, disabled }: ShopifySectionProps) {
   const [connection, setConnection] = useState<ShopifyConnection | null>(null);
   const [merchantConfigured, setMerchantConfigured] = useState<boolean | null>(null);
   const [picker, setPicker] = useState<Picker>({ state: 'closed' });
@@ -80,7 +88,17 @@ export default function ShopifySection({ handle, onChange, siteUrl, disabled }: 
       .then((c) => alive && setConnection(c))
       // A status endpoint that cannot be reached is reported as "not
       // connected", which is what it means for the operator.
-      .catch(() => alive && setConnection({ configured: false, domain: null, apiVersion: null, capabilities: { searchProducts: false, createProduct: false } }));
+      .catch(
+        () =>
+          alive &&
+          setConnection({
+            configured: false,
+            domain: null,
+            apiVersion: null,
+            commerceIdentity: { shopIdConfigured: false, storefrontIdConfigured: false },
+            capabilities: { searchProducts: false, createProduct: false },
+          }),
+      );
     void fetch('/api/health')
       .then((r) => r.json() as Promise<{ checks?: { merchantConfig?: boolean } }>)
       .then((h) => alive && setMerchantConfigured(h.checks?.merchantConfig === true))
@@ -184,8 +202,21 @@ export default function ShopifySection({ handle, onChange, siteUrl, disabled }: 
           origin and a seller, and each is listed on its own so none of them
           hides behind the others. */}
       <ul className="mt-2 space-y-0.5 border-t border-hairline-soft pt-2">
-        <ReadinessRow label="Tienda conectada" ok={connected} detail={connection?.domain ?? undefined} />
-        <ReadinessRow label="Producto vinculado" ok={handle !== null} detail={handle ?? 'preview'} />
+        <ReadinessRow
+          label="Shop ID configurado"
+          ok={connection?.commerceIdentity?.shopIdConfigured === true}
+        />
+        <ReadinessRow
+          label="Storefront ID configurado"
+          ok={connection?.commerceIdentity?.storefrontIdConfigured === true}
+        />
+        <ReadinessRow label="Storefront API conectada" ok={connected} detail={connection?.domain ?? undefined} />
+        <ReadinessRow label="Producto seleccionado" ok={handle !== null} detail={handle ?? 'preview'} />
+        <ReadinessRow
+          label="Product GID disponible"
+          ok={productGid !== null}
+          detail={handle === null ? 'preview' : productGid === null ? 'sólo handle' : undefined}
+        />
         <ReadinessRow
           label="Dominio configurado"
           ok={siteUrl.trim() !== ''}
@@ -247,9 +278,9 @@ export default function ShopifySection({ handle, onChange, siteUrl, disabled }: 
                   <button
                     type="button"
                     onClick={() => {
-                      // The handle is what the generator takes today — used
+                      // Handle AND gid — both real Shopify data, both used
                       // internally, never typed by the operator.
-                      onChange(p.handle);
+                      onChange({ handle: p.handle, gid: p.gid });
                       setChosen(p);
                       setPicker({ state: 'closed' });
                     }}

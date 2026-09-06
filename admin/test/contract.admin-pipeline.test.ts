@@ -24,7 +24,23 @@ const temps: string[] = [];
 afterEach(() => {
   while (temps.length) rmSync(temps.pop()!, { recursive: true, force: true });
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
 });
+
+/**
+ * Everything a real operator configures once for Commerce — see
+ * shopify/commerce-config.ts. Without SHOPIFY_SHOP_ID/_STOREFRONT_ID any
+ * shopifyHandle now fails closed before scrape even begins; without the
+ * three PUBLIC_SHOPIFY_* it fails closed at the build stage instead. A test
+ * whose subject is what happens LATER in a commerce run needs both.
+ */
+const withCommerceIdentity = () => {
+  vi.stubEnv('SHOPIFY_SHOP_ID', 'gid://shopify/Shop/1');
+  vi.stubEnv('SHOPIFY_STOREFRONT_ID', 'headless-storefront-1');
+  vi.stubEnv('PUBLIC_SHOPIFY_STORE_DOMAIN', 'tienda.myshopify.com');
+  vi.stubEnv('PUBLIC_SHOPIFY_STOREFRONT_TOKEN', 'a-public-storefront-token');
+  vi.stubEnv('PUBLIC_SHOPIFY_API_VERSION', '2025-01');
+};
 
 /** A scrape archive that looks exactly like a real one. */
 function fakeArchive() {
@@ -291,6 +307,7 @@ describe('commerce modes are three distinct states', () => {
   });
 
   it('a handle -> commerce-configured, and the handle is forwarded verbatim', async () => {
+    withCommerceIdentity();
     const fake = fakeRegistry({ archive: fakeArchive(), outDir: fakeOutput(true) });
     const rec = await runPipeline(
       { url: 'https://example.com/item/1', slug: 'zz-pipe', shopifyHandle: 'selfie-vlog-monitor' },
@@ -310,6 +327,7 @@ describe('commerce modes are three distinct states', () => {
   });
 
   it('commerce mode requires the .env the handle produced', async () => {
+    withCommerceIdentity();
     const fake = fakeRegistry({ archive: fakeArchive(), outDir: fakeOutput(false) });
     const rec = await runPipeline(
       { url: 'https://example.com/item/1', slug: 'zz-pipe', shopifyHandle: 'h' },
@@ -421,7 +439,7 @@ describe('the admin does NOT reimplement any agent', () => {
     // A third `spawn(` would be a second runner, which is the regression.
     const spawns = [...src.matchAll(/\bspawn\(/g)];
     expect(spawns).toHaveLength(2);
-    expect(src).toMatch(/function runOnce\(bin: string, args: string\[\], cwd: string\)/);
+    expect(src).toMatch(/function runOnce\(\s*bin: string,\s*args: string\[\],\s*cwd: string,/);
     expect(src).toMatch(/scripts\/check-readiness\.mjs/);
     // And neither of them is an agent. Asserted on STRING LITERALS rather than
     // on the prose: the file's header documents which script each stage
