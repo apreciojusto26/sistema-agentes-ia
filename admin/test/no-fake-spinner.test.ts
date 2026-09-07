@@ -1,9 +1,10 @@
 // Structural enforcement layer 1 of the "no fake spinner" contract (design
 // §6, task F9/F10): a static source-scan proving ManualArtifactPanel.tsx
-// does NOT import LiveActivity.tsx — the ONLY animating component in the
-// app (spec R8 "Honest UI"). This is deliberately a text-level check, not a
-// rendering test: the point is that even ADDING the import is caught before
-// any code inside it could run.
+// does NOT import LiveActivity.tsx — one of two animating components in the
+// app (spec R8 "Honest UI"; the other, AgentAvatar.tsx, was added later and
+// is allowlisted below on the same honesty terms). This is deliberately a
+// text-level check, not a rendering test: the point is that even ADDING the
+// import is caught before any code inside it could run.
 //
 // Only actual `import` statements are scanned (comment lines are stripped
 // first) — the file's own doc comments are allowed to mention these names
@@ -90,12 +91,32 @@ describe('no-fake-spinner (EXTENDED — design §9.4, D4a: agents-dashboard-visu
     expect(code).not.toMatch(/animate-/);
   });
 
-  it('LiveActivity.tsx is the ONLY file under admin/src/client containing `animate-` (whole-tree hardening)', () => {
+  it('LiveActivity.tsx and AgentAvatar.tsx are the ONLY files under admin/src/client containing `animate-` (whole-tree hardening)', () => {
+    // EXTENDED, DELIBERATELY (agent-avatar-running-ring): AgentAvatar's ring
+    // pings while `block.status === 'running'` — pipeline-blocks.ts's rollUp()
+    // derives that status purely from the SAME server-reported PipelineStage
+    // /JobRecord statuses this app already trusts everywhere else, never a
+    // client-side guess or an optimistic placeholder. It is a coarser signal
+    // than LiveActivity's `runningEvidence(job)` (which additionally proves a
+    // live pid) — this animation trades that extra proof for covering EVERY
+    // agent block, including the assisted ones runningEvidence does not reach
+    // — but it is still bound to a REAL reported state, never decorative, so
+    // it is added to the allowlist rather than exempted from the rule.
     const files = walk(CLIENT_SRC);
     const offenders = files
       .filter((f) => /animate-/.test(stripLineComments(readFileSync(f, 'utf8'))))
-      .map((f) => path.relative(CLIENT_SRC, f));
-    expect(offenders).toEqual(['components/LiveActivity.tsx']);
+      .map((f) => path.relative(CLIENT_SRC, f))
+      .sort();
+    expect(offenders).toEqual(['components/AgentAvatar.tsx', 'components/LiveActivity.tsx']);
+  });
+
+  it('sanity check: AgentAvatar.tsx pings ONLY when block.status is genuinely running', () => {
+    const source = readFileSync(path.join(CLIENT_SRC, 'components/AgentAvatar.tsx'), 'utf8');
+    expect(source).toMatch(/animate-ping/);
+    // The animate-ping span is gated behind this exact condition — not
+    // rendered unconditionally and not gated on anything weaker (a hover
+    // state, a prop default, etc).
+    expect(source).toMatch(/block\.status === 'running' &&/);
   });
 
   it('StageChecklist.tsx imports no job/liveness-shaped module (design §4 prop-surface claim)', () => {

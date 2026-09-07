@@ -66,7 +66,11 @@ export type ShopifySectionProps = {
 function ReadinessRow({ label, ok, detail }: { label: string; ok: boolean; detail?: string }) {
   return (
     <li className="flex items-baseline gap-2 text-[11px]">
-      <span aria-hidden="true" className={ok ? 'text-state-pass' : 'text-ink-faint'}>
+      {/* state-done / state-failed — the tokens this app's design system
+          actually declares (styles.css). `state-pass` was never one of
+          them, which is why every check here used to render pale grey
+          regardless of ok. */}
+      <span aria-hidden="true" className={ok ? 'text-state-done' : 'text-state-failed'}>
         {ok ? '✓' : '✗'}
       </span>
       <span className={ok ? 'text-ink-soft' : 'text-ink-faint'}>{label}</span>
@@ -138,7 +142,7 @@ export default function ShopifySection({ handle, productGid, onChange, siteUrl, 
         <span className="flex items-center gap-1.5 text-[11px] text-ink-soft">
           <span
             aria-hidden="true"
-            className={`inline-block h-2 w-2 rounded-full ${connected ? 'bg-state-pass' : 'bg-ink-faint'}`}
+            className={`inline-block h-2 w-2 rounded-full ${connected ? 'bg-state-done' : 'bg-ink-faint'}`}
           />
           {connection === null
             ? 'Comprobando conexión…'
@@ -196,7 +200,7 @@ export default function ShopifySection({ handle, productGid, onChange, siteUrl, 
           type="button"
           disabled
           title="Crear productos requiere la Admin API, que todavía no está conectada."
-          className="cursor-not-allowed rounded-lg border border-hairline bg-panel px-3 py-1.5 text-[12px] text-ink-faint"
+          className="cursor-not-allowed rounded-lg border border-[#95BF47] bg-panel px-3 py-1.5 text-[12px] text-ink-faint"
         >
           Crear producto en Shopify
           <span className="ml-1.5 rounded-full bg-panel-muted px-1.5 py-0.5 text-[10px]">Próximamente</span>

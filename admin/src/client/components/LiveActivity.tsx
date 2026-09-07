@@ -1,5 +1,7 @@
-// THE ONLY animating component in the app (design §6, spec R8 "Honest UI").
-// `evidence` is a REQUIRED `RunningEvidence` — the only way to construct one
+// One of two animating surfaces in the app — the other is AgentAvatar's own
+// running ring — both bound by the SAME rule (design §6, spec R8 "Honest
+// UI"): the pulse plays exactly when the state it depicts is real, never
+// before or after. `evidence` is a REQUIRED `RunningEvidence` — the only way to construct one
 // is `runningEvidence(job)` (admin/src/shared/running-evidence.ts), which
 // returns non-null ONLY for a job with status 'running' AND a real pid AND
 // a stage genuinely marked 'running'. There is no path to render this

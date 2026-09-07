@@ -45,12 +45,19 @@ export default function AgentAvatar({ block, size = 40 }: AgentAvatarProps) {
 
   return (
     <span
-      className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-panel-muted ring-2 ${
+      className={`relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-panel-muted ring-2 ${
         RING[block.status]
       } ${dim} ${dimmed ? 'opacity-45' : ''}`}
       style={size === 52 ? { height: 52, width: 52 } : undefined}
       aria-hidden="true"
     >
+      {/* THE SAME HONESTY RULE LiveActivity FOLLOWS: this pings ONLY while
+          block.status genuinely IS 'running' — a real, reported pipeline
+          state, never a decoration playing regardless of what is actually
+          happening. */}
+      {block.status === 'running' && (
+        <span className="absolute inset-0 animate-ping rounded-full bg-state-running opacity-40" />
+      )}
       {avatarSrc ? (
         // Decorative: both call sites (PipelineColumn, ActiveStagePanel) render
         // `meta.label` as visible text beside the badge, so a named alt would
