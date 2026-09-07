@@ -200,7 +200,7 @@ export default function ShopifySection({ handle, productGid, onChange, siteUrl, 
           type="button"
           disabled
           title="Crear productos requiere la Admin API, que todavía no está conectada."
-          className="cursor-not-allowed rounded-lg border border-[#95BF47] bg-panel px-3 py-1.5 text-[12px] text-ink-faint"
+          className="cursor-not-allowed rounded-lg border border-[#95BF47] bg-panel px-3 py-1.5 text-[12px] text-[#95BF47] transition hover:bg-[#95BF47] hover:text-black"
         >
           Crear producto en Shopify
           <span className="ml-1.5 rounded-full bg-panel-muted px-1.5 py-0.5 text-[10px]">Próximamente</span>
