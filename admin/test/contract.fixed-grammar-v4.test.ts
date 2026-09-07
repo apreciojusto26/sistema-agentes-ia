@@ -39,23 +39,37 @@ const V4 = 'ef688830cb98d8e1cebe782db85c1f0ce89a30725d49d559b18a1dda2a90bd5c';
 const ARTIFACT = path.join(REPO_ROOT, 'scripts/lib/ASTRAVIBE_FIXED_STRUCTURAL_GRAMMAR_V4.txt');
 
 /**
- * CASE B, REAL: outputs/1005007345199501 is a genuine build already carrying
- * SITE_URL + a real product photograph — verified directly against its own
- * .env, not assumed. CASE A is derived from it by removing exactly the one
- * line Base.astro's own source shows is the ONLY thing SITE_URL changes on
- * this page (confirmed by grepping the whole template for `Astro.site`:
- * Base.astro's og:image and three /legal/ routes, none of which are
- * index.astro) — never a fabricated page.
+ * CASE A, A STABLE SNAPSHOT — not read live from outputs/1005007345199501.
+ *
+ * That folder is a REAL landing this repo's own FIRST COMMERCE work
+ * regenerates for real (scrape, content, Shopify, astro build) — its
+ * dist/client/index.html is a genuine, deliberately-changing artifact, not a
+ * fixture. Reading it live here once made this suite pass or fail on
+ * whatever a LATER, unrelated real pipeline run happened to leave on disk —
+ * found for real: a live rebuild without SITE_URL (removing the stale value
+ * FIRST COMMERCE's own report explains) flipped these tests from green to
+ * red with no code change of their own.
+ *
+ * fixtures/real-landing/index-no-site-url.html is a ONE-TIME COPY of that
+ * same real build (captured after the fix, SITE_URL genuinely absent) —
+ * frozen on purpose, never touched by a real pipeline run again. CASE B is
+ * derived from it by ADDING BACK exactly the one line Base.astro's source
+ * shows is the ONLY thing SITE_URL changes on this page (confirmed by
+ * grepping the whole template for `Astro.site`: Base.astro's og:image and
+ * three /legal/ routes, none of which are index.astro) — the real value this
+ * same landing carried with SITE_URL configured, not a fabricated one.
  */
-const REAL_HTML = path.join(REPO_ROOT, 'outputs/1005007345199501/dist/client/index.html');
+const REAL_HTML = path.join(__dirname, 'fixtures/real-landing/index-no-site-url.html');
 const OG_LINE = '<meta property="og:image" content="https://tubo-rgb.bamzuk.com/og-cover.webp">';
-const REAL_BUILD_PRESENT = existsSync(REAL_HTML) && readFileSync(REAL_HTML, 'utf-8').includes(OG_LINE);
+const TWITTER_CARD_LINE = '<meta name="twitter:card" content="summary_large_image">';
+const REAL_BUILD_PRESENT = existsSync(REAL_HTML);
 
-const caseB = () => readFileSync(REAL_HTML, 'utf-8');
-const caseA = () => {
-  const html = caseB();
-  if (!html.includes(OG_LINE)) throw new Error('fixture drifted — og:image line not found verbatim');
-  return html.replace(OG_LINE, '');
+const caseA = () => readFileSync(REAL_HTML, 'utf-8');
+const caseB = () => {
+  const html = caseA();
+  if (html.includes(OG_LINE)) throw new Error('fixture drifted — the snapshot already carries og:image');
+  if (!html.includes(TWITTER_CARD_LINE)) throw new Error('fixture drifted — twitter:card anchor not found');
+  return html.replace(TWITTER_CARD_LINE, `${OG_LINE}${TWITTER_CARD_LINE}`);
 };
 
 describe('the sealed grammar — V4', () => {

@@ -201,6 +201,28 @@ async function runGolden(opts: {
 const validateStep = (record: PipelineRecord, name: string) =>
   record.stages.find((s) => s.name === 'validate')!.steps.find((s) => s.name === name)!;
 
+// A STABLE SNAPSHOT, not outputs/1005007345199501 read live.
+//
+// That folder is a REAL landing this repo's own FIRST COMMERCE work
+// regenerates for real (scrape, content, Shopify, astro build) -- a later,
+// unrelated pipeline run rebuilding it would silently change what these
+// tests start from (found for real: the deleteEnvKey fix flipped a stale
+// og:image tag away, which flipped these tests from green to red with no
+// code change of their own). fixtures/real-landing/index-no-site-url.html is
+// a ONE-TIME COPY of that same real build, captured with SITE_URL genuinely
+// absent -- frozen on purpose, never touched by a real pipeline run again.
+// The "og:image present" variant is derived by ADDING BACK the one real line
+// SITE_URL causes Base.astro to render, same technique
+// contract.fixed-grammar-v4.test.ts uses.
+const REAL_LANDING = path.join(__dirname, 'fixtures/real-landing/index-no-site-url.html');
+const OG_LINE = '<meta property="og:image" content="https://tubo-rgb.bamzuk.com/og-cover.webp">';
+const TWITTER_CARD_LINE = '<meta name="twitter:card" content="summary_large_image">';
+const withOgImage = (html: string): string => {
+  if (html.includes(OG_LINE)) throw new Error('fixture drifted -- the snapshot already carries og:image');
+  if (!html.includes(TWITTER_CARD_LINE)) throw new Error('fixture drifted -- twitter:card anchor not found');
+  return html.replace(TWITTER_CARD_LINE, OG_LINE + TWITTER_CARD_LINE);
+};
+
 describe('the golden fixture passes clean', () => {
   it('all six gates pass and the pipeline succeeds', async () => {
     const { record } = await runGolden();
@@ -214,14 +236,12 @@ describe('the golden fixture passes clean', () => {
 describe('VALIDATION GATES — a demonstrated defect fails the run', () => {
   it('1. Structural Grammar V4: an uncollapsed region fails, never a warning', async () => {
     const outDir = goldenOutput();
-    // No astro build runs in this suite (runBuild is faked), so this test
-    // supplies dist/client/index.html itself — a REAL, currently-verified
-    // landing's REAL built page, read-only, with ONE review card's class list
-    // mutated so its markup matches no shape FIXED_GRAMMAR_V4 declares for
-    // reviews/cards — the exact technique used to design and verify
+    // dist/client/index.html is supplied here from the frozen fixture above
+    // (REAL_LANDING), with ONE review card's class list mutated so its
+    // markup matches no shape FIXED_GRAMMAR_V4 declares for reviews/cards —
+    // the exact technique used to design and verify
     // collectUncollapsedRegions() in the first place. The file on disk under
-    // outputs/ is never written to.
-    const REAL_LANDING = path.resolve(__dirname, '../../outputs/1005007345199501/dist/client/index.html');
+    // fixtures/ is never written to.
     const original = readFileSync(REAL_LANDING, 'utf-8');
     const needle =
       '<article aria-label="1 de 29" class="flex w-[86%] shrink-0 snap-start flex-col rounded-card bg-white p-5 text-left shadow-lift sm:w-[48%] xl:w-[31%]">';
@@ -242,18 +262,12 @@ describe('VALIDATION GATES — a demonstrated defect fails the run', () => {
   //
   // OPTIONAL<OgImageMeta> only asks "if here, is it well-formed" — it cannot
   // see whether SITE_URL or a factual photograph exist, since those facts
-  // never enter the HTML the grammar reads. These two tests exercise the
+  // never enter the HTML the grammar reads. These four tests exercise the
   // SEPARATE cross-check inside validate:grammar that compares the rendered
-  // page against those two facts directly. Both use the same real Case-B
-  // page test #1 already trusts (SITE_URL + a real photograph), unmodified
-  // except for exactly the one fact under test.
-  const REAL_LANDING = path.resolve(__dirname, '../../outputs/1005007345199501/dist/client/index.html');
-  const OG_LINE = '<meta property="og:image" content="https://tubo-rgb.bamzuk.com/og-cover.webp">';
-
+  // page against those two facts directly.
   it('1a. capability=false + og:image present fails — a stray tag with no SITE_URL to justify it', async () => {
     const outDir = goldenOutput();
-    const html = readFileSync(REAL_LANDING, 'utf-8');
-    expect(html).toContain(OG_LINE);
+    const html = withOgImage(readFileSync(REAL_LANDING, 'utf-8'));
     mkdirSync(path.join(outDir, 'dist/client'), { recursive: true });
     writeFileSync(path.join(outDir, 'dist/client/index.html'), html);
     // No src/data/og.ts written at all — no factual photograph declared,
@@ -270,7 +284,7 @@ describe('VALIDATION GATES — a demonstrated defect fails the run', () => {
 
   it('1b. capability=true + og:image absent fails — the tag the facts promised never rendered', async () => {
     const outDir = goldenOutput();
-    const html = readFileSync(REAL_LANDING, 'utf-8').replace(OG_LINE, '');
+    const html = readFileSync(REAL_LANDING, 'utf-8'); // the snapshot's own base state: no og:image
     expect(html).not.toContain('og:image');
     mkdirSync(path.join(outDir, 'dist/client'), { recursive: true });
     writeFileSync(path.join(outDir, 'dist/client/index.html'), html);
@@ -291,7 +305,7 @@ describe('VALIDATION GATES — a demonstrated defect fails the run', () => {
 
   it('1c. capability=true + og:image present passes — SITE_URL + factual OG, Grammar V4 PASS', async () => {
     const outDir = goldenOutput();
-    const html = readFileSync(REAL_LANDING, 'utf-8');
+    const html = withOgImage(readFileSync(REAL_LANDING, 'utf-8'));
     mkdirSync(path.join(outDir, 'dist/client'), { recursive: true });
     writeFileSync(path.join(outDir, 'dist/client/index.html'), html);
     writeFileSync(
@@ -306,7 +320,7 @@ describe('VALIDATION GATES — a demonstrated defect fails the run', () => {
 
   it('1d. capability=false + og:image absent passes — Preview with no SITE_URL, Grammar V4 PASS', async () => {
     const outDir = goldenOutput();
-    const html = readFileSync(REAL_LANDING, 'utf-8').replace(OG_LINE, '');
+    const html = readFileSync(REAL_LANDING, 'utf-8'); // the snapshot's own base state: no og:image
     mkdirSync(path.join(outDir, 'dist/client'), { recursive: true });
     writeFileSync(path.join(outDir, 'dist/client/index.html'), html);
     // No og.ts at all — matches a real Preview generation, which never

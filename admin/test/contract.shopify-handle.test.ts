@@ -193,3 +193,119 @@ describe('no functional dependency on the old hardcoded handle remains', () => {
     expect(catalog()).toMatch(/PUBLIC_SHOPIFY_TEMPLATE_COMPAT === '1'\)\s*return TEMPLATE_COMPAT_HANDLE/);
   });
 });
+
+// ───────────────────────────────────────────────────────────────────────────
+// OUTPUT REPRODUCIBILITY — a regeneration represents its OWN inputs, never a
+// previous run's leftovers.
+//
+// Found for real: a Commerce pipeline run passed siteUrl:null against an
+// output folder an earlier, unrelated manual test had left with a real
+// SITE_URL. writeEnvKey() only ever SETS a key when its input is present —
+// nothing ever REMOVED one when the input went away — so the stale value
+// survived the --force regeneration, astro.config.mjs's configuredSite()
+// picked it up from the file, og:image rendered anyway, and Grammar V4's
+// capability check correctly failed on the mismatch it exists to catch.
+//
+// Own slug, own OUT_DIR: these tests deliberately mutate the SAME output
+// across a sequence of runs (A, then B), so they need a dir nothing else in
+// this file touches, to keep the sequence unambiguous.
+// ───────────────────────────────────────────────────────────────────────────
+describe('output reproducibility — a regeneration represents ONLY its own inputs', () => {
+  const REPRO_SLUG = 'zz-shopify-repro-fixture';
+  const REPRO_OUT_DIR = path.join(REPO_ROOT, 'outputs', REPRO_SLUG);
+
+  function runRepro(extraArgs: string[]) {
+    try {
+      const stdout = execFileSync(
+        process.execPath,
+        [GENERATOR, '--slug', REPRO_SLUG, '--content', MINIMAL_CONTENT, '--force', ...extraArgs],
+        { cwd: REPO_ROOT, encoding: 'utf-8' },
+      );
+      return { status: 0, out: stdout };
+    } catch (err: any) {
+      return { status: err.status ?? 1, out: `${err.stdout ?? ''}${err.stderr ?? ''}` };
+    }
+  }
+  const reproEnv = () => readFileSync(path.join(REPRO_OUT_DIR, '.env'), 'utf-8');
+
+  afterAll(() => rmSync(REPRO_OUT_DIR, { recursive: true, force: true }));
+
+  it('1/2. SITE_URL present -> absent: a later run with none removes the earlier value, never keeps it', () => {
+    rmSync(REPRO_OUT_DIR, { recursive: true, force: true });
+    const a = runRepro(['--site-url', 'https://run-a.example.com']);
+    expect(a.status, a.out).toBe(0);
+    expect(reproEnv()).toMatch(/^SITE_URL=https:\/\/run-a\.example\.com$/m);
+
+    const b = runRepro([]); // no --site-url this time — same slug, --force
+    expect(b.status, b.out).toBe(0);
+    expect(reproEnv()).not.toMatch(/^SITE_URL=/m);
+    expect(reproEnv()).not.toContain('run-a.example.com');
+  });
+
+  it('3. Product handle A -> B: the regenerated output names ONLY B, never A alongside it', () => {
+    rmSync(REPRO_OUT_DIR, { recursive: true, force: true });
+    runRepro(['--shopify-handle', 'product-handle-a']);
+    expect(reproEnv()).toContain('PUBLIC_SHOPIFY_PRODUCT_HANDLE=product-handle-a');
+
+    runRepro(['--shopify-handle', 'product-handle-b']);
+    const env = reproEnv();
+    expect(env).toContain('PUBLIC_SHOPIFY_PRODUCT_HANDLE=product-handle-b');
+    expect(env).not.toContain('product-handle-a');
+    // Exactly one assignment line — never two, never a duplicate.
+    expect([...env.matchAll(/^PUBLIC_SHOPIFY_PRODUCT_HANDLE=.*$/gm)]).toHaveLength(1);
+  });
+
+  it('4. Commerce -> Preview: a later run with no handle leaves no Commerce handle behind', () => {
+    rmSync(REPRO_OUT_DIR, { recursive: true, force: true });
+    runRepro(['--shopify-handle', 'was-commerce-handle']);
+    expect(reproEnv()).toContain('PUBLIC_SHOPIFY_PRODUCT_HANDLE=was-commerce-handle');
+
+    const preview = runRepro([]); // no --shopify-handle -> preview mode
+    expect(preview.status, preview.out).toBe(0);
+    const env = reproEnv();
+    expect(env).toContain('PUBLIC_COMMERCE_MODE=preview');
+    expect(env).not.toMatch(/^PUBLIC_SHOPIFY_PRODUCT_HANDLE=/m);
+    expect(env).not.toContain('was-commerce-handle');
+  });
+
+  it('5. the regenerated state represents ONLY the current run — both SITE_URL and handle together', () => {
+    rmSync(REPRO_OUT_DIR, { recursive: true, force: true });
+    runRepro(['--site-url', 'https://commerce-a.example.com', '--shopify-handle', 'commerce-a-handle']);
+    let env = reproEnv();
+    expect(env).toContain('SITE_URL=https://commerce-a.example.com');
+    expect(env).toContain('PUBLIC_SHOPIFY_PRODUCT_HANDLE=commerce-a-handle');
+
+    // Run B: neither a site nor a handle. Nothing of run A may remain.
+    runRepro([]);
+    env = reproEnv();
+    expect(env).not.toContain('commerce-a.example.com');
+    expect(env).not.toContain('commerce-a-handle');
+    expect(env).not.toMatch(/^SITE_URL=/m);
+    expect(env).not.toMatch(/^PUBLIC_SHOPIFY_PRODUCT_HANDLE=/m);
+    expect(env).toContain('PUBLIC_COMMERCE_MODE=preview');
+  });
+
+  it('6. credentials the operator added by hand survive every regeneration untouched — deleteEnvKey never touches them', () => {
+    rmSync(REPRO_OUT_DIR, { recursive: true, force: true });
+    runRepro(['--site-url', 'https://run-a.example.com']);
+    // Simulate the operator's own manual step: adding the three credentials
+    // by hand, exactly as the generator's own TODO instructs them to.
+    const envPath = path.join(REPRO_OUT_DIR, '.env');
+    writeFileSync(
+      envPath,
+      `${readFileSync(envPath, 'utf-8').replace(/\n*$/, '\n')}` +
+        'PUBLIC_SHOPIFY_STORE_DOMAIN=operator-added.myshopify.com\n' +
+        'PUBLIC_SHOPIFY_STOREFRONT_TOKEN=operator-added-token\n' +
+        'PUBLIC_SHOPIFY_API_VERSION=2025-01\n',
+    );
+
+    // Run B removes SITE_URL (no --site-url passed) — the operator's three
+    // credential lines must survive verbatim, byte for byte.
+    runRepro([]);
+    const env = reproEnv();
+    expect(env).toContain('PUBLIC_SHOPIFY_STORE_DOMAIN=operator-added.myshopify.com');
+    expect(env).toContain('PUBLIC_SHOPIFY_STOREFRONT_TOKEN=operator-added-token');
+    expect(env).toContain('PUBLIC_SHOPIFY_API_VERSION=2025-01');
+    expect(env).not.toMatch(/^SITE_URL=/m);
+  });
+});
